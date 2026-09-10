@@ -184,9 +184,8 @@ sessions rather than hidden as protocol decisions.
 
 <!-- S24 adds OI-S24-* records here. -->
 
-No new non-blocking questions. The unavailable physical-device verification is
-an incomplete mandatory gate recorded in the S24 handoff, not an OPEN_ISSUES
-record.
+No new non-blocking questions. The mandatory physical-device verification is
+complete and recorded in the S24 handoff.
 
 ## S12 inbox
 
