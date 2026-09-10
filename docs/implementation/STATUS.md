@@ -7,12 +7,12 @@
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S00 | W0 | COMPLETED | — | Fable 5.1 high | [S00](handoffs/S00.md) | b56c17f | contracts/governance baseline verified |
-| S10 | W1 | READY | S00 | Terra high | — | — | backend scaffold |
-| S20 | W1 | READY | S00 | Terra high | — | — | Android scaffold |
-| S11 | W2 | PENDING | S10 | Sol high | — | — | persistence |
-| S13 | W2 | PENDING | S00,S10 | Sol xhigh | — | — | text provider/orchestration |
-| S15 | W2 | PENDING | S00,S10 | Sol xhigh | — | — | realtime fake/gateway |
-| S24 | W2 | PENDING | S20 | Sol xhigh | — | — | Android audio |
+| S10 | W1 | COMPLETED | S00 | Terra high | [S10](handoffs/S10.md) | c7a2846 | backend scaffold verified |
+| S20 | W1 | COMPLETED | S00 | Terra high | [S20](handoffs/S20.md) | 065617a | Android scaffold verified; code at 21a31ea |
+| S11 | W2 | READY | S10 | Sol high | — | — | persistence |
+| S13 | W2 | READY | S00,S10 | Sol xhigh | — | — | text provider/orchestration |
+| S15 | W2 | READY | S00,S10 | Sol xhigh | — | — | realtime fake/gateway |
+| S24 | W2 | READY | S20 | Sol xhigh | — | — | Android audio |
 | S12 | W3 | PENDING | S10,S11 | Sol high | — | — | backend auth |
 | S14 | W3 | PENDING | S11,S13 | Sol high | — | — | REST/SSE |
 | S16 | W3 | PENDING | S13,S15 | Fable 5.1 xhigh | — | — | Gemini Live |
@@ -32,7 +32,9 @@
 
 ## Current wave gate
 
-W0 passed. S10 and S20 are ready and have disjoint repository scopes.
+W1 passed. S10 and S20 are integrated; backend and Android compile independently,
+consume the shared contract baseline, and expose stable CI commands. S11, S13,
+S15, and S24 are ready for parallel W2 execution with disjoint scopes.
 
 ## Blocking conditions
 
@@ -43,3 +45,4 @@ None recorded.
 | Wave | Integrated at | Commit | Gate result | Integrator |
 | --- | --- | --- | --- | --- |
 | W0 | 2026-09-10 | b56c17f | PASS | S00 bootstrap |
+| W1 | 2026-09-10 | 065617a | PASS | parallel S10/S20 + wave integration |

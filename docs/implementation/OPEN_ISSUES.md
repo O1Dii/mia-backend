@@ -11,11 +11,12 @@ Integration session обновляет этот индекс после merge.
 | ID | Status | Component | Short question | Current assumption | Revisit by |
 | --- | --- | --- | --- | --- | --- |
 | OI-ARCH-001 | OPEN | Android identity | Какой финальный application ID? | временный уникальный ID до S21 | before S21 |
-| OI-ARCH-002 | OPEN | Android platform | Какой minSdk? | выбрать в S20 по нужным APIs/device targets | S20 |
+| OI-ARCH-002 | RESOLVED | Android platform | Какой minSdk? | API 26 для PoC | resolved in S20 |
 | OI-ARCH-003 | OPEN | Wake word | Какая финальная активационная фраза? | tap-to-talk, затем временная phrase | before S27 |
 | OI-ARCH-004 | OPEN | Tools | Какой внешний read-only tool идёт первым? | system.get_current_datetime, без внешнего API | S17 |
 | OI-ARCH-005 | OPEN | Voice history | Насколько output transcript считается точным текстом ответа? | показывать как transcript с delivery metadata | S31 |
 | OI-ARCH-006 | OPEN | Cost controls | Каковы точные daily/session Gemini limits? | консервативные config defaults | S18 |
+| OI-S20-001 | RESOLVED | Android platform baseline | Какой minSdk использовать в scaffold? | API 26 принят | resolved in W1 |
 
 ## Record template
 
@@ -55,18 +56,18 @@ Integration session обновляет этот индекс после merge.
 
 ### OI-ARCH-002 — Android minSdk
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: architecture
 - Component: Android platform
 - Question: какой minSdk соответствует реальным target devices?
 - Why non-blocking: S20 может выбрать консервативный baseline и документировать его.
-- Current assumption: выбрать минимальный API после проверки Credential Manager/audio/assistant requirements.
+- Current assumption: API 26 (Android 8.0) для PoC; пересмотреть только при несовместимой зависимости или release device-matrix validation.
 - Options: broader device coverage; newer API and simpler implementation.
-- Recommendation: S20 фиксирует решение ADR.
+- Recommendation: использовать API 26 baseline, зафиксированный S20.
 - Affects sessions: S20–S28.
 - Revisit trigger/by: S20.
-- Resolution:
-- Evidence:
+- Resolution: S20 установила `minSdk = 26`, `targetSdk = 36` и `compileSdk = 36`.
+- Evidence: Android `docs/adr/0001-android-min-sdk-26.md`, `gradle/libs.versions.toml`, S20 handoff и успешный W1 Gradle gate.
 
 ### OI-ARCH-003 — Final wake phrase
 
@@ -144,7 +145,7 @@ to the fake provider; real provider behaviour remains owned by later sessions.
 
 ### OI-S20-001 — OI-ARCH-002 minSdk decision update
 
-- Status: DECIDED
+- Status: RESOLVED
 - Source session: S20
 - Component: Android platform baseline
 - Question: what minSdk should the Android PoC scaffold use?
@@ -156,8 +157,8 @@ to the fake provider; real provider behaviour remains owned by later sessions.
 - Revisit trigger/by: before adding a dependency that requires API 27+ or before
   release device-matrix validation.
 - Resolution: S20 set `minSdk = 26` and `targetSdk = 36`; the rationale is
-  recorded in Android ADR-001. The source OI-ARCH-002 record remains for the
-  wave integrator to consolidate under its ownership.
+  recorded in Android ADR-001. The W1 integrator consolidated the decision into
+  OI-ARCH-002.
 - Evidence: `mia-helper-android/docs/adr/0001-android-min-sdk-26.md`,
   `gradle/libs.versions.toml`, and S20 Gradle verification.
 
