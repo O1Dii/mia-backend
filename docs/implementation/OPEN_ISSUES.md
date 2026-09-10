@@ -130,7 +130,8 @@ Integration session обновляет этот индекс после merge.
 
 ## S00 inbox
 
-<!-- S00 adds OI-S00-* records here. -->
+S00 completed with no new session-specific open issues. The provisional Android
+namespace remains tracked by OI-ARCH-001 and ADR-008.
 
 ## S10 inbox
 

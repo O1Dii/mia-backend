@@ -6,9 +6,9 @@
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| S00 | W0 | READY | — | Fable 5.1 high | — | — | first implementation session |
-| S10 | W1 | PENDING | S00 | Terra high | — | — | backend scaffold |
-| S20 | W1 | PENDING | S00 | Terra high | — | — | Android scaffold |
+| S00 | W0 | COMPLETED | — | Fable 5.1 high | [S00](handoffs/S00.md) | b56c17f | contracts/governance baseline verified |
+| S10 | W1 | READY | S00 | Terra high | — | — | backend scaffold |
+| S20 | W1 | READY | S00 | Terra high | — | — | Android scaffold |
 | S11 | W2 | PENDING | S10 | Sol high | — | — | persistence |
 | S13 | W2 | PENDING | S00,S10 | Sol xhigh | — | — | text provider/orchestration |
 | S15 | W2 | PENDING | S00,S10 | Sol xhigh | — | — | realtime fake/gateway |
@@ -32,7 +32,7 @@
 
 ## Current wave gate
 
-W0 is open. Start only S00.
+W0 passed. S10 and S20 are ready and have disjoint repository scopes.
 
 ## Blocking conditions
 
@@ -42,3 +42,4 @@ None recorded.
 
 | Wave | Integrated at | Commit | Gate result | Integrator |
 | --- | --- | --- | --- | --- |
+| W0 | 2026-09-10 | b56c17f | PASS | S00 bootstrap |
