@@ -1,0 +1,430 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/realtime/v1/server-event.schema.json",
+  "title": "MIA realtime v1 server control event",
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "audioFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "sample_rate_hz", "channels"],
+      "properties": {
+        "encoding": { "const": "pcm_s16le" },
+        "sample_rate_hz": { "type": "integer", "enum": [16000, 24000] },
+        "channels": { "const": 1 }
+      }
+    },
+    "eventBase": {
+      "type": "object",
+      "required": ["v", "type", "session_id", "seq", "at", "payload"],
+      "properties": {
+        "v": { "const": 1 },
+        "type": { "type": "string" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "turn_id": { "$ref": "#/$defs/uuid" },
+        "response_id": { "$ref": "#/$defs/uuid" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "at": { "type": "string", "format": "date-time" },
+        "payload": { "type": "object" }
+      }
+    },
+    "transcriptDeltaPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$" }
+      }
+    },
+    "transcriptFinalPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string" },
+        "language": { "type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "errorCode": {
+      "type": "string",
+      "enum": [
+        "bad_request",
+        "validation_error",
+        "authentication_required",
+        "invalid_credentials",
+        "token_expired",
+        "permission_denied",
+        "resource_not_found",
+        "conflict",
+        "idempotency_conflict",
+        "rate_limit_exceeded",
+        "conversation_not_found",
+        "turn_not_found",
+        "realtime_session_not_found",
+        "realtime_protocol_unsupported",
+        "realtime_invalid_event",
+        "realtime_backpressure",
+        "realtime_provider_unavailable",
+        "provider_timeout",
+        "tool_not_found",
+        "tool_invalid_arguments",
+        "tool_permission_denied",
+        "tool_confirmation_required",
+        "tool_execution_failed",
+        "internal_error",
+        "service_unavailable"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "session.ready" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["protocol_version", "input_audio", "output_audio", "max_binary_frame_bytes", "heartbeat_interval_ms"],
+              "properties": {
+                "protocol_version": { "const": 1 },
+                "input_audio": { "$ref": "#/$defs/audioFormat" },
+                "output_audio": { "$ref": "#/$defs/audioFormat" },
+                "max_binary_frame_bytes": { "type": "integer", "minimum": 1280, "maximum": 65536 },
+                "heartbeat_interval_ms": { "type": "integer", "minimum": 1000, "maximum": 60000 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id"],
+          "properties": {
+            "type": { "const": "input_audio.speech_started" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["stream_id", "offset_ms"],
+              "properties": {
+                "stream_id": { "$ref": "#/$defs/uuid" },
+                "offset_ms": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id"],
+          "properties": {
+            "type": { "const": "input_audio.speech_stopped" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["stream_id", "offset_ms"],
+              "properties": {
+                "stream_id": { "$ref": "#/$defs/uuid" },
+                "offset_ms": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id"],
+          "properties": {
+            "type": { "const": "transcript.input.delta" },
+            "payload": { "$ref": "#/$defs/transcriptDeltaPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id"],
+          "properties": {
+            "type": { "const": "transcript.input.final" },
+            "payload": { "$ref": "#/$defs/transcriptFinalPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "response.started" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["modalities"],
+              "properties": {
+                "modalities": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "type": "string", "enum": ["text", "audio"] }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "response.audio.started" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["segment_id", "format"],
+              "properties": {
+                "segment_id": { "$ref": "#/$defs/uuid" },
+                "format": { "$ref": "#/$defs/audioFormat" }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "response.audio.completed" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["segment_id", "audio_bytes", "duration_ms"],
+              "properties": {
+                "segment_id": { "$ref": "#/$defs/uuid" },
+                "audio_bytes": { "type": "integer", "minimum": 0 },
+                "duration_ms": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "transcript.output.delta" },
+            "payload": { "$ref": "#/$defs/transcriptDeltaPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "transcript.output.final" },
+            "payload": { "$ref": "#/$defs/transcriptFinalPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "tool.call.started" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["call_id", "name", "arguments", "requires_confirmation"],
+              "properties": {
+                "call_id": { "$ref": "#/$defs/uuid" },
+                "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+                "arguments": { "type": "object" },
+                "requires_confirmation": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "tool.call.completed" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["call_id", "name", "status"],
+              "properties": {
+                "call_id": { "$ref": "#/$defs/uuid" },
+                "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$" },
+                "status": { "type": "string", "enum": ["succeeded", "failed", "cancelled"] },
+                "result": {},
+                "error": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["code", "message"],
+                  "properties": {
+                    "code": { "$ref": "#/$defs/errorCode" },
+                    "message": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id"],
+          "properties": {
+            "type": { "const": "turn.completed" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status"],
+              "properties": {
+                "status": { "type": "string", "enum": ["completed", "interrupted", "failed"] }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["turn_id", "response_id"],
+          "properties": {
+            "type": { "const": "response.interrupted" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason", "delivered_audio_ms"],
+              "properties": {
+                "reason": { "type": "string", "enum": ["barge_in", "user_request", "disconnect", "provider_cancelled"] },
+                "delivered_audio_ms": { "type": "integer", "minimum": 0 },
+                "last_delivered_seq": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "usage.updated" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["provider_alias", "input_tokens", "output_tokens", "input_audio_ms", "output_audio_ms"],
+              "properties": {
+                "provider_alias": { "type": "string", "minLength": 1 },
+                "model_alias": { "type": "string", "minLength": 1 },
+                "input_tokens": { "type": "integer", "minimum": 0 },
+                "output_tokens": { "type": "integer", "minimum": 0 },
+                "input_audio_ms": { "type": "integer", "minimum": 0 },
+                "output_audio_ms": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "error" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["code", "message", "request_id", "retryable"],
+              "properties": {
+                "code": { "$ref": "#/$defs/errorCode" },
+                "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+                "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                "retryable": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "pong" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["nonce"],
+              "properties": {
+                "nonce": { "type": "string", "minLength": 1, "maxLength": 64 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  ]
+}

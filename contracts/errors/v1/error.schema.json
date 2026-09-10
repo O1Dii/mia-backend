@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/errors/v1/error.schema.json",
+  "title": "MIA v1 error envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "request_id", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "bad_request",
+            "validation_error",
+            "authentication_required",
+            "invalid_credentials",
+            "token_expired",
+            "permission_denied",
+            "resource_not_found",
+            "conflict",
+            "idempotency_conflict",
+            "rate_limit_exceeded",
+            "conversation_not_found",
+            "turn_not_found",
+            "realtime_session_not_found",
+            "realtime_protocol_unsupported",
+            "realtime_invalid_event",
+            "realtime_backpressure",
+            "realtime_provider_unavailable",
+            "provider_timeout",
+            "tool_not_found",
+            "tool_invalid_arguments",
+            "tool_permission_denied",
+            "tool_confirmation_required",
+            "tool_execution_failed",
+            "internal_error",
+            "service_unavailable"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "retryable": { "type": "boolean" },
+        "details": {
+          "type": "object",
+          "description": "Safe structured details; never a provider payload or stack trace",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

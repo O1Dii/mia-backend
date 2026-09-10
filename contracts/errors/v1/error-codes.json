@@ -1,0 +1,152 @@
+[
+  {
+    "code": "bad_request",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The request is invalid"
+  },
+  {
+    "code": "validation_error",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The request data is invalid"
+  },
+  {
+    "code": "authentication_required",
+    "http_status": 401,
+    "retryable": false,
+    "public_message": "Authentication is required"
+  },
+  {
+    "code": "invalid_credentials",
+    "http_status": 401,
+    "retryable": false,
+    "public_message": "The credentials are invalid"
+  },
+  {
+    "code": "token_expired",
+    "http_status": 401,
+    "retryable": true,
+    "public_message": "The access token has expired"
+  },
+  {
+    "code": "permission_denied",
+    "http_status": 403,
+    "retryable": false,
+    "public_message": "This action is not permitted"
+  },
+  {
+    "code": "resource_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The requested resource was not found"
+  },
+  {
+    "code": "conflict",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The request conflicts with current state"
+  },
+  {
+    "code": "idempotency_conflict",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The idempotency key was reused for a different request"
+  },
+  {
+    "code": "rate_limit_exceeded",
+    "http_status": 429,
+    "retryable": true,
+    "public_message": "Too many requests"
+  },
+  {
+    "code": "conversation_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The conversation was not found"
+  },
+  {
+    "code": "turn_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The turn was not found"
+  },
+  {
+    "code": "realtime_session_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The realtime session was not found"
+  },
+  {
+    "code": "realtime_protocol_unsupported",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The realtime protocol version is not supported"
+  },
+  {
+    "code": "realtime_invalid_event",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The realtime event is invalid"
+  },
+  {
+    "code": "realtime_backpressure",
+    "http_status": 503,
+    "retryable": true,
+    "public_message": "The realtime session cannot keep up with the stream"
+  },
+  {
+    "code": "realtime_provider_unavailable",
+    "http_status": 503,
+    "retryable": true,
+    "public_message": "Voice service is temporarily unavailable"
+  },
+  {
+    "code": "provider_timeout",
+    "http_status": 504,
+    "retryable": true,
+    "public_message": "The AI service timed out"
+  },
+  {
+    "code": "tool_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The requested tool is not available"
+  },
+  {
+    "code": "tool_invalid_arguments",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The tool arguments are invalid"
+  },
+  {
+    "code": "tool_permission_denied",
+    "http_status": 403,
+    "retryable": false,
+    "public_message": "The tool call is not permitted"
+  },
+  {
+    "code": "tool_confirmation_required",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The tool call requires confirmation"
+  },
+  {
+    "code": "tool_execution_failed",
+    "http_status": 502,
+    "retryable": true,
+    "public_message": "The tool could not complete the request"
+  },
+  {
+    "code": "internal_error",
+    "http_status": 500,
+    "retryable": true,
+    "public_message": "An internal error occurred"
+  },
+  {
+    "code": "service_unavailable",
+    "http_status": 503,
+    "retryable": true,
+    "public_message": "The service is temporarily unavailable"
+  }
+]

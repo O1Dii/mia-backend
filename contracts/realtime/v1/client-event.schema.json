@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/realtime/v1/client-event.schema.json",
+  "title": "MIA realtime v1 client control event",
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "audioFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "sample_rate_hz", "channels"],
+      "properties": {
+        "encoding": { "const": "pcm_s16le" },
+        "sample_rate_hz": { "type": "integer", "enum": [16000, 24000] },
+        "channels": { "const": 1 }
+      }
+    },
+    "eventBase": {
+      "type": "object",
+      "required": ["v", "type", "session_id", "seq", "at", "payload"],
+      "properties": {
+        "v": { "const": 1 },
+        "type": { "type": "string" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "turn_id": { "$ref": "#/$defs/uuid" },
+        "response_id": { "$ref": "#/$defs/uuid" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "at": { "type": "string", "format": "date-time" },
+        "payload": { "type": "object" }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "session.configure" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["protocol_version", "conversation_id", "locale", "input_audio", "output_audio"],
+              "properties": {
+                "protocol_version": { "const": 1 },
+                "conversation_id": { "$ref": "#/$defs/uuid" },
+                "locale": { "type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$" },
+                "input_audio": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/audioFormat" }
+                },
+                "output_audio": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/audioFormat" }
+                },
+                "capabilities": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "enum": ["barge_in", "input_transcript", "output_transcript"] }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "input_audio.start" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["stream_id", "format"],
+              "properties": {
+                "stream_id": { "$ref": "#/$defs/uuid" },
+                "format": { "$ref": "#/$defs/audioFormat" }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "input_audio.commit" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["stream_id", "audio_bytes", "duration_ms"],
+              "properties": {
+                "stream_id": { "$ref": "#/$defs/uuid" },
+                "audio_bytes": { "type": "integer", "minimum": 0 },
+                "duration_ms": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "required": ["response_id"],
+          "properties": {
+            "type": { "const": "response.cancel" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason"],
+              "properties": {
+                "reason": { "type": "string", "enum": ["barge_in", "user_request", "client_shutdown"] }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "session.close" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason"],
+              "properties": {
+                "reason": { "type": "string", "enum": ["completed", "user_request", "client_shutdown", "protocol_error"] }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/eventBase" },
+        {
+          "properties": {
+            "type": { "const": "ping" },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["nonce"],
+              "properties": {
+                "nonce": { "type": "string", "minLength": 1, "maxLength": 64 }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  ]
+}

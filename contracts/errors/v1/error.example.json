@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "realtime_provider_unavailable",
+    "message": "Voice service is temporarily unavailable",
+    "request_id": "req_01J00000000000000000000000",
+    "retryable": true
+  }
+}
