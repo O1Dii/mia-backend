@@ -142,6 +142,25 @@ to the fake provider; real provider behaviour remains owned by later sessions.
 
 <!-- S20 adds OI-S20-* records here. -->
 
+### OI-S20-001 — OI-ARCH-002 minSdk decision update
+
+- Status: DECIDED
+- Source session: S20
+- Component: Android platform baseline
+- Question: what minSdk should the Android PoC scaffold use?
+- Current assumption: API 26 (Android 8.0).
+- Options: lower floor for broader coverage; API 26 baseline; newer floor.
+- Recommendation: retain API 26 unless a later Credential Manager,
+  assistant-role, or audio dependency proves it incompatible.
+- Affected future sessions: S21–S28.
+- Revisit trigger/by: before adding a dependency that requires API 27+ or before
+  release device-matrix validation.
+- Resolution: S20 set `minSdk = 26` and `targetSdk = 36`; the rationale is
+  recorded in Android ADR-001. The source OI-ARCH-002 record remains for the
+  wave integrator to consolidate under its ownership.
+- Evidence: `mia-helper-android/docs/adr/0001-android-min-sdk-26.md`,
+  `gradle/libs.versions.toml`, and S20 Gradle verification.
+
 ## S11 inbox
 
 <!-- S11 adds OI-S11-* records here. -->
