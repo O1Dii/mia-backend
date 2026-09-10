@@ -135,7 +135,8 @@ namespace remains tracked by OI-ARCH-001 and ADR-008.
 
 ## S10 inbox
 
-<!-- S10 adds OI-S10-* records here. -->
+S10 completed with no new session-specific open issues. Local runtime defaults
+to the fake provider; real provider behaviour remains owned by later sessions.
 
 ## S20 inbox
 
