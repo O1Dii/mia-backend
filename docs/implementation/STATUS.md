@@ -12,7 +12,7 @@
 | S11 | W2 | COMPLETED | S10 | Sol high | [S11](handoffs/S11.md) | 79e1d1d | PostgreSQL persistence verified |
 | S13 | W2 | COMPLETED | S00,S10 | Sol xhigh | [S13](handoffs/S13.md) | dd73636 | text provider/orchestration verified |
 | S15 | W2 | COMPLETED | S00,S10 | Sol xhigh | [S15](handoffs/S15.md) | 52f1a74 | realtime fake/gateway verified |
-| S24 | W2 | COMPLETED | S20 | Sol xhigh | [S24](handoffs/S24.md) | — | Android main at 9a4e7f3; physical device gate verified |
+| S24 | W2 | COMPLETED | S20 | Sol xhigh | [S24](handoffs/S24.md) | 3b7e8eb | Android main at 9a4e7f3; physical device gate verified |
 | S12 | W3 | READY | S10,S11 | Sol high | — | — | backend auth |
 | S14 | W3 | READY | S11,S13 | Sol high | — | — | REST/SSE |
 | S16 | W3 | READY | S13,S15 | Fable 5.1 xhigh | — | — | Gemini Live |
@@ -48,4 +48,4 @@ None recorded.
 | --- | --- | --- | --- | --- |
 | W0 | 2026-09-10 | b56c17f | PASS | S00 bootstrap |
 | W1 | 2026-09-10 | 065617a | PASS | parallel S10/S20 + wave integration |
-| W2 | 2026-09-11 | — | PASS | parallel W2 + S24 physical-device closeout |
+| W2 | 2026-09-11 | 3b7e8eb | PASS | parallel W2 + S24 physical-device closeout |
