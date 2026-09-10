@@ -8,6 +8,9 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4, uuid5
 
+from pydantic import ValidationError
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
+
 from app.modules.realtime.contracts import (
     INPUT_AUDIO_FORMAT,
     OUTPUT_AUDIO_FORMAT,
@@ -31,8 +34,6 @@ from app.modules.realtime.sessions import (
     RealtimeSession,
     RealtimeSessionNotFoundError,
 )
-from pydantic import ValidationError
-from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 
 class ConnectionPhase(StrEnum):

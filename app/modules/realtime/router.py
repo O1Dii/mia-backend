@@ -6,6 +6,10 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
+from fastapi import APIRouter, Header, Request, WebSocket
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.modules.realtime.contracts import (
     INPUT_AUDIO_FORMAT,
     OUTPUT_AUDIO_FORMAT,
@@ -17,9 +21,6 @@ from app.modules.realtime.sessions import (
     RealtimeAuthenticator,
     RealtimeSessionConflictError,
 )
-from fastapi import APIRouter, Header, Request, WebSocket
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateRealtimeSessionRequest(BaseModel):

@@ -9,14 +9,14 @@
 | S00 | W0 | COMPLETED | — | Fable 5.1 high | [S00](handoffs/S00.md) | b56c17f | contracts/governance baseline verified |
 | S10 | W1 | COMPLETED | S00 | Terra high | [S10](handoffs/S10.md) | c7a2846 | backend scaffold verified |
 | S20 | W1 | COMPLETED | S00 | Terra high | [S20](handoffs/S20.md) | 065617a | Android scaffold verified; code at 21a31ea |
-| S11 | W2 | READY | S10 | Sol high | — | — | persistence |
-| S13 | W2 | READY | S00,S10 | Sol xhigh | — | — | text provider/orchestration |
-| S15 | W2 | READY | S00,S10 | Sol xhigh | — | — | realtime fake/gateway |
-| S24 | W2 | READY | S20 | Sol xhigh | — | — | Android audio |
-| S12 | W3 | PENDING | S10,S11 | Sol high | — | — | backend auth |
-| S14 | W3 | PENDING | S11,S13 | Sol high | — | — | REST/SSE |
-| S16 | W3 | PENDING | S13,S15 | Fable 5.1 xhigh | — | — | Gemini Live |
-| S25 | W3 | PENDING | S15,S20,S24 | Sol xhigh | — | — | Android realtime |
+| S11 | W2 | COMPLETED | S10 | Sol high | [S11](handoffs/S11.md) | 79e1d1d | PostgreSQL persistence verified |
+| S13 | W2 | COMPLETED | S00,S10 | Sol xhigh | [S13](handoffs/S13.md) | dd73636 | text provider/orchestration verified |
+| S15 | W2 | COMPLETED | S00,S10 | Sol xhigh | [S15](handoffs/S15.md) | 52f1a74 | realtime fake/gateway verified |
+| S24 | W2 | PARTIAL | S20 | Sol xhigh | [S24](handoffs/S24.md) | — | code 9a4e7f3; physical device gate pending |
+| S12 | W3 | READY | S10,S11 | Sol high | — | — | backend auth |
+| S14 | W3 | READY | S11,S13 | Sol high | — | — | REST/SSE |
+| S16 | W3 | READY | S13,S15 | Fable 5.1 xhigh | — | — | Gemini Live |
+| S25 | W3 | PENDING | S15,S20,S24 | Sol xhigh | — | — | blocked by incomplete S24 device gate |
 | S17 | W4 | PENDING | S13,S14,S15 | Fable 5.1 xhigh | — | — | tools |
 | S21 | W4 | PENDING | S12,S20 | Sol high | — | — | Android auth |
 | S22 | W4 | PENDING | S11,S14,S20 | Sol high | — | — | Android sync/cache |
@@ -32,13 +32,17 @@
 
 ## Current wave gate
 
-W1 passed. S10 and S20 are integrated; backend and Android compile independently,
-consume the shared contract baseline, and expose stable CI commands. S11, S13,
-S15, and S24 are ready for parallel W2 execution with disjoint scopes.
+W2 is PARTIAL. S11, S13, and S15 are integrated and the combined backend gate
+passes with PostgreSQL-backed tests. S24 code passes JVM/lint/APK and aggregate
+Android gates on commit `9a4e7f3`, but remains on its session branch because no
+physical device was available for capture/playback and the 20-cycle resource
+release test. S12, S14, and S16 are independently READY; S25 is not ready.
 
 ## Blocking conditions
 
-None recorded.
+- S24 requires one unlocked physical Android device visible to `adb`. Run the
+  exact `connectedDebugAndroidTest` command from the S24 handoff; integrate the
+  Android commit and mark S24 COMPLETED only after all device cycles pass.
 
 ## Integration history
 
@@ -46,3 +50,4 @@ None recorded.
 | --- | --- | --- | --- | --- |
 | W0 | 2026-09-10 | b56c17f | PASS | S00 bootstrap |
 | W1 | 2026-09-10 | 065617a | PASS | parallel S10/S20 + wave integration |
+| W2 | 2026-09-11 | 5dff6f5 | PARTIAL — backend PASS, S24 device gate pending | parallel W2 + integration |
