@@ -176,7 +176,9 @@ decision or a blocker for the deterministic provider boundary.
 
 ## S15 inbox
 
-<!-- S15 adds OI-S15-* records here. -->
+S15 completed with no new session-specific open issues. Production auth/provider
+composition and durable reconnect state remain explicitly owned by downstream
+sessions rather than hidden as protocol decisions.
 
 ## S24 inbox
 
