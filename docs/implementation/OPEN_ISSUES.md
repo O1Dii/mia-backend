@@ -168,7 +168,9 @@ to the fake provider; real provider behaviour remains owned by later sessions.
 
 ## S13 inbox
 
-<!-- S13 adds OI-S13-* records here. -->
+S13 completed with no new session-specific open issues. Real Gemini smoke is a
+credential-dependent verification step recorded in the handoff, not a product
+decision or a blocker for the deterministic provider boundary.
 
 ## S15 inbox
 
