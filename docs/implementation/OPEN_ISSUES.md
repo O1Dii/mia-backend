@@ -164,7 +164,9 @@ to the fake provider; real provider behaviour remains owned by later sessions.
 
 ## S11 inbox
 
-<!-- S11 adds OI-S11-* records here. -->
+S11 completed with no new session-specific open issues. The remaining schema
+areas belong to explicitly scheduled downstream sessions and are not hidden
+blockers for conversation persistence.
 
 ## S13 inbox
 
