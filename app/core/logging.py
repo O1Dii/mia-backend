@@ -23,7 +23,7 @@ class JsonFormatter(logging.Formatter):
             "status_code",
             "environment",
             "ai_provider",
-            "google_api_key_configured",
+            "gemini_api_key_configured",
         ):
             value = getattr(record, key, None)
             if value is not None:

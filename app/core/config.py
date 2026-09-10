@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     ai_provider: Literal["fake", "gemini"] = "fake"
     database_url: str = "postgresql+asyncpg://mia:mia-local-only@localhost:5432/mia"
     redis_url: str = "redis://localhost:6379/0"
-    google_api_key: SecretStr | None = Field(default=None, repr=False)
+    gemini_api_key: SecretStr | None = Field(default=None, repr=False)
 
     @field_validator("log_level")
     @classmethod
@@ -48,9 +48,9 @@ class Settings(BaseSettings):
         return value
 
     @property
-    def has_google_api_key(self) -> bool:
+    def has_gemini_api_key(self) -> bool:
         """Expose only whether an optional provider credential is configured."""
-        return self.google_api_key is not None
+        return self.gemini_api_key is not None
 
 
 @lru_cache

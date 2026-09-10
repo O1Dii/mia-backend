@@ -36,7 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             extra={
                 "environment": resolved_settings.app_env,
                 "ai_provider": resolved_settings.ai_provider,
-                "google_api_key_configured": resolved_settings.has_google_api_key,
+                "gemini_api_key_configured": resolved_settings.has_gemini_api_key,
             },
         )
         yield

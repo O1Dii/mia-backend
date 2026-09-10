@@ -10,6 +10,7 @@ def test_settings_default_to_fake_provider() -> None:
 
     assert settings.ai_provider == "fake"
     assert settings.app_env == "development"
+    assert settings.has_gemini_api_key is False
 
 
 def test_settings_reject_non_async_postgres_url() -> None:
