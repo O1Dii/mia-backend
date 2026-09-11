@@ -203,6 +203,9 @@ complete and recorded in the S24 handoff.
 
 <!-- S25 adds OI-S25-* records here. -->
 
+No new non-blocking questions. The unavailable physical-device gate is recorded
+as a blocker in the S25 handoff rather than as an open issue.
+
 ## S17 inbox
 
 <!-- S17 adds OI-S17-* records here. -->
