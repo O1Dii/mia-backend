@@ -1,0 +1,54 @@
+{
+  "messages": [
+    {
+      "serverContent": {
+        "inputTranscription": {"text": "Привет", "finished": false}
+      }
+    },
+    {
+      "serverContent": {
+        "inputTranscription": {"text": " мир", "finished": true}
+      }
+    },
+    {
+      "toolCall": {
+        "functionCalls": [
+          {
+            "id": "provider-call-1",
+            "name": "system.get_current_datetime",
+            "args": {"timezone": "Europe/Minsk"}
+          }
+        ]
+      }
+    },
+    {"toolCallCancellation": {"ids": ["provider-call-1"]}},
+    {
+      "serverContent": {
+        "modelTurn": {
+          "role": "model",
+          "parts": [
+            {
+              "inlineData": {
+                "mimeType": "audio/pcm;rate=24000",
+                "data": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4v"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "serverContent": {
+        "outputTranscription": {"text": "Здравствуйте", "finished": false}
+      }
+    },
+    {
+      "serverContent": {
+        "outputTranscription": {"text": "!", "finished": true}
+      }
+    },
+    {"usageMetadata": {"promptTokenCount": 12, "responseTokenCount": 7}},
+    {"serverContent": {"generationComplete": true}},
+    {"serverContent": {"turnComplete": true}}
+  ]
+}
