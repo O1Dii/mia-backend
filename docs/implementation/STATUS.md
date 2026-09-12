@@ -13,14 +13,14 @@
 | S13 | W2 | COMPLETED | S00,S10 | Sol xhigh | [S13](handoffs/S13.md) | dd73636 | text provider/orchestration verified |
 | S15 | W2 | COMPLETED | S00,S10 | Sol xhigh | [S15](handoffs/S15.md) | 52f1a74 | realtime fake/gateway verified |
 | S24 | W2 | COMPLETED | S20 | Sol xhigh | [S24](handoffs/S24.md) | 3b7e8eb | Android main at 9a4e7f3; physical device gate verified |
-| S12 | W3 | READY | S10,S11 | Sol high | — | — | backend auth |
-| S14 | W3 | READY | S11,S13 | Sol high | — | — | REST/SSE |
-| S16 | W3 | READY | S13,S15 | Fable 5.1 xhigh | — | — | Gemini Live |
-| S25 | W3 | READY | S15,S20,S24 | Sol xhigh | — | — | Android realtime |
-| S17 | W4 | PENDING | S13,S14,S15 | Fable 5.1 xhigh | — | — | tools |
-| S21 | W4 | PENDING | S12,S20 | Sol high | — | — | Android auth |
-| S22 | W4 | PENDING | S11,S14,S20 | Sol high | — | — | Android sync/cache |
-| S26 | W4 | PENDING | S16,S24,S25 | Fable 5.1 xhigh | — | — | VAD/barge-in |
+| S12 | W3 | COMPLETED | S10,S11 | Sol high | [S12](handoffs/S12.md) | c86b0ae | auth mounted; Google dependency pinned |
+| S14 | W3 | COMPLETED | S11,S13 | Sol high | [S14](handoffs/S14.md) | c86b0ae | REST/SSE mounted and verified |
+| S16 | W3 | COMPLETED | S13,S15 | Fable 5.1 xhigh | [S16](handoffs/S16.md) | c86b0ae | Gemini Live factory integrated; cloud smoke remains S31 |
+| S25 | W3 | COMPLETED | S15,S20,S24 | Sol xhigh | [S25](handoffs/S25.md) | c86b0ae | Android main at 6e7395b; physical gate verified |
+| S17 | W4 | READY | S13,S14,S15 | Fable 5.1 xhigh | — | — | dependencies integrated |
+| S21 | W4 | READY | S12,S20 | Sol high | — | — | dependencies integrated; review OI-S12-001 |
+| S22 | W4 | READY | S11,S14,S20 | Sol high | — | — | dependencies integrated |
+| S26 | W4 | READY | S16,S24,S25 | Fable 5.1 xhigh | — | — | dependencies and physical voice gate verified |
 | S18 | W5 | PENDING | S12,S14,S16,S17 | Sol high | — | — | backend hardening |
 | S23 | W5 | PENDING | S14,S20,S22 | Terra high | — | — | Android text UI |
 | S27 | W5 | PENDING | S24,S26 | Sol xhigh | — | — | foreground wake |
@@ -32,11 +32,11 @@
 
 ## Current wave gate
 
-W2 passed. S11, S13, and S15 are integrated and the combined backend gate
-passes with PostgreSQL-backed tests. S24 is integrated into Android `main` at
-`9a4e7f3`; its JVM/lint/APK, aggregate Android, and physical SM-S938B
-full-duplex/20-cycle resource-release gates pass. S12, S14, S16, and S25 are
-READY for W3 execution.
+W3 passed. S12, S14, and S16 are integrated with shared auth, conversation,
+realtime, fake/Gemini provider composition at `c86b0ae`; the combined backend
+gate passes with PostgreSQL and Redis. S25 is integrated into Android `main` at
+`6e7395b`; its 580-task aggregate gate and physical SM-S938B three-turn voice
+test pass. S17, S21, S22, and S26 are READY for W4 execution.
 
 ## Blocking conditions
 
@@ -49,3 +49,4 @@ None recorded.
 | W0 | 2026-09-10 | b56c17f | PASS | S00 bootstrap |
 | W1 | 2026-09-10 | 065617a | PASS | parallel S10/S20 + wave integration |
 | W2 | 2026-09-11 | 3b7e8eb | PASS | parallel W2 + S24 physical-device closeout |
+| W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
