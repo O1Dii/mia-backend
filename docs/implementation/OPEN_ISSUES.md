@@ -220,7 +220,27 @@ the session's REST/SSE lifecycle, ownership, retry, and disconnect gates pass.
 
 ## S16 inbox
 
-<!-- S16 adds OI-S16-* records here. -->
+### OI-S16-001 — Own the Live transport dependency during hardening
+
+- Status: OPEN
+- Source session: S16
+- Component: backend/Gemini Live dependency
+- Question: should S18 declare the already locked `websockets==15.0.1` directly,
+  or upgrade `google-genai==1.10.0` and migrate Live transport to its public API?
+- Why non-blocking: the official WebSocket transport supports input transcription,
+  audio-stream-end and setup acknowledgement with the existing locked dependencies.
+- Current assumption: retain the isolated wire transport and SDK message validation.
+  The pinned SDK's MLDev connector rejects input transcription; its transparent
+  resumption flag is also unsupported. No SDK private member is patched or accessed.
+- Options: declare `websockets==15.0.1` directly; upgrade SDK and replace transport.
+- Recommendation: the shared dependency owner should add `websockets==15.0.1` to
+  project dependencies and regenerate the lockfile in S18; any SDK migration needs
+  the same fixture, loopback and credential-configured smoke checks.
+- Affects sessions: S18, S31.
+- Revisit trigger/by: S18 dependency and deployment hardening.
+- Resolution:
+- Evidence: `app/providers/ai/gemini_live/README.md`,
+  `tests/providers/test_gemini_live_transport.py`, and the existing `uv.lock` pin.
 
 ## S25 inbox
 
