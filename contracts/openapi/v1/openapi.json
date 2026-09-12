@@ -220,7 +220,8 @@
             "description": "SSE stream; each data field is a StreamEvent JSON object",
             "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
             "content": { "text/event-stream": { "schema": { "type": "string" } } },
-            "x-sse-event-types": ["message.delta", "tool.call.started", "tool.call.completed", "message.completed", "error"]
+            "x-sse-event-types": ["message.delta", "tool.call.started", "tool.call.completed", "message.completed", "error"],
+            "x-sse-data-schema": { "$ref": "#/components/schemas/ConversationStreamEvent" }
           },
           "default": { "$ref": "#/components/responses/Error" }
         }
@@ -565,6 +566,24 @@
         "additionalProperties": false,
         "required": ["text"],
         "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 32000 } }
+      },
+      "ConversationStreamEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["v", "type", "event_id", "turn_id", "response_id", "seq", "at", "payload"],
+        "properties": {
+          "v": { "const": 1 },
+          "type": {
+            "type": "string",
+            "enum": ["message.delta", "tool.call.started", "tool.call.completed", "message.completed", "error"]
+          },
+          "event_id": { "type": "string", "format": "uuid" },
+          "turn_id": { "type": "string", "format": "uuid" },
+          "response_id": { "type": "string", "format": "uuid" },
+          "seq": { "type": "integer", "minimum": 1 },
+          "at": { "type": "string", "format": "date-time" },
+          "payload": { "type": "object", "additionalProperties": true }
+        }
       },
       "AudioFormat": {
         "type": "object",

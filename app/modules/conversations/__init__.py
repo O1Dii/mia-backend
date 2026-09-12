@@ -26,6 +26,12 @@ from app.modules.conversations.repositories import (
     TurnNotFoundError,
 )
 from app.modules.conversations.services import ConversationService, IdempotentResult
+from app.modules.conversations.streaming import (
+    ConversationStreamEvent,
+    PreparedTextTurn,
+    TextSSEService,
+    TurnAlreadyStreamingError,
+)
 
 __all__ = [
     "Conversation",
@@ -34,6 +40,7 @@ __all__ = [
     "ConversationPage",
     "ConversationRepository",
     "ConversationService",
+    "ConversationStreamEvent",
     "DeliveryStatus",
     "Entry",
     "EntryCursor",
@@ -45,8 +52,11 @@ __all__ = [
     "IdempotencyRecord",
     "InvalidCursorError",
     "Modality",
+    "PreparedTextTurn",
+    "TextSSEService",
     "Turn",
     "TurnNotFoundError",
     "TurnSource",
     "TurnStatus",
+    "TurnAlreadyStreamingError",
 ]

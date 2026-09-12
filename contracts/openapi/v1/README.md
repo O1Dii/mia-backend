@@ -12,3 +12,9 @@ The SSE response from `messages:stream` uses named events documented by the
 `x-sse-event-types` extension. S14 may add an additive schema for their JSON
 `data` payloads before implementation, but must preserve these names or propose
 a reviewed versioned contract change.
+
+Each SSE `data` field is a `ConversationStreamEvent` selected through the
+`x-sse-data-schema` extension. The envelope is versioned with `v: 1`; retries
+of an already completed idempotent turn emit only `message.completed` with
+`payload.replayed: true`, and clients then reconcile canonical entries through
+the history endpoint.

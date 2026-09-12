@@ -42,5 +42,11 @@ class TextOrchestrationService:
             tools=tools,
             max_output_tokens=max_output_tokens,
         )
-        async for event in self._provider.stream(request):
-            yield event
+        events = self._provider.stream(request)
+        try:
+            async for event in events:
+                yield event
+        finally:
+            close = getattr(events, "aclose", None)
+            if close is not None:
+                await close()
