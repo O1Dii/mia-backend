@@ -56,7 +56,11 @@ class GeminiLiveEventMapper:
         locale: str,
         model_alias: str,
         tools: tuple[ToolDefinition, ...],
+        output_frame_bytes: int = 4096,
     ) -> None:
+        if output_frame_bytes < 2 or output_frame_bytes % 2:
+            raise ValueError("output frame limit must align with PCM16 samples")
+        self._output_frame_bytes = output_frame_bytes
         self._locale = locale
         self._model_alias = model_alias
         self._tools = {tool.name: tool for tool in tools}
@@ -73,6 +77,10 @@ class GeminiLiveEventMapper:
     def has_turn(self) -> bool:
         return bool(self._turns)
 
+    @property
+    def has_completed_turn(self) -> bool:
+        return self._last_state is not None
+
     def commit_turn(
         self,
         *,
@@ -84,6 +92,8 @@ class GeminiLiveEventMapper:
             raise ValueError("input audio bytes cannot be negative")
         if any(state.turn_id == turn_id for state in self._turns):
             raise ValueError("turn is already active")
+        if len(self._turns) >= 8:
+            raise InvalidGeminiLiveMessage("too many pending Gemini Live turns")
         state = _TurnState(
             stream_id=stream_id,
             turn_id=turn_id,
@@ -137,15 +147,13 @@ class GeminiLiveEventMapper:
 
     def _input_state(self) -> _TurnState:
         if not self._turns:
+            if self._last_state is not None:
+                return self._last_state
             raise InvalidGeminiLiveMessage("Gemini emitted a transcript before an input commit")
         return self._turns[-1]
 
     @staticmethod
     def _append_transcript(previous: str, fragment: str) -> str:
-        if not previous:
-            return fragment
-        if fragment.startswith(previous):
-            return fragment
         return previous + fragment
 
     def _map_transcription(
@@ -159,6 +167,8 @@ class GeminiLiveEventMapper:
         finished = transcription.finished is True
         current = state.input_transcript if input_audio else state.output_transcript
         combined = self._append_transcript(current, text)
+        if len(combined) > 65_536:
+            raise InvalidGeminiLiveMessage("Gemini Live transcript exceeded its limit")
         if input_audio:
             state.input_transcript = combined
             already_final = state.input_transcript_final
@@ -233,6 +243,9 @@ class GeminiLiveEventMapper:
                 continue
             if not self._is_pcm_24khz(blob.mime_type) or blob.data is None:
                 raise InvalidGeminiLiveMessage("Gemini returned an unsupported audio format")
+            data = bytes(blob.data)
+            if len(data) % 2 or state.audio_completed:
+                raise InvalidGeminiLiveMessage("Gemini returned invalid PCM segment data")
             outputs.extend(self._response_started(state))
             if not state.audio_started:
                 state.audio_started = True
@@ -247,10 +260,15 @@ class GeminiLiveEventMapper:
                         response_id=state.response_id,
                     )
                 )
-            data = bytes(blob.data)
             if data:
                 state.output_audio_bytes += len(data)
-                outputs.append(ProviderAudio(data=data, response_id=state.response_id))
+                for offset in range(0, len(data), self._output_frame_bytes):
+                    outputs.append(
+                        ProviderAudio(
+                            data=data[offset : offset + self._output_frame_bytes],
+                            response_id=state.response_id,
+                        )
+                    )
         return outputs
 
     def _finalize_transcript(
@@ -313,6 +331,17 @@ class GeminiLiveEventMapper:
                 )
             )
 
+        if not any(
+            (
+                content.model_turn,
+                content.output_transcription,
+                content.interrupted,
+                content.generation_complete,
+                content.turn_complete,
+            )
+        ):
+            return outputs
+
         state = self._current()
         if content.interrupted is True:
             state.interrupted_reason = state.interrupted_reason or (
@@ -355,10 +384,15 @@ class GeminiLiveEventMapper:
                 )
             )
             self._last_state = self._turns.popleft()
+            self._tool_calls = {
+                key: call for key, call in self._tool_calls.items() if call.state is not state
+            }
         return outputs
 
     def _map_tool_calls(self, tool_call: types.LiveServerToolCall) -> list[ProviderControl]:
         state = self._current()
+        if state.interrupted_reason is not None:
+            return []
         outputs = self._response_started(state)
         for call in tool_call.function_calls or ():
             name = call.name or ""
@@ -369,6 +403,8 @@ class GeminiLiveEventMapper:
             raw_id = call.id or f"{name}:{self._fallback_call_sequence}"
             if raw_id in self._tool_calls:
                 raise InvalidGeminiLiveMessage("Gemini repeated a function call id")
+            if len(self._tool_calls) >= 32:
+                raise InvalidGeminiLiveMessage("too many pending Gemini Live tool calls")
             mapped_id = uuid5(state.response_id, f"gemini-tool:{raw_id}")
             self._tool_calls[raw_id] = _ToolState(state, mapped_id, name)
             outputs.append(

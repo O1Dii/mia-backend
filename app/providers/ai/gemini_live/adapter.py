@@ -64,6 +64,7 @@ class GeminiLiveAdapter:
             locale=session.locale,
             model_alias=config.model_alias,
             tools=config.tools,
+            output_frame_bytes=config.output_frame_bytes,
         )
         self._mapping_lock = asyncio.Lock()
         self._transport_lock = asyncio.Lock()
@@ -93,8 +94,13 @@ class GeminiLiveAdapter:
         )
 
     async def _connect(self, setup: GeminiLiveSetup) -> GeminiLiveTransport:
-        async with asyncio.timeout(self._config.request_timeout_seconds):
-            return await self._transport_factory.connect(setup)
+        try:
+            async with asyncio.timeout(self._config.request_timeout_seconds):
+                return await self._transport_factory.connect(setup)
+        except TimeoutError:
+            raise GeminiLiveAdapterError("Gemini Live connection timed out.") from None
+        except Exception:
+            raise GeminiLiveAdapterError("Gemini Live connection failed.") from None
 
     async def configure(self, config: ConfigurePayload) -> None:
         if self._configured or self._closed:
@@ -106,7 +112,11 @@ class GeminiLiveAdapter:
             or OUTPUT_AUDIO_FORMAT not in config.output_audio
         ):
             raise ValueError("Gemini Live requires the negotiated PCM formats")
-        self._resume_handle = await self._resume_store.load(self._session.id)
+        try:
+            async with asyncio.timeout(self._config.request_timeout_seconds):
+                self._resume_handle = await self._resume_store.load(self._session.id)
+        except Exception:
+            raise GeminiLiveAdapterError("Gemini Live resumption store is unavailable.") from None
         self._setup = self._build_setup(config, self._resume_handle)
         self._transport = await self._connect(self._setup)
         self._configured = True
@@ -120,15 +130,32 @@ class GeminiLiveAdapter:
         return self._transport
 
     async def send_audio(self, chunk: bytes) -> None:
-        if not chunk:
-            raise ValueError("Gemini Live audio chunk cannot be empty")
+        if not chunk or len(chunk) % 2:
+            raise ValueError("Gemini Live audio must contain complete PCM16 samples")
         async with self._transport_lock:
             transport = self._require_transport()
+            # Mark input before yielding to receive, so early transcription is
+            # deferred until the gateway supplies its stream/turn IDs at commit.
+            self._input_audio_bytes += len(chunk)
+            self._resume_handle = None
+            try:
+                async with asyncio.timeout(self._config.request_timeout_seconds):
+                    await self._resume_store.delete(self._session.id)
+                    await transport.send_audio(bytes(chunk))
+            except TimeoutError:
+                raise GeminiLiveAdapterError("Gemini Live send timed out.") from None
+            except Exception:
+                raise GeminiLiveAdapterError("Gemini Live send failed.") from None
+
+    async def _emit(self, event: ProviderOutput) -> None:
+        try:
             async with asyncio.timeout(self._config.request_timeout_seconds):
-                await transport.send_audio(bytes(chunk))
-        self._input_audio_bytes += len(chunk)
+                await self._events.put(event)
+        except TimeoutError:
+            raise GeminiLiveAdapterError("Gemini Live output consumer is too slow.") from None
 
     async def commit_audio(self, *, stream_id: UUID, turn_id: UUID) -> None:
+        self._require_transport()
         async with self._mapping_lock:
             speech_events = self._mapper.commit_turn(
                 stream_id=stream_id,
@@ -137,22 +164,32 @@ class GeminiLiveAdapter:
             )
             self._input_audio_bytes = 0
             for speech_event in speech_events:
-                await self._events.put(speech_event)
+                await self._emit(speech_event)
             deferred = tuple(self._deferred_messages)
             self._deferred_messages.clear()
             for message in deferred:
                 for mapped_event in self._mapper.map_message(message):
-                    await self._events.put(mapped_event)
+                    await self._emit(mapped_event)
 
         async with self._transport_lock:
             transport = self._require_transport()
-            async with asyncio.timeout(self._config.request_timeout_seconds):
-                await transport.end_audio_stream()
+            try:
+                async with asyncio.timeout(self._config.request_timeout_seconds):
+                    await transport.end_audio_stream()
+            except TimeoutError:
+                raise GeminiLiveAdapterError("Gemini Live send timed out.") from None
+            except Exception:
+                raise GeminiLiveAdapterError("Gemini Live send failed.") from None
 
     async def cancel_response(self, response_id: UUID, reason: str) -> None:
         async with self._mapping_lock:
             for event in self._mapper.cancel_response(response_id, reason):
-                await self._events.put(event)
+                await self._emit(event)
+
+    def _defer(self, message: types.LiveServerMessage) -> None:
+        if len(self._deferred_messages) >= 32:
+            raise InvalidGeminiLiveMessage("too many messages arrived before input commit")
+        self._deferred_messages.append(message)
 
     @staticmethod
     def _requires_turn(message: types.LiveServerMessage) -> bool:
@@ -167,13 +204,48 @@ class GeminiLiveAdapter:
 
     async def _map_and_queue(self, message: types.LiveServerMessage) -> None:
         async with self._mapping_lock:
+            content = message.server_content
+            if (
+                self._mapper.has_turn
+                and self._input_audio_bytes
+                and content is not None
+                and content.input_transcription is not None
+            ):
+                self._defer(
+                    types.LiveServerMessage(
+                        server_content=types.LiveServerContent(
+                            input_transcription=content.input_transcription,
+                        )
+                    )
+                )
+                message = message.model_copy(
+                    update={
+                        "server_content": content.model_copy(update={"input_transcription": None})
+                    }
+                )
             if self._requires_turn(message) and not self._mapper.has_turn:
-                if len(self._deferred_messages) >= 32:
-                    raise InvalidGeminiLiveMessage("too many messages arrived before input commit")
-                self._deferred_messages.append(message)
-                return
+                input_only = (
+                    content is not None
+                    and content.input_transcription is not None
+                    and (
+                        not any(
+                            (
+                                content.model_turn,
+                                content.output_transcription,
+                                content.interrupted,
+                                content.generation_complete,
+                                content.turn_complete,
+                            )
+                        )
+                    )
+                )
+                if not (
+                    input_only and not self._input_audio_bytes and self._mapper.has_completed_turn
+                ):
+                    self._defer(message)
+                    return
             for event in self._mapper.map_message(message):
-                await self._events.put(event)
+                await self._emit(event)
 
     async def _record_resumption(self, message: types.LiveServerMessage) -> None:
         update = message.session_resumption_update
@@ -181,19 +253,28 @@ class GeminiLiveAdapter:
             return
         if update.resumable is True and update.new_handle:
             self._resume_handle = update.new_handle
-            await self._resume_store.save(self._session.id, update.new_handle)
+            async with asyncio.timeout(self._config.request_timeout_seconds):
+                await self._resume_store.save(self._session.id, update.new_handle)
             return
         self._resume_handle = None
-        await self._resume_store.delete(self._session.id)
+        async with asyncio.timeout(self._config.request_timeout_seconds):
+            await self._resume_store.delete(self._session.id)
 
     async def _reconnect(self) -> None:
-        if self._setup is None or not self._resume_handle:
-            raise GeminiLiveAdapterError("Gemini Live session cannot be resumed.")
         async with self._transport_lock:
+            if (
+                self._setup is None
+                or not self._resume_handle
+                or self._mapper.has_turn
+                or self._input_audio_bytes
+                or self._deferred_messages
+            ):
+                # The MIA port has no client-message acknowledgements/replay. Resume
+                # only between turns; retrying uncertain audio can duplicate a turn.
+                raise GeminiLiveAdapterError("Gemini Live session cannot be resumed.")
             previous = self._require_transport()
             async with asyncio.timeout(self._config.request_timeout_seconds):
                 await previous.close()
-            last_error: Exception | None = None
             for _ in range(self._config.reconnect_attempts + 1):
                 setup = self._build_setup_from_previous(self._resume_handle)
                 try:
@@ -202,9 +283,9 @@ class GeminiLiveAdapter:
                     return
                 except asyncio.CancelledError:
                     raise
-                except Exception as error:
-                    last_error = error
-            raise GeminiLiveAdapterError("Gemini Live session could not reconnect.") from last_error
+                except Exception:
+                    pass
+            raise GeminiLiveAdapterError("Gemini Live session could not reconnect.") from None
 
     def _build_setup_from_previous(self, resume_handle: str) -> GeminiLiveSetup:
         if self._setup is None:
@@ -248,7 +329,11 @@ class GeminiLiveAdapter:
         except asyncio.CancelledError:
             raise
         except Exception:
-            await self._events.put(
+            # Failure must be observable even when the output queue is full.
+            # Drop buffered content instead of retaining audio after failure.
+            while not self._events.empty():
+                self._events.get_nowait()
+            self._events.put_nowait(
                 _Failure(GeminiLiveAdapterError("Gemini Live provider is unavailable."))
             )
 
@@ -274,15 +359,20 @@ class GeminiLiveAdapter:
                 try:
                     async with asyncio.timeout(self._config.request_timeout_seconds):
                         await self._transport.close()
-                except TimeoutError:
+                except Exception:
                     pass
                 self._transport = None
-        await self._resume_store.delete(self._session.id)
         try:
-            self._events.put_nowait(self._CLOSED)
-        except asyncio.QueueFull:
-            _ = self._events.get_nowait()
-            self._events.put_nowait(self._CLOSED)
+            async with asyncio.timeout(self._config.request_timeout_seconds):
+                await self._resume_store.delete(self._session.id)
+        except Exception:
+            pass
+        self._resume_handle = None
+        self._setup = None
+        self._deferred_messages.clear()
+        while not self._events.empty():
+            self._events.get_nowait()
+        self._events.put_nowait(self._CLOSED)
 
 
 class GeminiLiveAdapterFactory:

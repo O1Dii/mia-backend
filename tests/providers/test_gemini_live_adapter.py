@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -271,9 +272,162 @@ async def test_provider_write_is_bounded_by_request_timeout() -> None:
         transport_factory=HangingSendFactory(),
     )
     await adapter.configure(configure_payload())
-    with pytest.raises(TimeoutError):
+    with pytest.raises(GeminiLiveAdapterError, match="send timed out"):
         await adapter.send_audio(bytes(1280))
     await adapter.close()
+
+
+class ConnectionFailureFactory:
+    async def connect(self, setup: GeminiLiveSetup) -> GeminiLiveTransport:
+        raise RuntimeError("private endpoint and credential must not escape")
+
+
+async def test_connection_failure_is_sanitized() -> None:
+    adapter = GeminiLiveAdapter(
+        realtime_session(),
+        live_config(),
+        transport_factory=ConnectionFailureFactory(),
+    )
+    with pytest.raises(GeminiLiveAdapterError, match="^Gemini Live connection failed\\.$"):
+        await adapter.configure(configure_payload())
+    await adapter.close()
+
+
+async def test_early_transcript_waits_for_commit_and_keeps_turn_identity() -> None:
+    factory = RecordingFactory()
+    adapter = GeminiLiveAdapter(realtime_session(), live_config(), transport_factory=factory)
+    await adapter.configure(configure_payload())
+    await adapter.send_audio(bytes(1280))
+    await factory.transports[0].push(
+        types.LiveServerMessage(
+            server_content=types.LiveServerContent(
+                input_transcription=types.Transcription(text="Early transcript", finished=True),
+            )
+        )
+    )
+    # Usage is an observable barrier after the pre-commit transcription.
+    await factory.transports[0].push(
+        types.LiveServerMessage(
+            usage_metadata=types.UsageMetadata(prompt_token_count=1),
+        )
+    )
+    events = adapter.events()
+    usage = await next_output(events)
+    assert isinstance(usage, ProviderControl) and usage.event_type == "usage.updated"
+    await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
+    assert cast_control(await next_output(events)).event_type == "input_audio.speech_started"
+    assert cast_control(await next_output(events)).event_type == "input_audio.speech_stopped"
+    transcript = cast_control(await next_output(events))
+    assert transcript.event_type == "transcript.input.final"
+    assert transcript.turn_id == TURN_ID
+    assert transcript.payload["text"] == "Early transcript"
+    await adapter.close()
+
+
+def cast_control(output: ProviderOutput) -> ProviderControl:
+    assert isinstance(output, ProviderControl)
+    return output
+
+
+async def test_barge_in_transcript_before_second_commit_uses_second_turn() -> None:
+    factory = RecordingFactory()
+    adapter = GeminiLiveAdapter(realtime_session(), live_config(), transport_factory=factory)
+    await adapter.configure(configure_payload())
+    await adapter.send_audio(bytes(640))
+    await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
+    events = adapter.events()
+    await next_output(events)
+    await next_output(events)
+    await adapter.send_audio(bytes(640))
+    await factory.transports[0].push(
+        types.LiveServerMessage(
+            server_content=types.LiveServerContent(
+                input_transcription=types.Transcription(text="New speech", finished=True),
+                interrupted=True,
+                turn_complete=True,
+            )
+        )
+    )
+    assert cast_control(await next_output(events)).event_type == "response.started"
+    assert cast_control(await next_output(events)).event_type == "response.interrupted"
+    assert cast_control(await next_output(events)).event_type == "turn.completed"
+    next_turn = UUID("40000000-0000-4000-8000-000000000017")
+    await adapter.commit_audio(stream_id=STREAM_ID, turn_id=next_turn)
+    await next_output(events)
+    await next_output(events)
+    transcript = cast_control(await next_output(events))
+    assert transcript.event_type == "transcript.input.final"
+    assert transcript.turn_id == next_turn
+    await adapter.close()
+
+
+async def test_receive_idle_timeout_and_full_queue_failure_are_bounded() -> None:
+    factory = RecordingFactory()
+    adapter = GeminiLiveAdapter(
+        realtime_session(),
+        replace(live_config(), idle_timeout_seconds=0.01),
+        transport_factory=factory,
+    )
+    await adapter.configure(configure_payload())
+    with pytest.raises(GeminiLiveAdapterError, match="provider is unavailable"):
+        await next_output(adapter.events())
+    await adapter.close()
+
+    adapter = GeminiLiveAdapter(
+        realtime_session(),
+        live_config(request_timeout_seconds=0.01),
+        transport_factory=RecordingFactory(),
+        event_queue_size=1,
+    )
+    await adapter.configure(configure_payload())
+    await adapter.send_audio(bytes(640))
+    with pytest.raises(GeminiLiveAdapterError, match="consumer is too slow"):
+        await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
+    await adapter.close()
+    with pytest.raises(StopAsyncIteration):
+        await next_output(adapter.events())
+
+
+@pytest.mark.parametrize("resumable,active_turn", [(False, False), (True, True)])
+async def test_goaway_does_not_replay_unconfirmed_input(
+    resumable: bool,
+    active_turn: bool,
+) -> None:
+    factory = RecordingFactory()
+    store = InMemoryGeminiLiveResumeStore()
+    adapter = GeminiLiveAdapter(
+        realtime_session(),
+        live_config(),
+        transport_factory=factory,
+        resume_store=store,
+    )
+    await adapter.configure(configure_payload())
+    if active_turn:
+        await adapter.send_audio(bytes(640))
+        await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
+        events = adapter.events()
+        await next_output(events)
+        await next_output(events)
+    await factory.transports[0].push(
+        types.LiveServerMessage(
+            session_resumption_update=types.LiveServerSessionResumptionUpdate(
+                resumable=resumable,
+                new_handle="fake-resumption-handle" if resumable else None,
+            ),
+        )
+    )
+    await factory.transports[0].push(
+        types.LiveServerMessage(
+            go_away=types.LiveServerGoAway(
+                time_left="5s",
+            )
+        )
+    )
+    with pytest.raises(GeminiLiveAdapterError, match="provider is unavailable"):
+        await next_output(adapter.events())
+    assert len(factory.transports) == 1
+    await adapter.close()
+    assert await store.load(SESSION_ID) is None
 
 
 def test_config_repr_redacts_api_key_and_rejects_unsafe_tool_names() -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -23,6 +24,7 @@ class GeminiLiveConfig:
     request_timeout_seconds: float = 30.0
     idle_timeout_seconds: float = 90.0
     max_output_tokens: int = 1024
+    output_frame_bytes: int = 4096
     context_window_trigger_tokens: int = 25_000
     context_window_target_tokens: int = 8_000
     reconnect_attempts: int = 2
@@ -37,10 +39,18 @@ class GeminiLiveConfig:
             raise ValueError("Gemini Live system instruction must be configured")
         if not self.model_alias:
             raise ValueError("Gemini Live model alias must be configured")
-        if self.request_timeout_seconds <= 0 or self.idle_timeout_seconds <= 0:
+        if any(
+            not math.isfinite(value) or value <= 0
+            for value in (
+                self.request_timeout_seconds,
+                self.idle_timeout_seconds,
+            )
+        ):
             raise ValueError("Gemini Live timeouts must be positive")
         if self.max_output_tokens < 1:
             raise ValueError("Gemini Live max output tokens must be positive")
+        if self.output_frame_bytes < 2 or self.output_frame_bytes % 2:
+            raise ValueError("Gemini Live output frame limit must align with PCM16 samples")
         if self.context_window_target_tokens < 1:
             raise ValueError("Gemini Live context target must be positive")
         if self.context_window_trigger_tokens <= self.context_window_target_tokens:

@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+import asyncio
+import base64
 import json
-from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import AbstractAsyncContextManager
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, cast
 
+import pytest
 from app.providers.ai.base import ToolDefinition
 from app.providers.ai.gemini_live import GeminiLiveSetup, GoogleGenAILiveTransportFactory
-from app.providers.ai.gemini_live.transport import GoogleGenAILiveTransport
+from app.providers.ai.gemini_live import transport as wire
+from app.providers.ai.gemini_live.transport import (
+    GeminiLiveTransportError,
+    GoogleGenAILiveTransport,
+)
 from google.genai import types  # type: ignore[import-untyped]
 from pydantic import SecretStr
+from websockets.asyncio.server import ServerConnection, serve
 
 
 def setup() -> GeminiLiveSetup:
@@ -33,79 +43,150 @@ def setup() -> GeminiLiveSetup:
     )
 
 
-def test_sdk_setup_enables_audio_transcripts_tools_compression_and_resumption() -> None:
-    sdk_config = GoogleGenAILiveTransportFactory._sdk_config(setup())
-    assert sdk_config.response_modalities == ["AUDIO"]
-    assert sdk_config.input_audio_transcription is not None
-    assert sdk_config.output_audio_transcription is not None
-    assert sdk_config.session_resumption is not None
-    assert sdk_config.session_resumption.handle == "opaque-test-handle"
-    assert sdk_config.session_resumption.transparent is True
-    assert sdk_config.context_window_compression is not None
-    assert sdk_config.context_window_compression.trigger_tokens == 25_000
-    assert sdk_config.context_window_compression.sliding_window is not None
-    assert sdk_config.context_window_compression.sliding_window.target_tokens == 8_000
-    assert sdk_config.tools is not None
-    declarations = sdk_config.tools[0].function_declarations
-    assert declarations is not None
-    assert declarations[0].name == "system.get_current_datetime"
-
-
 class FakeWebSocket:
-    def __init__(self) -> None:
-        self.messages: list[str] = []
+    def __init__(self, messages: list[str]) -> None:
+        self.incoming: asyncio.Queue[str] = asyncio.Queue()
+        for message in messages:
+            self.incoming.put_nowait(message)
+        self.sent: list[dict[str, Any]] = []
+        self.closed = False
 
     async def send(self, message: str) -> None:
-        self.messages.append(message)
+        self.sent.append(json.loads(message))
+
+    async def recv(self) -> str:
+        return await self.incoming.get()
+
+    async def close(self) -> None:
+        self.closed = True
 
 
-class LegacySDKSession:
-    def __init__(self) -> None:
-        self._ws = FakeWebSocket()
-        self.media: list[types.Blob] = []
-        self.receive_calls = 0
+def install_socket(monkeypatch: pytest.MonkeyPatch, socket: FakeWebSocket) -> None:
+    async def connect(uri: str, **kwargs: object) -> Any:
+        assert uri.endswith("?key=fake-test-key")
+        assert kwargs["max_size"] == 1024 * 1024
+        logger = cast(logging.Logger, kwargs["logger"])
+        assert logger.disabled and not logger.propagate
+        return socket
 
-    async def send_realtime_input(self, *, media: object) -> None:
-        assert isinstance(media, types.Blob)
-        self.media.append(media)
-
-    async def receive(self) -> AsyncIterator[types.LiveServerMessage]:
-        self.receive_calls += 1
-        yield types.LiveServerMessage(server_content=types.LiveServerContent(turn_complete=True))
+    monkeypatch.setattr(wire, "connect", connect)
 
 
-class FakeContext(AbstractAsyncContextManager[object]):
-    def __init__(self) -> None:
-        self.exited = False
-
-    async def __aenter__(self) -> object:
-        return object()
-
-    async def __aexit__(self, *args: object) -> None:
-        self.exited = True
-
-
-async def test_pinned_sdk_compatibility_sends_audio_end_and_receives_multiple_turns() -> None:
-    context = FakeContext()
-    session = LegacySDKSession()
-    transport = GoogleGenAILiveTransport(
-        context=cast(AbstractAsyncContextManager[Any], context),
-        session=cast(Any, session),
+async def test_setup_handshake_pcm_and_multiple_turns(monkeypatch: pytest.MonkeyPatch) -> None:
+    socket = FakeWebSocket(
+        [
+            '{"setupComplete": {}}',
+            '{"serverContent": {"turnComplete": true}}',
+            '{"serverContent": {"turnComplete": true}}',
+        ]
     )
+    install_socket(monkeypatch, socket)
+    transport = await GoogleGenAILiveTransportFactory(SecretStr("fake-test-key")).connect(setup())
+    config = socket.sent[0]["setup"]
+    assert config["model"] == "models/configured-live-model"
+    assert config["generationConfig"] == {"responseModalities": ["AUDIO"], "maxOutputTokens": 512}
+    assert config["inputAudioTranscription"] == config["outputAudioTranscription"] == {}
+    assert config["sessionResumption"] == {"handle": "opaque-test-handle"}
+    assert config["realtimeInputConfig"]["automaticActivityDetection"] == {"disabled": False}
+    assert config["tools"][0]["functionDeclarations"][0]["name"] == "system.get_current_datetime"
+    assert config["contextWindowCompression"]["slidingWindow"] == {"targetTokens": 8_000}
+    assert "opaque-test-handle" not in repr(setup())
+
     await transport.send_audio(b"\x00\x01")
     await transport.end_audio_stream()
-    assert session.media[0].data == b"\x00\x01"
-    assert json.loads(session._ws.messages[0]) == {"realtime_input": {"audio_stream_end": True}}
-
-    events = cast(AsyncGenerator[types.LiveServerMessage, None], transport.receive())
-    assert (await anext(events)).server_content.turn_complete is True
-    assert (await anext(events)).server_content.turn_complete is True
-    assert session.receive_calls == 2
+    assert socket.sent[1] == {
+        "realtimeInput": {
+            "audio": {
+                "mimeType": "audio/pcm;rate=16000",
+                "data": "AAE=",
+            }
+        }
+    }
+    assert socket.sent[2] == {"realtimeInput": {"audioStreamEnd": True}}
+    events = transport.receive()
+    for _ in range(2):
+        assert (await anext(events)).server_content.turn_complete is True
     await transport.close()
-    await events.aclose()
-    assert context.exited is True
+    assert socket.closed
 
 
-def test_transport_factory_keeps_credential_redacted() -> None:
-    factory = GoogleGenAILiveTransportFactory(SecretStr("provider-key"))
-    assert "provider-key" not in repr(factory._api_key)
+@pytest.mark.parametrize("response", ['{"error":{"message":"private-detail"}}', "[]", "{}"])
+async def test_invalid_setup_is_sanitized_and_socket_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    response: str,
+) -> None:
+    socket = FakeWebSocket([response])
+    install_socket(monkeypatch, socket)
+    with pytest.raises(GeminiLiveTransportError, match="^Gemini Live connection failed\\.$"):
+        await GoogleGenAILiveTransportFactory(SecretStr("fake-test-key")).connect(setup())
+    assert socket.closed
+
+
+async def test_cancelled_handshake_releases_socket(monkeypatch: pytest.MonkeyPatch) -> None:
+    socket = FakeWebSocket([])
+    install_socket(monkeypatch, socket)
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.01):
+            await GoogleGenAILiveTransportFactory(SecretStr("fake-test-key")).connect(setup())
+    assert socket.closed
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "raw-private-detail",
+        '{"error":{"message":"private-detail"}}',
+        '{"serverContent":{"modelTurn":{"parts":[{"inlineData":{"data":"!"}}]}}}',
+    ],
+)
+async def test_raw_provider_errors_do_not_escape(message: str) -> None:
+    socket = FakeWebSocket([message])
+    transport = GoogleGenAILiveTransport(cast(Any, socket))
+    with pytest.raises(GeminiLiveTransportError, match="^Gemini Live receive failed\\.$"):
+        await anext(transport.receive())
+    await transport.close()
+
+
+@asynccontextmanager
+async def fixture_server() -> AsyncIterator[str]:
+    fixture = Path(__file__).parent / "fixtures" / "gemini_live_messages.json"
+    messages = json.loads(fixture.read_text())["messages"]
+
+    async def handle(socket: ServerConnection) -> None:
+        config = json.loads(await socket.recv())["setup"]
+        assert "inputAudioTranscription" in config
+        await socket.send('{"setupComplete": {}}')
+        audio = json.loads(await socket.recv())["realtimeInput"]["audio"]
+        assert base64.b64decode(audio["data"]) == bytes(1280)
+        assert json.loads(await socket.recv()) == {"realtimeInput": {"audioStreamEnd": True}}
+        for message in messages:
+            await socket.send(json.dumps(message))
+        await socket.wait_closed()
+
+    async with serve(handle, "127.0.0.1", 0) as server:
+        port = next(iter(server.sockets)).getsockname()[1]
+        yield f"ws://127.0.0.1:{port}"
+
+
+async def test_real_websocket_codec_with_deterministic_provider_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with fixture_server() as endpoint:
+        monkeypatch.setattr(wire, "_ENDPOINT", endpoint)
+        transport = await GoogleGenAILiveTransportFactory(SecretStr("fake-test-key")).connect(
+            setup()
+        )
+        try:
+            await transport.send_audio(bytes(1280))
+            await transport.end_audio_stream()
+            messages: list[types.LiveServerMessage] = []
+            async with asyncio.timeout(2):
+                async for message in transport.receive():
+                    messages.append(message)
+                    if message.server_content and message.server_content.turn_complete:
+                        break
+            audio = messages[4].server_content.model_turn.parts[0].inline_data.data
+            assert audio == bytes(range(48))
+            assert messages[7].usage_metadata.response_token_count == 7
+        finally:
+            await transport.close()

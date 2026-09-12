@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
+import pytest
 from app.modules.realtime.provider import ProviderAudio, ProviderControl, ProviderOutput
 from app.providers.ai.base import ToolDefinition
 from app.providers.ai.gemini_live.mapping import (
@@ -148,6 +149,23 @@ def test_local_cancel_is_idempotent_and_provider_payload_errors_are_sanitizable(
     assert first[0].payload == {"reason": "user_request", "delivered_audio_ms": 0}
     assert live_mapper.cancel_response(response_id, "user_request") == ()
 
+    # Calls arriving after local cancellation are stale and never authorized.
+    assert (
+        live_mapper.map_message(
+            types.LiveServerMessage(
+                tool_call=types.LiveServerToolCall(
+                    function_calls=[
+                        types.FunctionCall(id="stale", name="system.get_current_datetime", args={}),
+                    ]
+                ),
+            )
+        )
+        == ()
+    )
+
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+
     invalid = types.LiveServerMessage(
         tool_call=types.LiveServerToolCall(
             function_calls=[types.FunctionCall(id="bad", name="undeclared.tool", args={})]
@@ -159,3 +177,127 @@ def test_local_cancel_is_idempotent_and_provider_payload_errors_are_sanitizable(
         assert "undeclared.tool" not in str(error)
     else:
         raise AssertionError("undeclared provider function must fail mapping")
+
+
+def test_repeated_transcript_fragments_are_preserved_and_thoughts_are_discarded() -> None:
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+    outputs: list[ProviderOutput] = []
+    for fragment in ("ha", "ha"):
+        outputs.extend(
+            live_mapper.map_message(
+                types.LiveServerMessage(
+                    server_content=types.LiveServerContent(
+                        output_transcription=types.Transcription(text=fragment),
+                        model_turn=types.Content(
+                            parts=[types.Part(text="private thought", thought=True)]
+                        ),
+                    ),
+                )
+            )
+        )
+    outputs.extend(
+        live_mapper.map_message(
+            types.LiveServerMessage(
+                server_content=types.LiveServerContent(
+                    generation_complete=True, turn_complete=True
+                ),
+            )
+        )
+    )
+    finals = [
+        event
+        for event in outputs
+        if isinstance(event, ProviderControl) and event.event_type == "transcript.output.final"
+    ]
+    assert finals[0].payload["text"] == "haha"
+    assert "private thought" not in repr(outputs)
+    validate_controls(outputs)
+
+
+def test_multi_part_audio_and_transcript_are_mapped_and_cancel_suppresses_late_audio() -> None:
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+    message = types.LiveServerMessage(
+        server_content=types.LiveServerContent(
+            output_transcription=types.Transcription(text="Hello"),
+            model_turn=types.Content(
+                parts=[
+                    types.Part(
+                        inline_data=types.Blob(data=bytes(48), mime_type="audio/pcm;rate=24000")
+                    ),
+                    types.Part(
+                        inline_data=types.Blob(data=bytes(96), mime_type="audio/pcm;rate=24000")
+                    ),
+                ]
+            ),
+        )
+    )
+    events = list(live_mapper.map_message(message))
+    assert len([event for event in events if isinstance(event, ProviderAudio)]) == 2
+    assert any(
+        isinstance(event, ProviderControl) and event.event_type == "transcript.output.delta"
+        for event in events
+    )
+    live_mapper.cancel_response(live_mapper.response_id(TURN_ID), "barge_in")
+    assert live_mapper.map_message(message) == ()
+    complete = live_mapper.map_message(
+        types.LiveServerMessage(
+            server_content=types.LiveServerContent(interrupted=True, turn_complete=True),
+        )
+    )
+    assert len(complete) == 1
+    assert isinstance(complete[0], ProviderControl)
+    assert complete[0].payload == {"status": "interrupted"}
+    validate_controls(events + list(complete))
+
+
+@pytest.mark.parametrize(
+    "mime,data",
+    [
+        ("audio/pcm;rate=16000", bytes(48)),
+        ("audio/pcm;rate=24000", bytes(3)),
+    ],
+)
+def test_invalid_output_pcm_is_rejected(mime: str, data: bytes) -> None:
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+    with pytest.raises(InvalidGeminiLiveMessage):
+        live_mapper.map_message(
+            types.LiveServerMessage(
+                server_content=types.LiveServerContent(
+                    model_turn=types.Content(
+                        parts=[
+                            types.Part(
+                                inline_data=types.Blob(
+                                    data=data,
+                                    mime_type=mime,
+                                )
+                            )
+                        ]
+                    ),
+                )
+            )
+        )
+
+
+def test_large_provider_audio_is_split_to_public_frame_limit_without_data_loss() -> None:
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+    pcm = bytes(range(256)) * 40
+    outputs = live_mapper.map_message(
+        types.LiveServerMessage(
+            server_content=types.LiveServerContent(
+                model_turn=types.Content(
+                    parts=[
+                        types.Part(
+                            inline_data=types.Blob(data=pcm, mime_type="audio/pcm;rate=24000")
+                        ),
+                    ]
+                )
+            ),
+        )
+    )
+    audio = [event.data for event in outputs if isinstance(event, ProviderAudio)]
+    assert [len(frame) for frame in audio] == [4096, 4096, 2048]
+    assert b"".join(audio) == pcm

@@ -1,19 +1,36 @@
-"""Google Gen AI SDK transport kept behind a narrow testable boundary."""
+"""Official Gemini Live wire transport with Google SDK message validation.
+
+The shared google-genai 1.10 pin cannot configure input transcription for the
+Developer API. This small transport uses the documented WebSocket API instead
+of patching SDK internals. Google types never cross the realtime provider port.
+"""
 
 from __future__ import annotations
 
-import inspect
+import asyncio
+import base64
 import json
-from collections.abc import AsyncIterator, Awaitable, Mapping
-from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
-from typing import Any, Protocol, cast
+import logging
+from collections.abc import AsyncIterator, Mapping
+from dataclasses import dataclass, field
+from typing import Protocol, cast
+from urllib.parse import urlencode
 
-from google import genai  # type: ignore[import-untyped]
 from google.genai import types  # type: ignore[import-untyped]
 from pydantic import SecretStr
+from websockets.asyncio.client import ClientConnection, connect
 
 from app.providers.ai.base import ToolDefinition
+
+_ENDPOINT = (
+    "wss://generativelanguage.googleapis.com/ws/"
+    "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+)
+# A dedicated, unregistered logger cannot inherit application DEBUG settings.
+# WebSocket request URLs and frames contain credentials/conversation content.
+_WIRE_LOGGER = logging.Logger("mia.gemini_live.wire")
+_WIRE_LOGGER.disabled = True
+_WIRE_LOGGER.propagate = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +43,7 @@ class GeminiLiveSetup:
     output_transcription: bool
     context_window_trigger_tokens: int
     context_window_target_tokens: int
-    resume_handle: str | None
+    resume_handle: str | None = field(repr=False)
     tools: tuple[ToolDefinition, ...]
 
 
@@ -44,112 +61,133 @@ class GeminiLiveTransportFactory(Protocol):
     async def connect(self, setup: GeminiLiveSetup) -> GeminiLiveTransport: ...
 
 
-class _SDKLiveSession(Protocol):
-    async def send_realtime_input(self, **kwargs: object) -> None: ...
-
-    def receive(self) -> AsyncIterator[types.LiveServerMessage]: ...
+class GeminiLiveTransportError(RuntimeError):
+    """Fixed transport failure without raw frame, close reason, or endpoint."""
 
 
 class GoogleGenAILiveTransport:
-    """Compatibility wrapper for the pinned SDK and its newer Live signature."""
-
-    def __init__(
-        self,
-        *,
-        context: AbstractAsyncContextManager[Any],
-        session: _SDKLiveSession,
-    ) -> None:
-        self._context = context
-        self._session = session
+    def __init__(self, websocket: ClientConnection) -> None:
+        self._websocket = websocket
         self._closed = False
 
+    async def _send(self, message: Mapping[str, object]) -> None:
+        try:
+            await self._websocket.send(json.dumps(message))
+        except Exception:
+            raise GeminiLiveTransportError("Gemini Live send failed.") from None
+
     async def send_audio(self, chunk: bytes) -> None:
-        blob = types.Blob(data=chunk, mime_type="audio/pcm;rate=16000")
-        parameters = inspect.signature(self._session.send_realtime_input).parameters
-        if "audio" in parameters:
-            await self._session.send_realtime_input(audio=blob)
-        else:
-            await self._session.send_realtime_input(media=blob)
+        await self._send(
+            {
+                "realtimeInput": {
+                    "audio": {
+                        "data": base64.b64encode(chunk).decode("ascii"),
+                        "mimeType": "audio/pcm;rate=16000",
+                    }
+                }
+            }
+        )
 
     async def end_audio_stream(self) -> None:
-        parameters = inspect.signature(self._session.send_realtime_input).parameters
-        if "audio_stream_end" in parameters:
-            await self._session.send_realtime_input(audio_stream_end=True)
-            return
-
-        # google-genai 1.10 predates the public audio_stream_end keyword but its
-        # session already uses the same Live WebSocket wire format. Keep this
-        # isolated compatibility path until the shared dependency owner upgrades it.
-        websocket = getattr(self._session, "_ws", None)
-        send = getattr(websocket, "send", None)
-        if send is None:
-            raise RuntimeError("Gemini Live SDK cannot signal the end of audio")
-        result = send(json.dumps({"realtime_input": {"audio_stream_end": True}}))
-        if not isinstance(result, Awaitable):
-            raise RuntimeError("Gemini Live SDK returned an invalid WebSocket sender")
-        await result
+        await self._send({"realtimeInput": {"audioStreamEnd": True}})
 
     async def receive(self) -> AsyncIterator[types.LiveServerMessage]:
-        # The SDK iterator ends at each ``turn_complete`` even though the Live
-        # connection remains open. Re-enter it so the adapter sees a continuous
-        # provider stream across turns.
         while not self._closed:
-            async for message in self._session.receive():
-                yield message
+            try:
+                raw = await self._websocket.recv()
+                message = json.loads(raw)
+                if not isinstance(message, dict) or "error" in message:
+                    raise ValueError("invalid provider envelope")
+                parsed = types.LiveServerMessage.model_validate(message)
+            except Exception:
+                raise GeminiLiveTransportError("Gemini Live receive failed.") from None
+            yield parsed
 
     async def close(self) -> None:
         if self._closed:
             return
         self._closed = True
-        await self._context.__aexit__(None, None, None)
+        try:
+            await self._websocket.close()
+        except Exception:
+            raise GeminiLiveTransportError("Gemini Live close failed.") from None
 
 
 class GoogleGenAILiveTransportFactory:
-    """Open server-authenticated Gemini Live connections without leaking SDK types."""
+    """Open an API-key authenticated Developer API connection and validate setup."""
 
     def __init__(self, api_key: SecretStr) -> None:
         self._api_key = api_key
 
     @staticmethod
-    def _sdk_config(setup: GeminiLiveSetup) -> types.LiveConnectConfig:
-        declarations = [
-            types.FunctionDeclaration(
-                name=tool.name,
-                description=tool.description,
-                parameters=dict(tool.parameters),
-            )
-            for tool in setup.tools
-        ]
-        tools = [types.Tool(function_declarations=declarations)] if declarations else None
-        resume = types.SessionResumptionConfig(handle=setup.resume_handle, transparent=True)
-        return types.LiveConnectConfig(
-            response_modalities=["AUDIO"],
-            max_output_tokens=setup.max_output_tokens,
-            system_instruction=types.Content(parts=[types.Part(text=setup.system_instruction)]),
-            tools=tools,
-            input_audio_transcription=(
-                types.AudioTranscriptionConfig() if setup.input_transcription else None
-            ),
-            output_audio_transcription=(
-                types.AudioTranscriptionConfig() if setup.output_transcription else None
-            ),
-            session_resumption=resume,
-            context_window_compression=types.ContextWindowCompressionConfig(
-                trigger_tokens=setup.context_window_trigger_tokens,
-                sliding_window=types.SlidingWindow(
-                    target_tokens=setup.context_window_target_tokens
-                ),
-            ),
-        )
+    def _wire_setup(setup: GeminiLiveSetup) -> dict[str, object]:
+        config: dict[str, object] = {
+            "model": setup.model if setup.model.startswith("models/") else f"models/{setup.model}",
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "maxOutputTokens": setup.max_output_tokens,
+            },
+            "systemInstruction": {"parts": [{"text": setup.system_instruction}]},
+            "realtimeInputConfig": {
+                "automaticActivityDetection": {"disabled": False},
+                "activityHandling": "START_OF_ACTIVITY_INTERRUPTS",
+            },
+            "sessionResumption": {"handle": setup.resume_handle} if setup.resume_handle else {},
+            "contextWindowCompression": {
+                "triggerTokens": setup.context_window_trigger_tokens,
+                "slidingWindow": {"targetTokens": setup.context_window_target_tokens},
+            },
+        }
+        if setup.input_transcription:
+            config["inputAudioTranscription"] = {}
+        if setup.output_transcription:
+            config["outputAudioTranscription"] = {}
+        if setup.tools:
+            config["tools"] = [
+                {
+                    "functionDeclarations": [
+                        {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": dict(tool.parameters),
+                        }
+                        for tool in setup.tools
+                    ]
+                }
+            ]
+        return {"setup": config}
 
     async def connect(self, setup: GeminiLiveSetup) -> GeminiLiveTransport:
-        client = genai.Client(api_key=self._api_key.get_secret_value())
-        context = cast(
-            AbstractAsyncContextManager[Any],
-            client.aio.live.connect(model=setup.model, config=self._sdk_config(setup)),
-        )
-        session = cast(_SDKLiveSession, await context.__aenter__())
-        return GoogleGenAILiveTransport(context=context, session=session)
+        websocket: ClientConnection | None = None
+        try:
+            websocket = await connect(
+                f"{_ENDPOINT}?{urlencode({'key': self._api_key.get_secret_value()})}",
+                logger=_WIRE_LOGGER,
+                max_size=1024 * 1024,
+                max_queue=16,
+                open_timeout=30,
+                close_timeout=3,
+            )
+            await websocket.send(json.dumps(self._wire_setup(setup)))
+            response = json.loads(await websocket.recv())
+            if (
+                not isinstance(response, dict)
+                or not isinstance(response.get("setupComplete"), dict)
+                or "error" in response
+            ):
+                raise ValueError("provider setup was not acknowledged")
+        except BaseException as error:
+            if websocket is not None:
+                try:
+                    await websocket.close()
+                except Exception:
+                    pass
+            if isinstance(error, asyncio.CancelledError):
+                raise
+            if not isinstance(error, Exception):
+                raise
+            raise GeminiLiveTransportError("Gemini Live connection failed.") from None
+        return GoogleGenAILiveTransport(websocket)
 
 
 def normalized_arguments(arguments: object) -> Mapping[str, object]:
