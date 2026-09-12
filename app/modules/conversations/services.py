@@ -38,6 +38,8 @@ class ConversationService:
 
     CREATE_ENDPOINT = "POST /v1/conversations"
     TURN_ENDPOINT = "POST /v1/conversations/{conversation_id}/turns"
+    UPDATE_ENDPOINT = "PATCH /v1/conversations/{conversation_id}"
+    DELETE_ENDPOINT = "DELETE /v1/conversations/{conversation_id}"
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -121,3 +123,83 @@ class ConversationService:
                 resource_id=turn.id,
             )
             return IdempotentResult(value=turn, replayed=False)
+
+    async def update_conversation(
+        self,
+        *,
+        user_id: uuid.UUID,
+        conversation_id: uuid.UUID,
+        idempotency_key: str,
+        title: str | None,
+        title_provided: bool,
+        archived: bool | None,
+    ) -> IdempotentResult[Conversation]:
+        request_hash = canonical_request_hash(
+            {
+                "archived": archived,
+                "conversation_id": str(conversation_id),
+                "title": title if title_provided else {"omitted": True},
+            }
+        )
+        endpoint = self.UPDATE_ENDPOINT.format(conversation_id=conversation_id)
+        async with self._session_factory() as session, session.begin():
+            idempotency = IdempotencyRepository(session)
+            conversations = ConversationRepository(session)
+            claim = await idempotency.claim(
+                user_id=user_id,
+                endpoint=endpoint,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if claim.replayed:
+                existing = await conversations.get_owned(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                )
+                if existing is None:
+                    raise IdempotencyConflictError("idempotent mutation resource is unavailable")
+                return IdempotentResult(value=existing, replayed=True)
+            conversation = await conversations.update_owned(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                title=title,
+                title_provided=title_provided,
+                archived=archived,
+            )
+            await idempotency.bind_resource(
+                claim.record,
+                resource_kind="conversation",
+                resource_id=conversation.id,
+            )
+            return IdempotentResult(value=conversation, replayed=False)
+
+    async def delete_conversation(
+        self,
+        *,
+        user_id: uuid.UUID,
+        conversation_id: uuid.UUID,
+        idempotency_key: str,
+    ) -> IdempotentResult[None]:
+        request_hash = canonical_request_hash({"conversation_id": str(conversation_id)})
+        endpoint = self.DELETE_ENDPOINT.format(conversation_id=conversation_id)
+        async with self._session_factory() as session, session.begin():
+            idempotency = IdempotencyRepository(session)
+            conversations = ConversationRepository(session)
+            claim = await idempotency.claim(
+                user_id=user_id,
+                endpoint=endpoint,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if claim.replayed:
+                return IdempotentResult(value=None, replayed=True)
+            await conversations.delete_owned(
+                user_id=user_id,
+                conversation_id=conversation_id,
+            )
+            await idempotency.bind_resource(
+                claim.record,
+                resource_kind="conversation",
+                resource_id=conversation_id,
+            )
+            return IdempotentResult(value=None, replayed=False)

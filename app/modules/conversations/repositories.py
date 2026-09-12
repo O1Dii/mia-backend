@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,6 +145,45 @@ class ConversationRepository:
             self._owned_statement(user_id=user_id, conversation_id=conversation_id)
         )
         return result.one_or_none()
+
+    async def update_owned(
+        self,
+        *,
+        user_id: uuid.UUID,
+        conversation_id: uuid.UUID,
+        title: str | None,
+        title_provided: bool,
+        archived: bool | None,
+    ) -> Conversation:
+        conversation = await self._session.scalar(
+            self._owned_statement(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                for_update=True,
+            )
+        )
+        if conversation is None:
+            raise ConversationNotFoundError("conversation was not found")
+        if title_provided:
+            conversation.title = title
+        now = datetime.now(UTC)
+        if archived is not None:
+            conversation.archived_at = now if archived else None
+        conversation.updated_at = now
+        await self._session.flush()
+        return conversation
+
+    async def delete_owned(self, *, user_id: uuid.UUID, conversation_id: uuid.UUID) -> None:
+        deleted_id = await self._session.scalar(
+            delete(Conversation)
+            .where(
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
+            )
+            .returning(Conversation.id)
+        )
+        if deleted_id is None:
+            raise ConversationNotFoundError("conversation was not found")
 
     async def list_owned(
         self,
