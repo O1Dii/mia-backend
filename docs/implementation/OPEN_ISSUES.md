@@ -195,6 +195,10 @@ complete and recorded in the S24 handoff.
 
 <!-- S14 adds OI-S14-* records here. -->
 
+S14 completed with no new non-blocking product questions. Runtime mounting and
+S12 bearer composition are assigned to the W3 integrator in the S14 handoff;
+the session's REST/SSE lifecycle, ownership, retry, and disconnect gates pass.
+
 ## S16 inbox
 
 <!-- S16 adds OI-S16-* records here. -->
