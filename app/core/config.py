@@ -1,9 +1,11 @@
 """Typed runtime configuration with safe defaults for local fake-mode work."""
 
+from __future__ import annotations
+
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +14,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     app_env: Literal["development", "test", "staging", "production"] = "development"
@@ -21,6 +24,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://mia:mia-local-only@localhost:5432/mia"
     redis_url: str = "redis://localhost:6379/0"
     gemini_api_key: SecretStr | None = Field(default=None, repr=False)
+    google_client_id: str | None = Field(default=None, min_length=1)
+    auth_jwt_secret: SecretStr = Field(default=SecretStr("mia-local-auth-signing-key-change-me"))
+    auth_access_token_ttl_seconds: int = Field(default=900, ge=600, le=900)
+    auth_refresh_token_ttl_days: int = Field(default=30, ge=1, le=180)
+    auth_nonce_ttl_seconds: int = Field(default=300, ge=60, le=900)
+    auth_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
+    auth_nonce_rate_limit: int = Field(default=10, ge=1, le=1000)
+    auth_exchange_rate_limit: int = Field(default=10, ge=1, le=1000)
+    auth_refresh_rate_limit: int = Field(default=30, ge=1, le=1000)
+    auth_authenticated_rate_limit: int = Field(default=120, ge=1, le=5000)
 
     @field_validator("log_level")
     @classmethod
@@ -46,6 +59,17 @@ class Settings(BaseSettings):
             message = "REDIS_URL must use the redis or rediss scheme"
             raise ValueError(message)
         return value
+
+    @model_validator(mode="after")
+    def require_production_auth_configuration(self) -> Settings:
+        if len(self.auth_jwt_secret.get_secret_value().encode()) < 32:
+            raise ValueError("AUTH_JWT_SECRET must contain at least 32 bytes")
+        if self.app_env in {"staging", "production"}:
+            if self.google_client_id is None:
+                raise ValueError("GOOGLE_CLIENT_ID is required outside local and test environments")
+            if self.auth_jwt_secret.get_secret_value() == "mia-local-auth-signing-key-change-me":
+                raise ValueError("AUTH_JWT_SECRET must be overridden outside local environments")
+        return self
 
     @property
     def has_gemini_api_key(self) -> bool:
