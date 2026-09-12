@@ -7,6 +7,7 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.conversations import models as conversation_models  # noqa: F401
 from app.modules.users.models import Base
 from sqlalchemy import Connection, pool
