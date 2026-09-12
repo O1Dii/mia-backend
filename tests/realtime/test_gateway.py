@@ -97,7 +97,11 @@ def create_session(client: TestClient, *, key: str = "realtime-session-key-001")
         },
     )
     assert response.status_code == 201, response.text
-    return str(response.json()["id"])
+    session_id = str(response.json()["id"])
+    assert response.json()["websocket_url"] == (
+        f"ws://testserver/v1/realtime?session_id={session_id}"
+    )
+    return session_id
 
 
 def configure(session_id: str, *, seq: int = 1) -> dict[str, object]:

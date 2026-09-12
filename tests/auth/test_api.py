@@ -61,7 +61,7 @@ def auth_client(*, nonce_limit: int = 10) -> TestClient:
     service = cast(AuthService, StubAuthService())
     cache = fake_auth_cache()
     settings = Settings(app_env="test", auth_nonce_rate_limit=nonce_limit)
-    app = create_app(settings)
+    app = create_app(settings, install_modules=False)
     install_auth(
         app,
         settings,

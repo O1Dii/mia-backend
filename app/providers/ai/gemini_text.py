@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Protocol, cast
 from uuid import UUID, uuid5
 
-from google import genai  # type: ignore[import-untyped]
+from google import genai
 from google.genai import types  # type: ignore[import-untyped]
 from pydantic import SecretStr
 

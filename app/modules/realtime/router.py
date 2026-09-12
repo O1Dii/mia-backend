@@ -65,7 +65,7 @@ def build_realtime_router(
     store: InMemoryRealtimeSessionStore,
     authenticator: RealtimeAuthenticator,
     gateway: RealtimeGateway,
-    websocket_url_base: str = "wss://localhost/v1/realtime",
+    websocket_url_base: str | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -113,9 +113,15 @@ def build_realtime_router(
                 message="Idempotency key was used for a different request.",
                 request_id=request_id,
             )
+        public_websocket_url = websocket_url_base
+        if public_websocket_url is None:
+            scheme = "wss" if request.url.scheme == "https" else "ws"
+            public_websocket_url = str(
+                request.url_for("realtime_websocket").replace(scheme=scheme)
+            )
         return RealtimeSessionResponse(
             id=session.id,
-            websocket_url=f"{websocket_url_base}?session_id={session.id}",
+            websocket_url=f"{public_websocket_url}?session_id={session.id}",
             expires_at=session.expires_at,
         )
 
@@ -141,7 +147,7 @@ def build_realtime_router(
         await store.finish(session_id, interrupted=False)
         return None
 
-    @router.websocket("/v1/realtime")
+    @router.websocket("/v1/realtime", name="realtime_websocket")
     async def realtime(websocket: WebSocket) -> None:
         await gateway.handle(websocket)
 

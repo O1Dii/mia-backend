@@ -17,6 +17,8 @@ Integration session обновляет этот индекс после merge.
 | OI-ARCH-005 | OPEN | Voice history | Насколько output transcript считается точным текстом ответа? | показывать как transcript с delivery metadata | S31 |
 | OI-ARCH-006 | OPEN | Cost controls | Каковы точные daily/session Gemini limits? | консервативные config defaults | S18 |
 | OI-S20-001 | RESOLVED | Android platform baseline | Какой minSdk использовать в scaffold? | API 26 принят | resolved in W1 |
+| OI-S12-001 | OPEN | Android auth recovery | Как восстановиться после потерянного refresh response? | повторная аутентификация | S21/S30 |
+| OI-S16-001 | OPEN | Gemini Live dependency | Закрепить WebSocket transport или обновить SDK? | текущий wire transport | S18 |
 
 ## Record template
 

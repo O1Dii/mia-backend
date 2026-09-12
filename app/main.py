@@ -11,6 +11,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
 from app.api.errors import service_unavailable
+from app.composition import install_runtime_api
 from app.core.config import Settings, get_settings
 from app.core.database import Database
 from app.core.logging import configure_logging
@@ -20,17 +21,19 @@ from app.core.runtime import Runtime
 logger = logging.getLogger(__name__)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, *, install_modules: bool = True
+) -> FastAPI:
     """Build the application without connecting to external dependencies at import time."""
     resolved_settings = settings or get_settings()
+    runtime = Runtime(
+        database=Database(resolved_settings.database_url),
+        redis=RedisClient(resolved_settings.redis_url),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         configure_logging(resolved_settings.log_level)
-        app.state.runtime = Runtime(
-            database=Database(resolved_settings.database_url),
-            redis=RedisClient(resolved_settings.redis_url),
-        )
         logger.info(
             "application_started",
             extra={
@@ -44,6 +47,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         logger.info("application_stopped")
 
     app = FastAPI(title="MIA Backend", version="0.1.0", lifespan=lifespan)
+    app.state.runtime = runtime
+    if install_modules:
+        install_runtime_api(app, resolved_settings, runtime)
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next: RequestResponseEndpoint) -> Response:

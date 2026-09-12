@@ -25,6 +25,16 @@ def test_production_requires_explicit_auth_configuration() -> None:
         Settings(app_env="production")
 
 
+def test_gemini_provider_requires_all_provider_configuration() -> None:
+    with pytest.raises(ValidationError, match="GEMINI_API_KEY"):
+        Settings(
+            ai_provider="gemini",
+            gemini_api_key=None,
+            gemini_text_model=None,
+            gemini_live_model=None,
+        )
+
+
 def test_auth_secret_errors_and_repr_never_include_supplied_value() -> None:
     sensitive = "synthetic-short-key"
     with pytest.raises(ValidationError) as error:

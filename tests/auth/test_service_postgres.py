@@ -248,7 +248,7 @@ async def test_http_sign_in_me_refresh_logout_contract_and_no_token_logging(
 ) -> None:
     service, _ = auth_harness
     settings = Settings(app_env="test")
-    app = create_app(settings)
+    app = create_app(settings, install_modules=False)
     database = Database(database_url())
     redis = RedisClient(settings.redis_url)
     install_auth(

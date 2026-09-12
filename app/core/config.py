@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://mia:mia-local-only@localhost:5432/mia"
     redis_url: str = "redis://localhost:6379/0"
     gemini_api_key: SecretStr | None = Field(default=None, repr=False)
+    gemini_text_model: str | None = Field(default=None, min_length=1)
+    gemini_live_model: str | None = Field(default=None, min_length=1)
+    gemini_request_timeout_seconds: float = Field(default=30.0, gt=0)
     google_client_id: str | None = Field(default=None, min_length=1)
     auth_jwt_secret: SecretStr = Field(default=SecretStr("mia-local-auth-signing-key-change-me"))
     auth_access_token_ttl_seconds: int = Field(default=900, ge=600, le=900)
@@ -64,6 +67,18 @@ class Settings(BaseSettings):
     def require_production_auth_configuration(self) -> Settings:
         if len(self.auth_jwt_secret.get_secret_value().encode()) < 32:
             raise ValueError("AUTH_JWT_SECRET must contain at least 32 bytes")
+        if self.ai_provider == "gemini":
+            missing = [
+                name
+                for name, value in (
+                    ("GEMINI_API_KEY", self.gemini_api_key),
+                    ("GEMINI_TEXT_MODEL", self.gemini_text_model),
+                    ("GEMINI_LIVE_MODEL", self.gemini_live_model),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError(f"{', '.join(missing)} required when AI_PROVIDER=gemini")
         if self.app_env in {"staging", "production"}:
             if self.google_client_id is None:
                 raise ValueError("GOOGLE_CLIENT_ID is required outside local and test environments")
