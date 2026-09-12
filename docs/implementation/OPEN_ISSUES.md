@@ -191,6 +191,25 @@ complete and recorded in the S24 handoff.
 
 <!-- S12 adds OI-S12-* records here. -->
 
+### OI-S12-001 — Auth client retry policy
+
+- Status: OPEN
+- Source session: S12
+- Component: Android authentication/session recovery
+- Question: how should the client recover when a refresh response is lost?
+- Why non-blocking: backend nonce/reuse protections have a secure defined policy.
+- Current assumption: serialize refresh per login, atomically replace tokens,
+  discard the local session and reauthenticate after an ambiguous refresh outcome.
+- Options: explicit reauthentication; future reviewed protocol with secure retry
+  receipts and a bounded retry window.
+- Recommendation: use explicit reauthentication for the PoC. Do not retry an old
+  refresh token or let Idempotency-Key bypass reuse detection. Repeated nonce
+  creation returns a fresh nonce; token-bearing responses are never cached.
+- Affected future sessions: S21, S30, S18.
+- Revisit trigger/by: S21 session repository and S30 lost-response integration tests.
+- Resolution: backend behavior documented; Android implementation remains downstream.
+- Evidence: `app/modules/auth/README.md`, `tests/auth/test_service_postgres.py`.
+
 ## S14 inbox
 
 <!-- S14 adds OI-S14-* records here. -->
