@@ -246,6 +246,9 @@ the session's REST/SSE lifecycle, ownership, retry, and disconnect gates pass.
 
 <!-- S25 adds OI-S25-* records here. -->
 
+No new non-blocking questions. The physical-device gate is complete and recorded
+in the S25 handoff.
+
 ## S17 inbox
 
 <!-- S17 adds OI-S17-* records here. -->
