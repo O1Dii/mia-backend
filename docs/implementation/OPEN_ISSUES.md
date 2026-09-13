@@ -267,6 +267,9 @@ in the S25 handoff.
 
 <!-- S26 adds OI-S26-* records here. -->
 
+No new non-blocking questions. The missing physical-device latency gate is a
+session blocker, not an OPEN_ISSUES entry; see the S26 handoff.
+
 ## S18 inbox
 
 <!-- S18 adds OI-S18-* records here. -->
