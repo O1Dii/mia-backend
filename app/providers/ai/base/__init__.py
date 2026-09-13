@@ -21,6 +21,7 @@ from app.providers.ai.base.provider import (
     TextMessage,
     TextRequest,
     ToolDefinition,
+    ToolFeedback,
 )
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     "ToolCallCancelled",
     "ToolCallRequested",
     "ToolDefinition",
+    "ToolFeedback",
     "UsageReported",
 ]

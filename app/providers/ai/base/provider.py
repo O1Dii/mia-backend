@@ -30,12 +30,22 @@ class ToolDefinition:
 
 
 @dataclass(frozen=True, slots=True)
+class ToolFeedback:
+    """A policy-approved result, never a system instruction."""
+
+    name: str
+    arguments: Mapping[str, object]
+    response: Mapping[str, object]
+
+
+@dataclass(frozen=True, slots=True)
 class TextRequest:
     turn_id: UUID
     response_id: UUID
     messages: Sequence[TextMessage]
     system_instruction: str
     tools: Sequence[ToolDefinition] = ()
+    tool_feedback: Sequence[ToolFeedback] = ()
     max_output_tokens: int = 512
 
     def __post_init__(self) -> None:
