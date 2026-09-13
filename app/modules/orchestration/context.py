@@ -70,7 +70,6 @@ class ContextBuilder:
         entries: Sequence[ContextEntry],
         profile: UserProfile,
         summary: str | None = None,
-        tool_results: Sequence[str] = (),
     ) -> BuiltContext:
         instruction_parts = [
             stable_instruction.strip(),
@@ -78,10 +77,6 @@ class ContextBuilder:
         ]
         if summary:
             instruction_parts.append(f"Conversation summary:\n{summary.strip()}")
-        if tool_results:
-            instruction_parts.append(
-                "Approved tool results for this turn:\n" + "\n".join(tool_results)
-            )
         system_instruction = "\n\n".join(part for part in instruction_parts if part)
         used = self._estimator.estimate(system_instruction)
         if used > self._max_input_tokens:

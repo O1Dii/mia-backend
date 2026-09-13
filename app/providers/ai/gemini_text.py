@@ -83,13 +83,35 @@ class GeminiTextAIProvider:
 
     @staticmethod
     def _contents(request: TextRequest) -> list[types.Content]:
-        return [
+        contents = [
             types.Content(
                 role="model" if message.role == "assistant" else "user",
                 parts=[types.Part(text=message.text)],
             )
             for message in request.messages
         ]
+        for feedback in request.tool_feedback:
+            contents.append(
+                types.Content(
+                    role="model",
+                    parts=[
+                        types.Part.from_function_call(
+                            name=feedback.name, args=dict(feedback.arguments)
+                        )
+                    ],
+                )
+            )
+            contents.append(
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=feedback.name, response=dict(feedback.response)
+                        )
+                    ],
+                )
+            )
+        return contents
 
     def _generation_config(self, request: TextRequest) -> types.GenerateContentConfig:
         declarations = [

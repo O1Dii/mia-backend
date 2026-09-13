@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator, AsyncIterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 from uuid import UUID
@@ -23,10 +24,11 @@ from app.modules.conversations.models import Entry, Turn
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import ConversationStreamEvent, PreparedTextTurn
 from app.modules.realtime.sessions import AuthenticatedUser
+from app.modules.tools import ToolExecutor, current_datetime_registry
 from app.modules.users import UserRepository
 from app.modules.users.models import User
 from app.providers.ai.base import AIEvent, TextAIProvider, TextDelta, TextRequest
-from app.providers.ai.fake import FakeAIProvider, FakeTextResponse
+from app.providers.ai.fake import FakeAIProvider, FakeTextResponse, FakeToolCall
 from fastapi import FastAPI, Request
 from jsonschema import Draft202012Validator, FormatChecker  # type: ignore[import-untyped]
 from sqlalchemy import select, text
@@ -309,6 +311,60 @@ async def test_fake_provider_sse_persists_and_replays_without_duplicate_turn(
         (EntryRole.ASSISTANT, DeliveryStatus.DELIVERED),
     ]
     assert entries[1].content == {"text": "Привет, мир!"}
+
+
+@pytest.mark.asyncio
+async def test_manual_tool_loop_persists_audit_history_and_replays_once(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    provider = FakeAIProvider(
+        FakeTextResponse(
+            text_chunks=("Checking time. ",),
+            tool_call=FakeToolCall(
+                name="system.get_current_datetime", arguments={"timezone": "Europe/Minsk"}
+            ),
+        ),
+        clock=lambda: datetime(2026, 9, 13, tzinfo=UTC),
+    )
+    executor = ToolExecutor(
+        session_factory,
+        current_datetime_registry(clock=lambda: datetime(2026, 9, 13, tzinfo=UTC)),
+    )
+    service = TextSSEService(session_factory, provider, tool_executor=executor)
+    conversation = await ConversationService(session_factory).create_conversation(
+        user_id=OWNER_ID, idempotency_key="conversation-for-tool-loop"
+    )
+    prepared = await service.prepare(
+        user_id=OWNER_ID,
+        conversation_id=conversation.value.id,
+        idempotency_key="message-with-tool",
+        text="Который час?",
+    )
+    events = [event async for event in service.stream(prepared, request_id="tool-request")]
+    assert [event.name for event in events] == [
+        "message.delta",
+        "tool.call.started",
+        "tool.call.completed",
+        "message.delta",
+        "message.completed",
+    ]
+    validator = Draft202012Validator(STREAM_SCHEMA, format_checker=FormatChecker())
+    for event in events:
+        validator.validate(event.data)
+    replay = await service.prepare(
+        user_id=OWNER_ID,
+        conversation_id=conversation.value.id,
+        idempotency_key="message-with-tool",
+        text="Который час?",
+    )
+    assert [event.name async for event in service.stream(replay, request_id="replay")] == [
+        "message.completed"
+    ]
+    async with session_factory() as session:
+        rows = tuple((await session.scalars(select(Entry).order_by(Entry.sequence))).all())
+    assert [entry.kind.value for entry in rows] == ["text", "text", "tool_call", "tool_result"]
+    assert rows[1].content == {"text": "Checking time. Tool result received."}
+    assert rows[3].content["status"] == "succeeded"
 
 
 @pytest.mark.asyncio

@@ -58,7 +58,10 @@ class FakeAIProvider:
             at=self._clock(),
             modalities=("text",),
         )
-        for text in self._response.text_chunks:
+        text_chunks = (
+            ("Tool result received.",) if request.tool_feedback else self._response.text_chunks
+        )
+        for text in text_chunks:
             seq += 1
             yield TextDelta(
                 event_id=self._event_id(request.response_id, seq),
@@ -70,7 +73,7 @@ class FakeAIProvider:
             )
 
         finish_reason: FinishReason = "stop"
-        if self._response.tool_call is not None:
+        if self._response.tool_call is not None and not request.tool_feedback:
             seq += 1
             scripted_call = self._response.tool_call
             definition = next(

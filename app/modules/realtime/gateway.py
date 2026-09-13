@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import partial
+from typing import cast
 from uuid import UUID, uuid4, uuid5
 
 from pydantic import ValidationError
@@ -24,6 +27,7 @@ from app.modules.realtime.contracts import (
 )
 from app.modules.realtime.provider import (
     ProviderAudio,
+    ProviderControl,
     ProviderOutput,
     RealtimeProviderFactory,
     RealtimeProviderSession,
@@ -34,6 +38,7 @@ from app.modules.realtime.sessions import (
     RealtimeSession,
     RealtimeSessionNotFoundError,
 )
+from app.modules.tools import ToolExecutor, ToolPrincipal
 
 
 class ConnectionPhase(StrEnum):
@@ -77,11 +82,15 @@ class _RealtimeConnection:
         max_binary_frame_bytes: int,
         heartbeat_interval_ms: int,
         backpressure_timeout_seconds: float,
+        tool_executor: ToolExecutor | None = None,
     ) -> None:
         self._websocket = websocket
         self._session = session
         self._provider = provider
         self._store = store
+        self._tool_executor = tool_executor
+        self._tool_tasks: dict[UUID, asyncio.Task[None]] = {}
+        self._tool_responses: dict[UUID, UUID] = {}
         self._phase = ConnectionPhase.AWAITING_CONFIGURATION
         self._expected_client_seq = 1
         self._server_seq = 0
@@ -285,6 +294,9 @@ class _RealtimeConnection:
                 )
                 return False
             self._cancelled_responses.add(event.response_id)
+            for call_id, task in tuple(self._tool_tasks.items()):
+                if self._tool_responses.get(call_id) == event.response_id:
+                    task.cancel()
             return await self._queue_input(
                 _CancelCommand(
                     response_id=event.response_id,
@@ -363,6 +375,67 @@ class _RealtimeConnection:
                 close_code=1011,
             )
 
+    async def _run_tool(self, output: ProviderControl, call_id: UUID) -> None:
+        assert output.turn_id is not None and output.response_id is not None
+        name = str(output.payload.get("name", ""))
+        arguments = output.payload.get("arguments")
+        confirmation = output.payload.get("requires_confirmation")
+        try:
+            if self._tool_executor is None:
+                payload: dict[str, object] = {
+                    "call_id": str(call_id),
+                    "name": name,
+                    "status": "failed",
+                    "error": {
+                        "code": "tool_permission_denied",
+                        "message": "Tool is not permitted.",
+                    },
+                }
+                response: Mapping[str, object] = {"error": {"code": "tool_permission_denied"}}
+            else:
+                outcome = await self._tool_executor.execute(
+                    principal=ToolPrincipal(self._session.user_id),
+                    call_id=call_id,
+                    turn_id=output.turn_id,
+                    response_id=output.response_id,
+                    name=name,
+                    arguments=arguments,
+                    proposed_confirmation=(
+                        confirmation if isinstance(confirmation, bool) else None
+                    ),
+                )
+                payload = outcome.event_payload()
+                response = (
+                    outcome.result
+                    if outcome.result is not None
+                    else {"error": {"code": outcome.error_code or "tool_execution_failed"}}
+                )
+            if output.response_id in self._cancelled_responses:
+                return
+            await self._send_control(
+                "tool.call.completed",
+                payload,
+                turn_id=output.turn_id,
+                response_id=output.response_id,
+            )
+            send = getattr(self._provider, "send_tool_result", None)
+            if send is not None:
+                send_result = cast(Callable[[UUID, Mapping[str, object]], Awaitable[None]], send)
+                await send_result(call_id, response)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            await self._fail(
+                "realtime_provider_unavailable",
+                "Tool execution is unavailable.",
+                retryable=True,
+                close_code=1011,
+            )
+
+    def _on_tool_done(self, call_id: UUID, _task: asyncio.Task[None]) -> None:
+        self._tool_tasks.pop(call_id, None)
+        self._tool_responses.pop(call_id, None)
+
     async def _output_worker(self) -> None:
         while True:
             output = await self._output_queue.get()
@@ -378,6 +451,9 @@ class _RealtimeConnection:
                     and output.event_type != "response.interrupted"
                 ):
                     continue
+                if output.event_type == "tool.call.completed":
+                    # A provider cannot claim a tool succeeded without the policy executor.
+                    continue
                 if (
                     output.event_type == "response.started"
                     and output.response_id is not None
@@ -390,6 +466,23 @@ class _RealtimeConnection:
                     turn_id=output.turn_id,
                     response_id=output.response_id,
                 )
+                if output.event_type == "tool.call.started":
+                    if output.turn_id is None or output.response_id is None:
+                        await self._fail("realtime_invalid_event", "Invalid tool call metadata.")
+                        return
+                    raw_call_id = output.payload.get("call_id")
+                    try:
+                        call_id = UUID(str(raw_call_id))
+                    except (TypeError, ValueError):
+                        await self._fail("realtime_invalid_event", "Invalid tool call metadata.")
+                        return
+                    if call_id in self._tool_tasks:
+                        await self._fail("realtime_invalid_event", "Duplicate tool call.")
+                        return
+                    task = asyncio.create_task(self._run_tool(output, call_id))
+                    self._tool_tasks[call_id] = task
+                    self._tool_responses[call_id] = output.response_id
+                    task.add_done_callback(partial(self._on_tool_done, call_id))
                 if output.event_type == "response.interrupted" and output.response_id is not None:
                     self._response_turns.pop(output.response_id, None)
                 elif output.event_type == "turn.completed" and output.turn_id is not None:
@@ -445,6 +538,9 @@ class _RealtimeConnection:
             self._phase = ConnectionPhase.CLOSED
             await self._store.finish(self._session.id, interrupted=interrupted)
             await self._provider.close()
+            for tool_task in tuple(self._tool_tasks.values()):
+                tool_task.cancel()
+            await asyncio.gather(*self._tool_tasks.values(), return_exceptions=True)
             for task in (input_task, provider_task, output_task):
                 if task is not None:
                     task.cancel()
@@ -468,6 +564,7 @@ class RealtimeGateway:
         max_binary_frame_bytes: int = 4096,
         heartbeat_interval_ms: int = 15000,
         backpressure_timeout_seconds: float = 0.25,
+        tool_executor: ToolExecutor | None = None,
     ) -> None:
         if min(input_queue_size, output_queue_size, max_binary_frame_bytes) < 1:
             raise ValueError("realtime queue and frame limits must be positive")
@@ -479,6 +576,7 @@ class RealtimeGateway:
         self._max_binary_frame_bytes = max_binary_frame_bytes
         self._heartbeat_interval_ms = heartbeat_interval_ms
         self._backpressure_timeout_seconds = backpressure_timeout_seconds
+        self._tool_executor = tool_executor
 
     @staticmethod
     def _bearer_token(authorization: str | None) -> str | None:
@@ -514,5 +612,6 @@ class RealtimeGateway:
             max_binary_frame_bytes=self._max_binary_frame_bytes,
             heartbeat_interval_ms=self._heartbeat_interval_ms,
             backpressure_timeout_seconds=self._backpressure_timeout_seconds,
+            tool_executor=self._tool_executor,
         )
         await connection.run()

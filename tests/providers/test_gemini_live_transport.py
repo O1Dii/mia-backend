@@ -94,6 +94,11 @@ async def test_setup_handshake_pcm_and_multiple_turns(monkeypatch: pytest.Monkey
 
     await transport.send_audio(b"\x00\x01")
     await transport.end_audio_stream()
+    await transport.send_tool_response(
+        call_id="opaque-wire-id",
+        name="system.get_current_datetime",
+        response={"local_datetime": "2026-09-13T13:00:00+03:00"},
+    )
     assert socket.sent[1] == {
         "realtimeInput": {
             "audio": {
@@ -103,6 +108,17 @@ async def test_setup_handshake_pcm_and_multiple_turns(monkeypatch: pytest.Monkey
         }
     }
     assert socket.sent[2] == {"realtimeInput": {"audioStreamEnd": True}}
+    assert socket.sent[3] == {
+        "toolResponse": {
+            "functionResponses": [
+                {
+                    "id": "opaque-wire-id",
+                    "name": "system.get_current_datetime",
+                    "response": {"local_datetime": "2026-09-13T13:00:00+03:00"},
+                }
+            ]
+        }
+    }
     events = transport.receive()
     for _ in range(2):
         assert (await anext(events)).server_content.turn_complete is True

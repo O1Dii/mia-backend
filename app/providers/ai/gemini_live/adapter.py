@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -185,6 +185,19 @@ class GeminiLiveAdapter:
         async with self._mapping_lock:
             for event in self._mapper.cancel_response(response_id, reason):
                 await self._emit(event)
+
+    async def send_tool_result(self, call_id: UUID, response: Mapping[str, object]) -> None:
+        async with self._mapping_lock:
+            raw_id, name = self._mapper.take_tool_response_target(call_id)
+        async with self._transport_lock:
+            transport = self._require_transport()
+            try:
+                async with asyncio.timeout(self._config.request_timeout_seconds):
+                    await transport.send_tool_response(call_id=raw_id, name=name, response=response)
+            except TimeoutError:
+                raise GeminiLiveAdapterError("Gemini Live tool response timed out.") from None
+            except Exception:
+                raise GeminiLiveAdapterError("Gemini Live tool response failed.") from None
 
     def _defer(self, message: types.LiveServerMessage) -> None:
         if len(self._deferred_messages) >= 32:

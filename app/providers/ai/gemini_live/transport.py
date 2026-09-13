@@ -52,6 +52,10 @@ class GeminiLiveTransport(Protocol):
 
     async def end_audio_stream(self) -> None: ...
 
+    async def send_tool_response(
+        self, *, call_id: str, name: str, response: Mapping[str, object]
+    ) -> None: ...
+
     def receive(self) -> AsyncIterator[types.LiveServerMessage]: ...
 
     async def close(self) -> None: ...
@@ -90,6 +94,17 @@ class GoogleGenAILiveTransport:
 
     async def end_audio_stream(self) -> None:
         await self._send({"realtimeInput": {"audioStreamEnd": True}})
+
+    async def send_tool_response(
+        self, *, call_id: str, name: str, response: Mapping[str, object]
+    ) -> None:
+        await self._send(
+            {
+                "toolResponse": {
+                    "functionResponses": [{"id": call_id, "name": name, "response": dict(response)}]
+                }
+            }
+        )
 
     async def receive(self) -> AsyncIterator[types.LiveServerMessage]:
         while not self._closed:

@@ -444,6 +444,14 @@ class GeminiLiveEventMapper:
             )
         return outputs
 
+    def take_tool_response_target(self, call_id: UUID) -> tuple[str, str]:
+        """Resolve the opaque public call ID to the provider wire ID exactly once."""
+        for raw_id, call in tuple(self._tool_calls.items()):
+            if call.call_id == call_id:
+                del self._tool_calls[raw_id]
+                return raw_id, call.name
+        raise InvalidGeminiLiveMessage("Gemini tool call is no longer active")
+
     def _map_usage(
         self,
         usage: types.UsageMetadata,

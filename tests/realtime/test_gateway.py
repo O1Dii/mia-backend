@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 from uuid import UUID, uuid5
 
 import pytest
@@ -28,6 +28,7 @@ from app.modules.realtime.sessions import (
     RealtimeSession,
     RealtimeSessionStatus,
 )
+from app.modules.tools import ToolExecutor, ToolOutcome, current_datetime_registry
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketTestSession
@@ -58,6 +59,7 @@ def build_harness(
     *,
     provider_type: Callable[[RealtimeSession], RealtimeProviderSession] = FakeRealtimeProvider,
     input_queue_size: int = 8,
+    tool_executor: ToolExecutor | None = None,
 ) -> Harness:
     store = InMemoryRealtimeSessionStore()
     authenticator = StaticAuthenticator()
@@ -73,6 +75,7 @@ def build_harness(
         authenticator=authenticator,
         provider_factory=provider_factory,
         input_queue_size=input_queue_size,
+        tool_executor=tool_executor,
     )
     app = FastAPI()
     app.include_router(
@@ -233,6 +236,50 @@ def test_fake_handshake_binary_routing_and_schema_ordering() -> None:
         "usage.updated",
     } <= event_types
     assert binaries == [bytes(index % 127 for index in range(1920))]
+
+
+class RecordingToolExecutor:
+    def __init__(self) -> None:
+        self.registry = current_datetime_registry()
+        self.calls: list[dict[str, Any]] = []
+
+    async def execute(self, **kwargs: Any) -> ToolOutcome:
+        self.calls.append(kwargs)
+        return ToolOutcome(
+            call_id=kwargs["call_id"],
+            name=kwargs["name"],
+            status="succeeded",
+            result={"local_datetime": "2026-09-13T13:00:00+03:00"},
+        )
+
+
+def test_realtime_tool_completion_comes_only_from_policy_executor() -> None:
+    executor = RecordingToolExecutor()
+    harness = build_harness(tool_executor=cast(ToolExecutor, executor))
+    session_id = create_session(harness.client, key="realtime-with-tool")
+    completed: list[dict[str, object]] = []
+    with harness.client.websocket_connect(
+        f"/v1/realtime?session_id={session_id}",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    ) as websocket:
+        websocket.send_json(configure(session_id))
+        assert websocket.receive_json()["type"] == "session.ready"
+        websocket.send_json(start_input(session_id))
+        websocket.send_bytes(bytes(1280))
+        websocket.send_json(commit_input(session_id))
+        for _ in range(20):
+            frame = receive_frame(websocket)
+            if isinstance(frame, bytes):
+                continue
+            if frame["type"] == "tool.call.completed":
+                completed.append(frame)
+                break
+        websocket.send_json(close_session(session_id, seq=4))
+    assert len(executor.calls) == 1
+    assert executor.calls[0]["name"] == "system.get_current_datetime"
+    assert len(completed) == 1
+    payload = cast(dict[str, object], completed[0]["payload"])
+    assert payload["result"] == {"local_datetime": "2026-09-13T13:00:00+03:00"}
 
 
 def test_configure_must_be_first_and_websocket_token_is_required() -> None:

@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator, Sequence
 from uuid import UUID
 
 from app.modules.orchestration.context import ContextBuilder, ContextEntry, UserProfile
-from app.providers.ai.base import AIEvent, TextAIProvider, TextRequest, ToolDefinition
+from app.providers.ai.base import AIEvent, TextAIProvider, TextRequest, ToolDefinition, ToolFeedback
 
 
 class TextOrchestrationService:
@@ -23,8 +23,8 @@ class TextOrchestrationService:
         entries: Sequence[ContextEntry],
         profile: UserProfile,
         summary: str | None = None,
-        tool_results: Sequence[str] = (),
         tools: Sequence[ToolDefinition] = (),
+        tool_feedback: Sequence[ToolFeedback] = (),
         max_output_tokens: int = 512,
     ) -> AsyncIterator[AIEvent]:
         context = self._context_builder.build(
@@ -32,7 +32,6 @@ class TextOrchestrationService:
             entries=entries,
             profile=profile,
             summary=summary,
-            tool_results=tool_results,
         )
         request = TextRequest(
             turn_id=turn_id,
@@ -40,6 +39,7 @@ class TextOrchestrationService:
             messages=context.messages,
             system_instruction=context.system_instruction,
             tools=tools,
+            tool_feedback=tool_feedback,
             max_output_tokens=max_output_tokens,
         )
         events = self._provider.stream(request)

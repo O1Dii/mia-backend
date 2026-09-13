@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -81,6 +81,7 @@ class QueueTransport:
         self.sent_audio: list[bytes] = []
         self.audio_stream_ends = 0
         self.closed = False
+        self.tool_responses: list[tuple[str, str, dict[str, object]]] = []
         self.incoming: asyncio.Queue[types.LiveServerMessage | object] = asyncio.Queue()
 
     async def send_audio(self, chunk: bytes) -> None:
@@ -88,6 +89,11 @@ class QueueTransport:
 
     async def end_audio_stream(self) -> None:
         self.audio_stream_ends += 1
+
+    async def send_tool_response(
+        self, *, call_id: str, name: str, response: Mapping[str, object]
+    ) -> None:
+        self.tool_responses.append((call_id, name, dict(response)))
 
     async def push(self, message: types.LiveServerMessage) -> None:
         await self.incoming.put(message)
@@ -193,6 +199,53 @@ async def test_adapter_configures_pcm_transcripts_tools_and_streams_audio() -> N
         "turn.completed",
         "usage.updated",
     ]
+    await adapter.close()
+
+
+async def test_adapter_sends_only_explicit_tool_result_with_original_wire_id() -> None:
+    factory = RecordingFactory()
+    adapter = GeminiLiveAdapter(realtime_session(), live_config(), transport_factory=factory)
+    await adapter.configure(configure_payload())
+    await adapter.send_audio(bytes(1280))
+    await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
+    events = adapter.events()
+    speech_start = await next_output(events)
+    speech_stop = await next_output(events)
+    assert isinstance(speech_start, ProviderControl)
+    assert isinstance(speech_stop, ProviderControl)
+    assert speech_start.event_type == "input_audio.speech_started"
+    assert speech_stop.event_type == "input_audio.speech_stopped"
+    await factory.transports[0].push(
+        types.LiveServerMessage(
+            tool_call=types.LiveServerToolCall(
+                function_calls=[
+                    types.FunctionCall(
+                        id="opaque-wire-id",
+                        name="system.get_current_datetime",
+                        args={"timezone": "Europe/Minsk"},
+                    )
+                ]
+            )
+        )
+    )
+    response_start = await next_output(events)
+    assert isinstance(response_start, ProviderControl)
+    assert response_start.event_type == "response.started"
+    requested = await next_output(events)
+    assert isinstance(requested, ProviderControl)
+    assert requested.event_type == "tool.call.started"
+    call_id = UUID(str(requested.payload["call_id"]))
+    assert factory.transports[0].tool_responses == []
+    await adapter.send_tool_result(call_id, {"local_datetime": "2026-09-13T13:00:00+03:00"})
+    assert factory.transports[0].tool_responses == [
+        (
+            "opaque-wire-id",
+            "system.get_current_datetime",
+            {"local_datetime": "2026-09-13T13:00:00+03:00"},
+        )
+    ]
+    with pytest.raises(ValueError, match="no longer active"):
+        await adapter.send_tool_result(call_id, {"local_datetime": "again"})
     await adapter.close()
 
 
