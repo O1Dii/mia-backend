@@ -18,7 +18,7 @@
 | S16 | W3 | COMPLETED | S13,S15 | Fable 5.1 xhigh | [S16](handoffs/S16.md) | c86b0ae | Gemini Live factory integrated; cloud smoke remains S31 |
 | S25 | W3 | COMPLETED | S15,S20,S24 | Sol xhigh | [S25](handoffs/S25.md) | c86b0ae | Android main at 6e7395b; physical gate verified |
 | S17 | W4 | COMPLETED | S13,S14,S15 | Fable 5.1 xhigh | [S17](handoffs/S17.md) | e9ca3f1 | read-only tool policy/audit integrated; backend gate PASS |
-| S21 | W4 | PARTIAL | S12,S20 | Sol high | [S21-R1](handoffs/S21-R1.md) | e9ca3f1 | Keystore device gate PASS; public OAuth/backend config absent, real sign-in unverified |
+| S21 | W4 | PARTIAL | S12,S20 | Sol high | [S21-R1](handoffs/S21-R1.md) | e9ca3f1 | Keystore PASS; OAuth/backend config and reachable logout UI pending |
 | S22 | W4 | COMPLETED | S11,S14,S20 | Sol high | [S22](handoffs/S22.md) | e9ca3f1 | Android main 452949c; cache/Room gate PASS |
 | S26 | W4 | COMPLETED | S16,S24,S25 | Fable 5.1 xhigh | [S26-R1](handoffs/S26-R1.md) | e9ca3f1 | Android main 7db3e6f; physical flush/cancel 83/84 ms PASS |
 | S18 | W5 | READY | S12,S14,S16,S17 | Sol high | — | — | backend dependencies and W4 tool gate verified |
@@ -38,14 +38,16 @@ cache, and S26 barge-in pass their gates. Runtime composition is at backend
 physical metrics logging at `7db3e6f`. The connected-device Keystore test
 passed, and S26 measured 83 ms flush / 84 ms cancel-send on physical hardware.
 S21 remains PARTIAL because real Google sign-in/refresh/logout has no configured
-public OAuth/backend inputs. S27 and S31 are READY by direct dependencies;
+public OAuth/backend inputs and the authenticated UI lacks a reachable logout
+action. S27 and S31 are READY by direct dependencies;
 S18 and S23 remain READY. S30 still awaits S21 and S23.
 
 ## Blocking conditions
 
-- S21: provide approved OAuth Android/Web client pairing, reviewed debug
-  application ID and reachable backend; run real sign-in, refresh, logout and
-  re-login via `Продолжи S21 по handoff`. Physical Keystore gate already passed.
+- S21: follow [local OAuth setup](S21_LOCAL_GOOGLE_AUTH_SETUP.md) for Android/Web
+  client pairing and reachable backend; expose logout in authenticated UI, then
+  run real sign-in, refresh, logout and re-login via `Продолжи S21 по handoff`.
+  Physical Keystore gate already passed.
 
 ## Integration history
 
