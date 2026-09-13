@@ -261,7 +261,20 @@ in the S25 handoff.
 
 ## S22 inbox
 
-<!-- S22 adds OI-S22-* records here. -->
+### OI-S22-001 — Incremental entry sync cursor
+
+- Status: OPEN
+- Source session: S22
+- Component: Android history / conversation REST
+- Question: should REST expose an opaque cursor after the final entry, or an additive `after_sequence` query, so reconnect can fetch only entries newer than the last cached server sequence?
+- Why non-blocking: S22 safely traverses all opaque keyset pages from the beginning and merges by server ID and sequence; PoC history remains correct after restart.
+- Current assumption: keep REST cursors opaque and perform full keyset traversal on reconnect; persist `lastSequence` for reconciliation and future incremental sync.
+- Options: continue full traversal; add final-page sync cursor; add `after_sequence` query.
+- Recommendation: add a server-issued final-page sync cursor before large histories or beta scale, without client-side cursor construction.
+- Affects sessions: S18, S23, S30.
+- Revisit trigger/by: S18 hardening or measured large-history sync cost.
+- Resolution:
+- Evidence: S14 REST emits `next_cursor` only when another page exists; S22 restart test covers full traversal and ID/sequence merge.
 
 ## S26 inbox
 
