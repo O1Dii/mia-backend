@@ -19,6 +19,7 @@ from app.modules.realtime import (
     build_realtime_router,
 )
 from app.modules.realtime.provider import RealtimeProviderFactory, RealtimeProviderSession
+from app.modules.tools import ToolExecutor, ToolRegistry, current_datetime_registry
 from app.providers.ai.base import TextAIProvider
 from app.providers.ai.fake import FakeAIProvider
 from app.providers.ai.gemini_live import GeminiLiveAdapterFactory, GeminiLiveConfig
@@ -70,7 +71,9 @@ def _fake_realtime_provider(session: RealtimeSession) -> RealtimeProviderSession
     return FakeRealtimeProvider(session)
 
 
-def _realtime_provider_factory(settings: Settings) -> RealtimeProviderFactory:
+def _realtime_provider_factory(
+    settings: Settings, registry: ToolRegistry
+) -> RealtimeProviderFactory:
     if settings.ai_provider == "fake":
         return _fake_realtime_provider
     api_key, _, live_model = _require_gemini_settings(settings)
@@ -80,6 +83,7 @@ def _realtime_provider_factory(settings: Settings) -> RealtimeProviderFactory:
             model=live_model,
             system_instruction=TextSSEService.STABLE_INSTRUCTION,
             request_timeout_seconds=settings.gemini_request_timeout_seconds,
+            tools=registry.declarations(),
         )
     )
 
@@ -94,11 +98,15 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     )
     authenticator = AuthServiceAuthenticator(auth_service)
     text_provider = _text_provider(settings)
+    registry = current_datetime_registry()
+    tool_executor = ToolExecutor(runtime.database.session_factory, registry)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
             authenticator=authenticator,
-            stream_service=TextSSEService(runtime.database.session_factory, text_provider),
+            stream_service=TextSSEService(
+                runtime.database.session_factory, text_provider, tool_executor=tool_executor
+            ),
         )
     )
 
@@ -106,7 +114,8 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     realtime_gateway = RealtimeGateway(
         store=realtime_store,
         authenticator=authenticator,
-        provider_factory=_realtime_provider_factory(settings),
+        provider_factory=_realtime_provider_factory(settings, registry),
+        tool_executor=tool_executor,
     )
     app.include_router(
         build_realtime_router(
