@@ -272,7 +272,8 @@ record after the runtime composition gate.
 
 No new non-blocking questions. OI-ARCH-001 remains the Android identity decision;
 OI-S12-001's explicit reauthentication policy is implemented in S21. The
-unmet real-device sign-in gate is a blocker recorded in the S21 handoff, not an
+Keystore device gate passed in S21-R1. Missing public OAuth/backend setup for
+real-device sign-in is a blocker recorded in the S21-R1 handoff, not an
 OPEN_ISSUES entry.
 
 ## S22 inbox
@@ -296,8 +297,8 @@ OPEN_ISSUES entry.
 
 <!-- S26 adds OI-S26-* records here. -->
 
-No new non-blocking questions. The missing physical-device latency gate is a
-session blocker, not an OPEN_ISSUES entry; see the S26 handoff.
+No new non-blocking questions. S26-R1 completed the physical-device latency
+gate at 83 ms speech-to-flush and 84 ms speech-to-cancel-send; see its handoff.
 
 ## S18 inbox
 
