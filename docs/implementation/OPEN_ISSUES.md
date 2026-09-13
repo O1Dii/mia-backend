@@ -262,7 +262,10 @@ record after the runtime composition gate.
 
 ## S21 inbox
 
-<!-- S21 adds OI-S21-* records here. -->
+No new non-blocking questions. OI-ARCH-001 remains the Android identity decision;
+OI-S12-001's explicit reauthentication policy is implemented in S21. The
+unmet real-device sign-in gate is a blocker recorded in the S21 handoff, not an
+OPEN_ISSUES entry.
 
 ## S22 inbox
 
