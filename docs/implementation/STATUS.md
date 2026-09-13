@@ -17,12 +17,12 @@
 | S14 | W3 | COMPLETED | S11,S13 | Sol high | [S14](handoffs/S14.md) | c86b0ae | REST/SSE mounted and verified |
 | S16 | W3 | COMPLETED | S13,S15 | Fable 5.1 xhigh | [S16](handoffs/S16.md) | c86b0ae | Gemini Live factory integrated; cloud smoke remains S31 |
 | S25 | W3 | COMPLETED | S15,S20,S24 | Sol xhigh | [S25](handoffs/S25.md) | c86b0ae | Android main at 6e7395b; physical gate verified |
-| S17 | W4 | READY | S13,S14,S15 | Fable 5.1 xhigh | — | — | dependencies integrated |
-| S21 | W4 | READY | S12,S20 | Sol high | — | — | dependencies integrated; review OI-S12-001 |
-| S22 | W4 | READY | S11,S14,S20 | Sol high | — | — | dependencies integrated |
-| S26 | W4 | READY | S16,S24,S25 | Fable 5.1 xhigh | — | — | dependencies and physical voice gate verified |
-| S18 | W5 | PENDING | S12,S14,S16,S17 | Sol high | — | — | backend hardening |
-| S23 | W5 | PENDING | S14,S20,S22 | Terra high | — | — | Android text UI |
+| S17 | W4 | COMPLETED | S13,S14,S15 | Fable 5.1 xhigh | [S17](handoffs/S17.md) | e9ca3f1 | read-only tool policy/audit integrated; backend gate PASS |
+| S21 | W4 | PARTIAL | S12,S20 | Sol high | [S21](handoffs/S21.md) | e9ca3f1 | Android main 452949c; no device or real OAuth sign-in gate |
+| S22 | W4 | COMPLETED | S11,S14,S20 | Sol high | [S22](handoffs/S22.md) | e9ca3f1 | Android main 452949c; cache/Room gate PASS |
+| S26 | W4 | PARTIAL | S16,S24,S25 | Fable 5.1 xhigh | [S26](handoffs/S26.md) | e9ca3f1 | Android main 452949c; physical <200 ms gate not run |
+| S18 | W5 | READY | S12,S14,S16,S17 | Sol high | — | — | backend dependencies and W4 tool gate verified |
+| S23 | W5 | READY | S14,S20,S22 | Terra high | — | — | Android history dependency integrated |
 | S27 | W5 | PENDING | S24,S26 | Sol xhigh | — | — | foreground wake |
 | S28 | W6 | PENDING | S27 | Sol xhigh | — | — | system assistant |
 | S30 | W6 | PENDING | S12,S14,S21,S23 | Sol high | — | — | auth/text E2E |
@@ -32,15 +32,20 @@
 
 ## Current wave gate
 
-W3 passed. S12, S14, and S16 are integrated with shared auth, conversation,
-realtime, fake/Gemini provider composition at `c86b0ae`; the combined backend
-gate passes with PostgreSQL and Redis. S25 is integrated into Android `main` at
-`6e7395b`; its 580-task aggregate gate and physical SM-S938B three-turn voice
-test pass. S17, S21, S22, and S26 are READY for W4 execution.
+W4 is partially integrated, NOT PASSED. S17 tool policy/audit and S22 Android
+cache pass component and combined backend/Android gates. Runtime composition is
+at backend `e9ca3f1`; Android auth navigation/cache/VAD code is at `452949c`.
+S21 and S26 remain PARTIAL because no physical Android device was attached for
+real Google sign-in/Keystore and measured <200 ms barge-in. W4 cannot unlock
+S27/S30/S31; S18 and S23 are independently READY by their direct dependencies.
 
 ## Blocking conditions
 
-None recorded.
+- S21: connect an authorized device and provide approved OAuth client pairing,
+  final/reviewed application ID and reachable backend; run real sign-in,
+  Keystore/refresh/logout gate via `Продолжи S21 по handoff`.
+- S26: connect an authorized 24 kHz AudioTrack device, run the focused latency
+  instrumentation and record <200 ms evidence via `Продолжи S26 по handoff`.
 
 ## Integration history
 
@@ -50,3 +55,4 @@ None recorded.
 | W1 | 2026-09-10 | 065617a | PASS | parallel S10/S20 + wave integration |
 | W2 | 2026-09-11 | 3b7e8eb | PASS | parallel W2 + S24 physical-device closeout |
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
+| W4 | 2026-09-14 | e9ca3f1 / Android 452949c | PARTIAL | parallel W4 + cross-repository integration; device gates pending |

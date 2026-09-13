@@ -10,15 +10,16 @@ Integration session обновляет этот индекс после merge.
 
 | ID | Status | Component | Short question | Current assumption | Revisit by |
 | --- | --- | --- | --- | --- | --- |
-| OI-ARCH-001 | OPEN | Android identity | Какой финальный application ID? | временный уникальный ID до S21 | before S21 |
+| OI-ARCH-001 | OPEN | Android identity | Какой финальный application ID? | временный ID для PoC, не release OAuth | before S21-R1/release OAuth |
 | OI-ARCH-002 | RESOLVED | Android platform | Какой minSdk? | API 26 для PoC | resolved in S20 |
 | OI-ARCH-003 | OPEN | Wake word | Какая финальная активационная фраза? | tap-to-talk, затем временная phrase | before S27 |
-| OI-ARCH-004 | OPEN | Tools | Какой внешний read-only tool идёт первым? | system.get_current_datetime, без внешнего API | S17 |
+| OI-ARCH-004 | RESOLVED | Tools | Какой внешний read-only tool идёт первым? | system.get_current_datetime реализован | resolved in W4 |
 | OI-ARCH-005 | OPEN | Voice history | Насколько output transcript считается точным текстом ответа? | показывать как transcript с delivery metadata | S31 |
 | OI-ARCH-006 | OPEN | Cost controls | Каковы точные daily/session Gemini limits? | консервативные config defaults | S18 |
 | OI-S20-001 | RESOLVED | Android platform baseline | Какой minSdk использовать в scaffold? | API 26 принят | resolved in W1 |
-| OI-S12-001 | OPEN | Android auth recovery | Как восстановиться после потерянного refresh response? | повторная аутентификация | S21/S30 |
+| OI-S12-001 | DECIDED | Android auth recovery | Как восстановиться после потерянного refresh response? | повторная аутентификация реализована | S30 E2E |
 | OI-S16-001 | OPEN | Gemini Live dependency | Закрепить WebSocket transport или обновить SDK? | текущий wire transport | S18 |
+| OI-S22-001 | OPEN | Android history | Нужен ли incremental sync cursor? | полный keyset traversal | S18/S23 |
 
 ## Record template
 
@@ -88,7 +89,7 @@ Integration session обновляет этот индекс после merge.
 
 ### OI-ARCH-004 — First external tool
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: architecture
 - Component: tools
 - Question: нужен ли weather provider уже в PoC?
@@ -98,8 +99,12 @@ Integration session обновляет этот индекс после merge.
 - Recommendation: time first, weather as follow-up.
 - Affects sessions: S17, S32.
 - Revisit trigger/by: S17.
-- Resolution:
-- Evidence:
+- Resolution: S17 выбрала и реализовала `system.get_current_datetime`; weather
+  отложен до отдельного adapter/scope решения. W4 integrator подключил один
+  allow-list/executor к text и realtime; write tools не включены.
+- Evidence: S17 handoff, `tests/tools/test_executor.py`,
+  `tests/conversations/test_conversation_api.py`, `tests/realtime/test_gateway.py`,
+  integrated `app/composition.py` at `e9ca3f1`.
 
 ### OI-ARCH-005 — Output transcript semantics
 
@@ -195,7 +200,7 @@ complete and recorded in the S24 handoff.
 
 ### OI-S12-001 — Auth client retry policy
 
-- Status: OPEN
+- Status: DECIDED
 - Source session: S12
 - Component: Android authentication/session recovery
 - Question: how should the client recover when a refresh response is lost?
@@ -209,8 +214,11 @@ complete and recorded in the S24 handoff.
   creation returns a fresh nonce; token-bearing responses are never cached.
 - Affected future sessions: S21, S30, S18.
 - Revisit trigger/by: S21 session repository and S30 lost-response integration tests.
-- Resolution: backend behavior documented; Android implementation remains downstream.
-- Evidence: `app/modules/auth/README.md`, `tests/auth/test_service_postgres.py`.
+- Resolution: backend and S21 Android client use explicit reauthentication
+  after an ambiguous refresh response; the old refresh token is never retried.
+  Keep DECIDED until S30 lost-response E2E on a real authenticated client.
+- Evidence: `app/modules/auth/README.md`, `tests/auth/test_service_postgres.py`,
+  S21 handoff and `core/auth` unit tests at Android `83bc6c2`.
 
 ## S14 inbox
 
