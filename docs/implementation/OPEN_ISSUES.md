@@ -255,6 +255,11 @@ in the S25 handoff.
 
 <!-- S17 adds OI-S17-* records here. -->
 
+No new non-blocking questions. Decision update for OI-ARCH-004: S17 implemented
+`system.get_current_datetime` as the first allow-listed read-only tool; weather
+is deferred. The W4 integrator should consolidate this into the architecture
+record after the runtime composition gate.
+
 ## S21 inbox
 
 <!-- S21 adds OI-S21-* records here. -->
