@@ -312,6 +312,10 @@ gate at 83 ms speech-to-flush and 84 ms speech-to-cancel-send; see its handoff.
 
 <!-- S27 adds OI-S27-* records here. -->
 
+No new non-blocking S27 issue. The provisional phrase remains governed by
+OI-ARCH-003; missing independent corpus and device measurements are completion
+gates recorded in the S27 handoff, not open issues.
+
 ## S28 inbox
 
 <!-- S28 adds OI-S28-* records here. -->
