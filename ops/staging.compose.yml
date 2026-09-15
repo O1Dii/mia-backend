@@ -1,0 +1,49 @@
+services:
+  migrate:
+    image: ${MIA_IMAGE:?set MIA_IMAGE}
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    profiles: ["release"]
+    restart: "no"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+
+  backend:
+    image: ${MIA_IMAGE:?set MIA_IMAGE}
+    environment:
+      APP_ENV: staging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      AI_PROVIDER: ${AI_PROVIDER:-fake}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?set AUTH_JWT_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-}
+      GEMINI_LIVE_MODEL: ${GEMINI_LIVE_MODEL:-}
+      VOICE_ENABLED: ${VOICE_ENABLED:-true}
+      TEXT_ENABLED: ${TEXT_ENABLED:-true}
+      MAX_DAILY_TEXT_TURNS: ${MAX_DAILY_TEXT_TURNS:-100}
+      MAX_DAILY_LIVE_SESSIONS: ${MAX_DAILY_LIVE_SESSIONS:-20}
+      MAX_ACTIVE_LIVE_SESSIONS_PER_USER: ${MAX_ACTIVE_LIVE_SESSIONS_PER_USER:-1}
+      MAX_LIVE_SESSION_SECONDS: ${MAX_LIVE_SESSION_SECONDS:-900}
+      PROVIDER_FAILURE_THRESHOLD: ${PROVIDER_FAILURE_THRESHOLD:-5}
+      PROVIDER_COOLDOWN_SECONDS: ${PROVIDER_COOLDOWN_SECONDS:-60}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      # Name the TLS proxy here, otherwise every request shares one rate-limit bucket.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    ports:
+      - "127.0.0.1:${MIA_BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=16m

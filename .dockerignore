@@ -1,4 +1,12 @@
 .git
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 .github
 .venv
 .mypy_cache

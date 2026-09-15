@@ -35,6 +35,8 @@ curl -fsS http://127.0.0.1:8000/health/ready
 ~~~
 
 If port 8000 is already used, set `MIA_BACKEND_PORT` before starting Compose.
+Compose runs Alembic as a one-shot release step before the backend. Internal beta
+deployment and backup/restore steps are in [ops/README.md](ops/README.md).
 
 `AI_PROVIDER=fake` is the default. Gemini credentials are optional and must be
 provided only through local/deployment configuration; never commit their values.
