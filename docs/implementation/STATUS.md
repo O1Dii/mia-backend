@@ -21,9 +21,9 @@
 | S21 | W4 | PARTIAL | S12,S20 | Sol high | [S21-R1](handoffs/S21-R1.md) | e9ca3f1 | Keystore PASS; OAuth/backend config and reachable logout UI pending |
 | S22 | W4 | COMPLETED | S11,S14,S20 | Sol high | [S22](handoffs/S22.md) | e9ca3f1 | Android main 452949c; cache/Room gate PASS |
 | S26 | W4 | COMPLETED | S16,S24,S25 | Fable 5.1 xhigh | [S26-R1](handoffs/S26-R1.md) | e9ca3f1 | Android main 7db3e6f; physical flush/cancel 83/84 ms PASS |
-| S18 | W5 | COMPLETED | S12,S14,S16,S17 | Sol high | [S18](handoffs/S18.md) | W5 | hardening/deploy gate re-verified by integrator |
-| S23 | W5 | COMPLETED | S14,S20,S22 | Terra high | [S23](handoffs/S23.md) | W5 | Android main 3b6f7b1; chat wired into navigation |
-| S27 | W5 | PARTIAL | S24,S26 | Sol xhigh | [S27](handoffs/S27.md) | W5 | wiring integrated; corpus/device/battery gates NOT RUN |
+| S18 | W5 | COMPLETED | S12,S14,S16,S17 | Sol high | [S18](handoffs/S18.md) | adccdfc | hardening/deploy gate re-verified by integrator |
+| S23 | W5 | COMPLETED | S14,S20,S22 | Terra high | [S23](handoffs/S23.md) | adccdfc | Android main 3b6f7b1; chat wired into navigation |
+| S27 | W5 | PARTIAL | S24,S26 | Sol xhigh | [S27](handoffs/S27.md) | adccdfc | wiring integrated; corpus/device/battery gates NOT RUN |
 | S28 | W6 | PENDING | S27 | Sol xhigh | — | — | blocked by unmet S27 completion gates |
 | S30 | W6 | PENDING | S12,S14,S21,S23 | Sol high | — | — | awaits S21 real OAuth closeout |
 | S31 | W6 | READY | S16,S25,S26 | Fable 5.1 xhigh | — | — | S26 physical gate passed; voice E2E |
@@ -74,4 +74,4 @@ PENDING because its S27 dependency is PARTIAL.
 | W2 | 2026-09-11 | 3b7e8eb | PASS | parallel W2 + S24 physical-device closeout |
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
-| W5 | 2026-09-16 | see below / Android 3b6f7b1 | PARTIAL | parallel S18 + Android S23/S27 integration; S27 corpus/device gates pending |
+| W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PARTIAL | parallel S18 + Android S23/S27 integration; S27 corpus/device gates pending |
