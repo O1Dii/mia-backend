@@ -3,7 +3,9 @@
 from fastapi import FastAPI
 from pydantic import SecretStr
 
+from app.core.circuit import GuardedRealtimeSession, GuardedTextProvider, ProviderCircuit
 from app.core.config import Settings
+from app.core.limits import DailyBudget
 from app.core.runtime import Runtime
 from app.modules.auth.composition import install_auth
 from app.modules.auth.service import AuthService, InvalidCredentialsError
@@ -58,12 +60,20 @@ def _text_provider(settings: Settings) -> TextAIProvider:
     if settings.ai_provider == "fake":
         return FakeAIProvider()
     api_key, text_model, _ = _require_gemini_settings(settings)
-    return GeminiTextAIProvider(
+    provider = GeminiTextAIProvider(
         GeminiTextConfig(
             api_key=api_key,
             model=text_model,
             request_timeout_seconds=settings.gemini_request_timeout_seconds,
         )
+    )
+    return GuardedTextProvider(
+        provider,
+        ProviderCircuit(
+            settings.provider_failure_threshold,
+            settings.provider_cooldown_seconds,
+            name="gemini_text",
+        ),
     )
 
 
@@ -72,12 +82,12 @@ def _fake_realtime_provider(session: RealtimeSession) -> RealtimeProviderSession
 
 
 def _realtime_provider_factory(
-    settings: Settings, registry: ToolRegistry
+    settings: Settings, registry: ToolRegistry, circuit: ProviderCircuit | None = None
 ) -> RealtimeProviderFactory:
     if settings.ai_provider == "fake":
         return _fake_realtime_provider
     api_key, _, live_model = _require_gemini_settings(settings)
-    return GeminiLiveAdapterFactory(
+    factory = GeminiLiveAdapterFactory(
         GeminiLiveConfig(
             api_key=api_key,
             model=live_model,
@@ -86,6 +96,14 @@ def _realtime_provider_factory(
             tools=registry.declarations(),
         )
     )
+    if circuit is None:
+        return factory
+    guard = circuit
+
+    def guarded_factory(session: RealtimeSession) -> RealtimeProviderSession:
+        return GuardedRealtimeSession(factory(session), guard)
+
+    return guarded_factory
 
 
 def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> None:
@@ -100,6 +118,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     text_provider = _text_provider(settings)
     registry = current_datetime_registry()
     tool_executor = ToolExecutor(runtime.database.session_factory, registry)
+    budget = DailyBudget(runtime.redis)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
@@ -107,20 +126,39 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
             stream_service=TextSSEService(
                 runtime.database.session_factory, text_provider, tool_executor=tool_executor
             ),
+            budget=budget,
+            max_daily_turns=settings.max_daily_text_turns,
+            text_enabled=settings.text_enabled,
         )
     )
 
-    realtime_store = InMemoryRealtimeSessionStore()
+    live_circuit = (
+        ProviderCircuit(
+            settings.provider_failure_threshold,
+            settings.provider_cooldown_seconds,
+            name="gemini_live",
+        )
+        if settings.ai_provider == "gemini"
+        else None
+    )
+    realtime_store = InMemoryRealtimeSessionStore(
+        max_active_per_user=settings.max_active_live_sessions_per_user
+    )
     realtime_gateway = RealtimeGateway(
         store=realtime_store,
         authenticator=authenticator,
-        provider_factory=_realtime_provider_factory(settings, registry),
+        provider_factory=_realtime_provider_factory(settings, registry, live_circuit),
         tool_executor=tool_executor,
+        max_session_seconds=settings.max_live_session_seconds,
     )
     app.include_router(
         build_realtime_router(
             store=realtime_store,
             authenticator=authenticator,
             gateway=realtime_gateway,
+            budget=budget,
+            max_daily_sessions=settings.max_daily_live_sessions,
+            voice_enabled=settings.voice_enabled,
+            provider_available=live_circuit.available if live_circuit is not None else None,
         )
     )
