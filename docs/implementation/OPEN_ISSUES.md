@@ -385,7 +385,8 @@ Decision updates from S18 hardening (the original records above are unchanged):
 
 ## S23 inbox
 
-<!-- S23 adds OI-S23-* records here. -->
+No new non-blocking questions. The existing OI-S22-001 full-history traversal
+assumption remains valid for this PoC; S23 introduces no new API decision.
 
 ## S27 inbox
 
