@@ -40,6 +40,29 @@ class RedisClient:
         )
         return int(result[0]), max(1, int(result[1]))
 
+    async def reserve_daily_budget(
+        self, counter_key: str, request_key: str, *, ttl_seconds: int, limit: int
+    ) -> tuple[bool, int]:
+        """Charge an idempotent request once, without incrementing denied counters."""
+        script = """
+        if redis.call('EXISTS', KEYS[2]) == 1 then
+            return {1, math.max(1, redis.call('TTL', KEYS[1]))}
+        end
+        local count = tonumber(redis.call('GET', KEYS[1]) or '0')
+        if count >= tonumber(ARGV[2]) then
+            return {0, math.max(1, redis.call('TTL', KEYS[1]))}
+        end
+        count = redis.call('INCR', KEYS[1])
+        if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+        redis.call('SET', KEYS[2], '1', 'EX', ARGV[1])
+        return {1, math.max(1, redis.call('TTL', KEYS[1]))}
+        """
+        result = await cast(
+            Awaitable[list[int]],
+            self._client.eval(script, 2, counter_key, request_key, str(ttl_seconds), str(limit)),
+        )
+        return bool(result[0]), max(1, int(result[1]))
+
     async def close(self) -> None:
         """Close pooled Redis connections during application shutdown."""
         await self._client.aclose()

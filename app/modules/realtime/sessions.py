@@ -50,11 +50,18 @@ class RealtimeSessionConflictError(ValueError):
     pass
 
 
+class RealtimeSessionLimitError(ValueError):
+    pass
+
+
 class InMemoryRealtimeSessionStore:
     """Credential-free PoC store; production persistence remains a later concern."""
 
-    def __init__(self, *, ttl: timedelta = timedelta(minutes=2)) -> None:
+    def __init__(
+        self, *, ttl: timedelta = timedelta(minutes=2), max_active_per_user: int | None = None
+    ) -> None:
         self._ttl = ttl
+        self._max_active_per_user = max_active_per_user
         self._sessions: dict[UUID, RealtimeSession] = {}
         self._idempotency: dict[tuple[UUID, str], tuple[str, UUID]] = {}
         self._lock = asyncio.Lock()
@@ -103,6 +110,16 @@ class InMemoryRealtimeSessionStore:
                 session = self._sessions.get(session_id)
                 if session is not None:
                     return session, True
+            if self._max_active_per_user is not None:
+                active = sum(
+                    session.user_id == user_id
+                    and session.expires_at > current_time
+                    and session.status
+                    in {RealtimeSessionStatus.CREATED, RealtimeSessionStatus.CONNECTED}
+                    for session in self._sessions.values()
+                )
+                if active >= self._max_active_per_user:
+                    raise RealtimeSessionLimitError("active realtime session limit reached")
             session = RealtimeSession(
                 id=uuid4(),
                 user_id=user_id,

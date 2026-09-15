@@ -16,6 +16,7 @@ from fastapi.routing import APIRoute
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.types import Receive, Scope, Send
 
+from app.core.limits import BudgetUnavailableError, DailyBudget, record_admission_rejection
 from app.modules.conversations.api_schemas import (
     ConversationPageResponse,
     ConversationResponse,
@@ -136,6 +137,9 @@ def build_conversation_router(
     session_factory: async_sessionmaker[AsyncSession],
     authenticator: ConversationAuthenticator,
     stream_service: TextSSEService,
+    budget: DailyBudget | None = None,
+    max_daily_turns: int = 100,
+    text_enabled: bool = True,
 ) -> APIRouter:
     router = APIRouter(
         prefix="/v1/conversations", tags=["Conversations"], route_class=ConversationRoute
@@ -383,6 +387,43 @@ def build_conversation_router(
                 message="Authentication is required.",
                 request_id=request_id,
             )
+        if not text_enabled:
+            record_admission_rejection("text_disabled")
+            return _error(
+                status_code=503,
+                code="service_unavailable",
+                message="Text is unavailable.",
+                request_id=request_id,
+                retryable=True,
+            )
+        if budget is not None:
+            try:
+                allowed, retry_after = await budget.spend(
+                    "text_turns",
+                    principal.user_id,
+                    limit=max_daily_turns,
+                    idempotency_key=f"{conversation_id}:{idempotency_key}",
+                )
+            except BudgetUnavailableError:
+                record_admission_rejection("budget_unavailable")
+                return _error(
+                    status_code=503,
+                    code="service_unavailable",
+                    message="Text is unavailable.",
+                    request_id=request_id,
+                    retryable=True,
+                )
+            if not allowed:
+                record_admission_rejection("daily_text_turns", retry_after_seconds=retry_after)
+                response = _error(
+                    status_code=429,
+                    code="rate_limit_exceeded",
+                    message="Daily text limit reached.",
+                    request_id=request_id,
+                    retryable=True,
+                )
+                response.headers["Retry-After"] = str(retry_after)
+                return response
         try:
             prepared = await stream_service.prepare(
                 user_id=principal.user_id,

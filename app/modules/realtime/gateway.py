@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -14,6 +15,7 @@ from uuid import UUID, uuid4, uuid5
 from pydantic import ValidationError
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
+from app.core.metrics import METRICS
 from app.modules.realtime.contracts import (
     INPUT_AUDIO_FORMAT,
     OUTPUT_AUDIO_FORMAT,
@@ -39,6 +41,9 @@ from app.modules.realtime.sessions import (
     RealtimeSessionNotFoundError,
 )
 from app.modules.tools import ToolExecutor, ToolPrincipal
+
+logger = logging.getLogger(__name__)
+_EXPIRY_GRACE_SECONDS = 5.0
 
 
 class ConnectionPhase(StrEnum):
@@ -83,6 +88,7 @@ class _RealtimeConnection:
         heartbeat_interval_ms: int,
         backpressure_timeout_seconds: float,
         tool_executor: ToolExecutor | None = None,
+        request_id: str | None = None,
     ) -> None:
         self._websocket = websocket
         self._session = session
@@ -108,7 +114,7 @@ class _RealtimeConnection:
         self._response_turns: dict[UUID, UUID] = {}
         self._failed = False
         self._normal_close = False
-        self._request_id = f"ws_{uuid4().hex}"
+        self._request_id = request_id or f"ws_{uuid4().hex}"
 
     def _event(
         self,
@@ -198,7 +204,18 @@ class _RealtimeConnection:
                 "Required PCM audio formats were not offered.",
             )
             return False
-        await self._provider.configure(payload)
+        try:
+            await self._provider.configure(payload)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            await self._fail(
+                "realtime_provider_unavailable",
+                "Realtime provider is unavailable.",
+                retryable=True,
+                close_code=1011,
+            )
+            return False
         self._configured_capabilities = set(payload.capabilities)
         self._phase = ConnectionPhase.READY
         await self._send_control(
@@ -496,6 +513,19 @@ class _RealtimeConnection:
             finally:
                 self._output_queue.task_done()
 
+    async def expire(self) -> None:
+        """End a session that reached its maximum duration with a controlled error."""
+        if self._failed or self._phase is ConnectionPhase.CLOSED:
+            return
+        logger.info("realtime_session_expired", extra={"session_id": self._session.id})
+        METRICS.inc("mia_realtime_sessions_expired_total")
+        await self._fail(
+            "rate_limit_exceeded",
+            "Voice session time limit reached.",
+            retryable=True,
+            close_code=1008,
+        )
+
     async def run(self) -> None:
         input_task: asyncio.Task[None] | None = None
         provider_task: asyncio.Task[None] | None = None
@@ -565,6 +595,7 @@ class RealtimeGateway:
         heartbeat_interval_ms: int = 15000,
         backpressure_timeout_seconds: float = 0.25,
         tool_executor: ToolExecutor | None = None,
+        max_session_seconds: float = 900,
     ) -> None:
         if min(input_queue_size, output_queue_size, max_binary_frame_bytes) < 1:
             raise ValueError("realtime queue and frame limits must be positive")
@@ -577,6 +608,7 @@ class RealtimeGateway:
         self._heartbeat_interval_ms = heartbeat_interval_ms
         self._backpressure_timeout_seconds = backpressure_timeout_seconds
         self._tool_executor = tool_executor
+        self._max_session_seconds = max_session_seconds
 
     @staticmethod
     def _bearer_token(authorization: str | None) -> str | None:
@@ -601,6 +633,7 @@ class RealtimeGateway:
             await websocket.close(code=4404)
             return
         await websocket.accept()
+        request_id = websocket.scope.get("state", {}).get("request_id")
         provider = self._provider_factory(session)
         connection = _RealtimeConnection(
             websocket=websocket,
@@ -613,5 +646,21 @@ class RealtimeGateway:
             heartbeat_interval_ms=self._heartbeat_interval_ms,
             backpressure_timeout_seconds=self._backpressure_timeout_seconds,
             tool_executor=self._tool_executor,
+            request_id=request_id if isinstance(request_id, str) else None,
         )
-        await connection.run()
+
+        async def expire_after_limit() -> None:
+            await asyncio.sleep(self._max_session_seconds)
+            await connection.expire()
+
+        watchdog = asyncio.create_task(expire_after_limit())
+        try:
+            # The watchdog closes the socket gracefully; the hard deadline only covers a
+            # peer that never completes the close handshake.
+            async with asyncio.timeout(self._max_session_seconds + _EXPIRY_GRACE_SECONDS):
+                await connection.run()
+        except TimeoutError:
+            # ``run`` is cancelled and its finally block closes provider and claim.
+            pass
+        finally:
+            watchdog.cancel()

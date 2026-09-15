@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
@@ -10,6 +11,7 @@ from fastapi import APIRouter, Header, Request, WebSocket
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.limits import BudgetUnavailableError, DailyBudget, record_admission_rejection
 from app.modules.realtime.contracts import (
     INPUT_AUDIO_FORMAT,
     OUTPUT_AUDIO_FORMAT,
@@ -20,6 +22,7 @@ from app.modules.realtime.sessions import (
     InMemoryRealtimeSessionStore,
     RealtimeAuthenticator,
     RealtimeSessionConflictError,
+    RealtimeSessionLimitError,
 )
 
 
@@ -46,7 +49,9 @@ def _bearer_token(authorization: str | None) -> str | None:
     return token if separator and scheme.lower() == "bearer" and token else None
 
 
-def _error(*, status_code: int, code: str, message: str, request_id: str) -> JSONResponse:
+def _error(
+    *, status_code: int, code: str, message: str, request_id: str, retryable: bool = False
+) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={
@@ -54,7 +59,7 @@ def _error(*, status_code: int, code: str, message: str, request_id: str) -> JSO
                 "code": code,
                 "message": message,
                 "request_id": request_id,
-                "retryable": False,
+                "retryable": retryable,
             }
         },
     )
@@ -66,6 +71,10 @@ def build_realtime_router(
     authenticator: RealtimeAuthenticator,
     gateway: RealtimeGateway,
     websocket_url_base: str | None = None,
+    budget: DailyBudget | None = None,
+    max_daily_sessions: int = 20,
+    voice_enabled: bool = True,
+    provider_available: Callable[[], bool] | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -80,7 +89,7 @@ def build_realtime_router(
         authorization: str | None = Header(default=None),
         idempotency_key: str = Header(min_length=16, max_length=128, alias="Idempotency-Key"),
     ) -> RealtimeSessionResponse | JSONResponse:
-        request_id = request.headers.get("X-Request-ID") or f"req_{uuid4().hex}"
+        request_id = str(getattr(request.state, "request_id", f"req_{uuid4().hex}"))
         token = _bearer_token(authorization)
         principal = await authenticator.authenticate(token) if token else None
         if principal is None:
@@ -90,6 +99,24 @@ def build_realtime_router(
                 message="Authentication is required.",
                 request_id=request_id,
             )
+        if not voice_enabled:
+            record_admission_rejection("voice_disabled")
+            return _error(
+                status_code=503,
+                code="service_unavailable",
+                message="Voice is unavailable.",
+                request_id=request_id,
+                retryable=True,
+            )
+        if provider_available is not None and not provider_available():
+            record_admission_rejection("provider_circuit_open")
+            return _error(
+                status_code=503,
+                code="realtime_provider_unavailable",
+                message="Voice service is temporarily unavailable.",
+                request_id=request_id,
+                retryable=True,
+            )
         if payload.input_audio != INPUT_AUDIO_FORMAT or payload.output_audio != OUTPUT_AUDIO_FORMAT:
             return _error(
                 status_code=400,
@@ -98,7 +125,7 @@ def build_realtime_router(
                 request_id=request_id,
             )
         try:
-            session, _ = await store.create(
+            session, replayed = await store.create(
                 user_id=principal.user_id,
                 conversation_id=payload.conversation_id,
                 locale=payload.locale,
@@ -113,12 +140,52 @@ def build_realtime_router(
                 message="Idempotency key was used for a different request.",
                 request_id=request_id,
             )
+        except RealtimeSessionLimitError:
+            record_admission_rejection("active_live_sessions")
+            return _error(
+                status_code=429,
+                code="rate_limit_exceeded",
+                message="Active voice limit reached.",
+                request_id=request_id,
+                retryable=True,
+            )
+        # Charge only admitted sessions; a denied session is released immediately.
+        if budget is not None:
+            try:
+                allowed, retry_after = await budget.spend(
+                    "live_sessions",
+                    principal.user_id,
+                    limit=max_daily_sessions,
+                    idempotency_key=idempotency_key,
+                )
+            except BudgetUnavailableError:
+                if not replayed:
+                    await store.finish(session.id, interrupted=True)
+                record_admission_rejection("budget_unavailable")
+                return _error(
+                    status_code=503,
+                    code="service_unavailable",
+                    message="Voice is unavailable.",
+                    request_id=request_id,
+                    retryable=True,
+                )
+            if not allowed:
+                if not replayed:
+                    await store.finish(session.id, interrupted=True)
+                record_admission_rejection("daily_live_sessions", retry_after_seconds=retry_after)
+                response = _error(
+                    status_code=429,
+                    code="rate_limit_exceeded",
+                    message="Daily voice limit reached.",
+                    request_id=request_id,
+                    retryable=True,
+                )
+                response.headers["Retry-After"] = str(retry_after)
+                return response
         public_websocket_url = websocket_url_base
         if public_websocket_url is None:
             scheme = "wss" if request.url.scheme == "https" else "ws"
-            public_websocket_url = str(
-                request.url_for("realtime_websocket").replace(scheme=scheme)
-            )
+            public_websocket_url = str(request.url_for("realtime_websocket").replace(scheme=scheme))
         return RealtimeSessionResponse(
             id=session.id,
             websocket_url=f"{public_websocket_url}?session_id={session.id}",
@@ -132,6 +199,7 @@ def build_realtime_router(
     )
     async def close_session(
         session_id: UUID,
+        request: Request,
         authorization: str | None = Header(default=None),
     ) -> None | JSONResponse:
         token = _bearer_token(authorization)
@@ -142,7 +210,7 @@ def build_realtime_router(
                 status_code=404,
                 code="realtime_session_not_found",
                 message="Realtime session was not found.",
-                request_id=f"req_{uuid4().hex}",
+                request_id=str(getattr(request.state, "request_id", f"req_{uuid4().hex}")),
             )
         await store.finish(session_id, interrupted=False)
         return None
