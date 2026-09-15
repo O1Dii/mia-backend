@@ -15,11 +15,16 @@ Integration session обновляет этот индекс после merge.
 | OI-ARCH-003 | OPEN | Wake word | Какая финальная активационная фраза? | tap-to-talk, затем временная phrase | before S27 |
 | OI-ARCH-004 | RESOLVED | Tools | Какой внешний read-only tool идёт первым? | system.get_current_datetime реализован | resolved in W4 |
 | OI-ARCH-005 | OPEN | Voice history | Насколько output transcript считается точным текстом ответа? | показывать как transcript с delivery metadata | S31 |
-| OI-ARCH-006 | OPEN | Cost controls | Каковы точные daily/session Gemini limits? | консервативные config defaults | S18 |
+| OI-ARCH-006 | DECIDED | Cost controls | Каковы точные daily/session Gemini limits? | request-count admission defaults в config, см. S18 inbox | S31 измеряет реальный расход |
 | OI-S20-001 | RESOLVED | Android platform baseline | Какой minSdk использовать в scaffold? | API 26 принят | resolved in W1 |
 | OI-S12-001 | DECIDED | Android auth recovery | Как восстановиться после потерянного refresh response? | повторная аутентификация реализована | S30 E2E |
-| OI-S16-001 | OPEN | Gemini Live dependency | Закрепить WebSocket transport или обновить SDK? | текущий wire transport | S18 |
-| OI-S22-001 | OPEN | Android history | Нужен ли incremental sync cursor? | полный keyset traversal | S18/S23 |
+| OI-S16-001 | RESOLVED | Gemini Live dependency | Закрепить WebSocket transport или обновить SDK? | `websockets==15.0.1` объявлен прямой зависимостью | resolved in S18 |
+| OI-S22-001 | OPEN | Android history | Нужен ли incremental sync cursor? | полный keyset traversal | S30 с измеренной стоимостью history |
+| OI-S18-001 | OPEN | Backend auth secrets | Как ротировать JWT signing key без инвалидации refresh hashes? | ротация выводит все сессии | before beta key rotation |
+| OI-S18-002 | OPEN | Backend runtime | Realtime claims/limits/circuits/metrics живут в процессе | ровно один backend instance | before горизонтального масштабирования |
+| OI-S18-003 | OPEN | Cost controls | Нужны ли Live idle timeout и token/audio budgets? | request-count proxies из OI-ARCH-006 | S31 |
+| OI-W5-001 | OPEN | Wake word privacy | Должен ли logout удалять локальные wake-шаблоны голоса? | logout выключает wake, шаблоны остаются на устройстве | before shared-device beta |
+| OI-W5-002 | OPEN | Android chat | Как отбросить pending-операцию для удалённого на сервере conversation? | операция остаётся retryable без discard-действия | S30 |
 
 ## Record template
 
@@ -395,6 +400,48 @@ assumption remains valid for this PoC; S23 introduces no new API decision.
 No new non-blocking S27 issue. The provisional phrase remains governed by
 OI-ARCH-003; missing independent corpus and device measurements are completion
 gates recorded in the S27 handoff, not open issues.
+
+## W5 integration inbox
+
+<!-- Wave W5 integrator adds OI-W5-* records here. -->
+
+### OI-W5-001 — Wake enrollment templates after sign-out
+
+- Status: OPEN
+- Source session: W5 integration
+- Component: Android wake word / privacy
+- Question: должен ли logout очищать локальные spectral-шаблоны enrollment
+  (`WakeConfiguration.clearEnrollment()`), или они переживают смену аккаунта?
+- Why non-blocking: интеграция выключает wake при logout, wake выключен по
+  умолчанию, шаблоны лежат только в app-private storage и не уходят в сеть.
+- Current assumption: logout снимает переключатель wake, но шаблоны остаются.
+- Options: (a) очищать при logout; (b) оставлять и переиспользовать при
+  повторном входе того же пользователя; (c) хранить шаблоны на пользователя.
+- Recommendation: (a) для общего устройства, если beta допускает несколько
+  аккаунтов; иначе (b) до появления реального multi-user требования.
+- Affects sessions: S28, S30, S33.
+- Revisit trigger/by: before shared-device beta.
+- Resolution: —
+- Evidence: `app/src/main/kotlin/by/mia/assistant/WakeMicrophoneArbiter.kt`,
+  `core/wake/.../WakeConfiguration.kt`.
+
+### OI-W5-002 — Pending operation for a server-deleted conversation
+
+- Status: OPEN
+- Source session: W5 integration
+- Component: Android chat / durable pending operations
+- Question: как пользователю отбросить durable pending-операцию, если
+  conversation удалён на сервере?
+- Why non-blocking: UI честно показывает сбой и предлагает Retry; данные не
+  теряются, дубликаты не создаются благодаря idempotency key.
+- Current assumption: операция остаётся retryable бесконечно.
+- Options: (a) discard-действие в UI; (b) автоматическая очистка по коду ошибки
+  сервера; (c) TTL на pending-операции.
+- Recommendation: (b) с явным кодом ошибки, затем (a) как ручной выход.
+- Affects sessions: S30, S32, S33.
+- Revisit trigger/by: S30 text E2E.
+- Resolution: —
+- Evidence: S23 handoff known limitations, `AppChatDataSource.kt`.
 
 ## S28 inbox
 

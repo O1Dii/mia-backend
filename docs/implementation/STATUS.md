@@ -21,33 +21,49 @@
 | S21 | W4 | PARTIAL | S12,S20 | Sol high | [S21-R1](handoffs/S21-R1.md) | e9ca3f1 | Keystore PASS; OAuth/backend config and reachable logout UI pending |
 | S22 | W4 | COMPLETED | S11,S14,S20 | Sol high | [S22](handoffs/S22.md) | e9ca3f1 | Android main 452949c; cache/Room gate PASS |
 | S26 | W4 | COMPLETED | S16,S24,S25 | Fable 5.1 xhigh | [S26-R1](handoffs/S26-R1.md) | e9ca3f1 | Android main 7db3e6f; physical flush/cancel 83/84 ms PASS |
-| S18 | W5 | READY | S12,S14,S16,S17 | Sol high | — | — | backend dependencies and W4 tool gate verified |
-| S23 | W5 | READY | S14,S20,S22 | Terra high | — | — | Android history dependency integrated |
-| S27 | W5 | READY | S24,S26 | Sol xhigh | — | — | S26 physical gate passed; foreground wake |
-| S28 | W6 | PENDING | S27 | Sol xhigh | — | — | system assistant |
-| S30 | W6 | PENDING | S12,S14,S21,S23 | Sol high | — | — | auth/text E2E |
+| S18 | W5 | COMPLETED | S12,S14,S16,S17 | Sol high | [S18](handoffs/S18.md) | W5 | hardening/deploy gate re-verified by integrator |
+| S23 | W5 | COMPLETED | S14,S20,S22 | Terra high | [S23](handoffs/S23.md) | W5 | Android main 3b6f7b1; chat wired into navigation |
+| S27 | W5 | PARTIAL | S24,S26 | Sol xhigh | [S27](handoffs/S27.md) | W5 | wiring integrated; corpus/device/battery gates NOT RUN |
+| S28 | W6 | PENDING | S27 | Sol xhigh | — | — | blocked by unmet S27 completion gates |
+| S30 | W6 | PENDING | S12,S14,S21,S23 | Sol high | — | — | awaits S21 real OAuth closeout |
 | S31 | W6 | READY | S16,S25,S26 | Fable 5.1 xhigh | — | — | S26 physical gate passed; voice E2E |
-| S32 | W6 | PENDING | S17,S23,S25 | Sol high | — | — | tool E2E |
+| S32 | W6 | READY | S17,S23,S25 | Sol high | — | — | S23 integrated; tool E2E dependencies complete |
 | S33 | W7 | PENDING | S18,S28,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate |
 
 ## Current wave gate
 
-W4 is partially integrated, NOT PASSED. S17 tool policy/audit, S22 Android
-cache, and S26 barge-in pass their gates. Runtime composition is at backend
-`e9ca3f1`; Android auth navigation/cache/VAD code is at `452949c`, with S26
-physical metrics logging at `7db3e6f`. The connected-device Keystore test
-passed, and S26 measured 83 ms flush / 84 ms cancel-send on physical hardware.
-S21 remains PARTIAL because real Google sign-in/refresh/logout has no configured
-public OAuth/backend inputs and the authenticated UI lacks a reachable logout
-action. S27 and S31 are READY by direct dependencies;
-S18 and S23 remain READY. S30 still awaits S21 and S23.
+W5 is integrated, PARTIALLY PASSED. Backend hardening (S18) and Android text
+chat (S23) meet their Definition of Done; S27 foreground wake does not.
+
+Backend is at coordination main with the full gate re-run by the integrator:
+ruff/format, mypy, 142 passed / 1 credential skip against PostgreSQL 16 and
+Redis 7, `alembic check` plus migration up/down/up, and contract validation
+(5 schemas, 18 operations, 36 fixtures, 25 error codes). Container smoke,
+release-step migration on empty and existing databases, readiness fail-closed
+behaviour, backup/restore drill and dependency scan were verified inside S18.
+Deployment now assumes exactly one backend instance (OI-S18-002).
+
+Android main is `3b6f7b1`: chat and conversation list are reachable and
+account-scoped, wake-word lifecycle is wired behind a single microphone
+arbiter, sign-out is reachable from Settings, and the gate passed with 68 unit
+tests plus mock/live debug assembly and lint. No device was attached, so no
+instrumentation or on-device measurement ran in this wave.
+
+S31 and S32 are READY. S30 still awaits the S21 OAuth closeout. S28 stays
+PENDING because its S27 dependency is PARTIAL.
 
 ## Blocking conditions
 
 - S21: follow [local OAuth setup](S21_LOCAL_GOOGLE_AUTH_SETUP.md) for Android/Web
-  client pairing and reachable backend; expose logout in authenticated UI, then
-  run real sign-in, refresh, logout and re-login via `Продолжи S21 по handoff`.
-  Physical Keystore gate already passed.
+  client pairing and reachable backend, then run real sign-in, refresh, logout
+  and re-login via `Продолжи S21 по handoff`. Physical Keystore gate already
+  passed and sign-out is now reachable in the authenticated UI.
+- S27: needs an independent speech corpus (held-out positive clips from several
+  voices plus long negative recordings) to tune the provisional KWS threshold
+  `1.0`, and an attached device for trigger latency, CPU/thermal and an
+  eight-hour visible-app battery measurement. Continue via
+  `Продолжи S27 по handoff` once a device and corpus exist. S28 must not start
+  from the current result.
 
 ## Integration history
 
@@ -58,3 +74,4 @@ S18 and S23 remain READY. S30 still awaits S21 and S23.
 | W2 | 2026-09-11 | 3b7e8eb | PASS | parallel W2 + S24 physical-device closeout |
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
+| W5 | 2026-09-16 | see below / Android 3b6f7b1 | PARTIAL | parallel S18 + Android S23/S27 integration; S27 corpus/device gates pending |
