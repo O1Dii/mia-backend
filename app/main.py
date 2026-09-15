@@ -3,32 +3,30 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import RequestResponseEndpoint
-from starlette.responses import Response
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-from app.api.errors import service_unavailable
+from app.api.errors import internal_error, service_unavailable
 from app.composition import install_runtime_api
 from app.core.config import Settings, get_settings
-from app.core.database import Database
+from app.core.correlation import CorrelationMiddleware
+from app.core.database import Database, migration_head
 from app.core.logging import configure_logging
+from app.core.metrics import METRICS
 from app.core.redis import RedisClient
 from app.core.runtime import Runtime
 
 logger = logging.getLogger(__name__)
 
 
-def create_app(
-    settings: Settings | None = None, *, install_modules: bool = True
-) -> FastAPI:
+def create_app(settings: Settings | None = None, *, install_modules: bool = True) -> FastAPI:
     """Build the application without connecting to external dependencies at import time."""
     resolved_settings = settings or get_settings()
     runtime = Runtime(
         database=Database(resolved_settings.database_url),
         redis=RedisClient(resolved_settings.redis_url),
+        expected_schema_revision=migration_head(),
     )
 
     @asynccontextmanager
@@ -48,25 +46,10 @@ def create_app(
 
     app = FastAPI(title="MIA Backend", version="0.1.0", lifespan=lifespan)
     app.state.runtime = runtime
+    app.add_exception_handler(Exception, internal_error)
+    app.add_middleware(CorrelationMiddleware)
     if install_modules:
         install_runtime_api(app, resolved_settings, runtime)
-
-    @app.middleware("http")
-    async def add_request_id(request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request_id = request.headers.get("X-Request-ID") or str(uuid4())
-        request.state.request_id = request_id
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        logger.info(
-            "request_completed",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": response.status_code,
-            },
-        )
-        return response
 
     @app.get("/health/live", tags=["Health"])
     async def live() -> dict[str, str]:
@@ -75,11 +58,20 @@ def create_app(
 
     @app.get("/health/ready", tags=["Health"], response_model=None)
     async def ready(request: Request) -> JSONResponse | dict[str, str]:
-        """Return readiness only after PostgreSQL and Redis respond."""
+        """Return readiness only after PostgreSQL at the schema head and Redis respond."""
         runtime: Runtime = request.app.state.runtime
         if await runtime.is_ready():
             return {"status": "ok"}
         return service_unavailable(str(request.state.request_id))
+
+    if resolved_settings.metrics_enabled:
+
+        @app.get("/metrics", include_in_schema=False)
+        async def metrics() -> PlainTextResponse:
+            """Expose content-free operational metrics to the private scrape network."""
+            return PlainTextResponse(
+                METRICS.render(), media_type="text/plain; version=0.0.4; charset=utf-8"
+            )
 
     return app
 

@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     auth_exchange_rate_limit: int = Field(default=10, ge=1, le=1000)
     auth_refresh_rate_limit: int = Field(default=30, ge=1, le=1000)
     auth_authenticated_rate_limit: int = Field(default=120, ge=1, le=5000)
+    voice_enabled: bool = True
+    text_enabled: bool = True
+    max_live_session_seconds: int = Field(default=900, ge=30, le=3600)
+    max_daily_text_turns: int = Field(default=100, ge=1, le=10000)
+    max_daily_live_sessions: int = Field(default=20, ge=1, le=1000)
+    max_active_live_sessions_per_user: int = Field(default=1, ge=1, le=4)
+    provider_failure_threshold: int = Field(default=5, ge=1, le=100)
+    provider_cooldown_seconds: int = Field(default=60, ge=1, le=3600)
+    metrics_enabled: bool = False
 
     @field_validator("log_level")
     @classmethod

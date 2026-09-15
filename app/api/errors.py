@@ -35,3 +35,20 @@ def service_unavailable(request_id: str, details: dict[str, Any] | None = None) 
     if details:
         error["details"] = details
     return JSONResponse(status_code=503, content={"error": error})
+
+
+async def internal_error(request: Request, exc: Exception) -> JSONResponse:
+    """Return the stable envelope for unexpected failures without exception details."""
+    request_id = str(getattr(request.state, "request_id", "request"))
+    return JSONResponse(
+        status_code=500,
+        headers={"X-Request-ID": request_id},
+        content={
+            "error": {
+                "code": "internal_error",
+                "message": "An unexpected error occurred.",
+                "request_id": request_id,
+                "retryable": False,
+            }
+        },
+    )
