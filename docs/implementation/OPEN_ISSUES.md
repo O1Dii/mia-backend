@@ -304,6 +304,85 @@ gate at 83 ms speech-to-flush and 84 ms speech-to-cancel-send; see its handoff.
 
 <!-- S18 adds OI-S18-* records here. -->
 
+Decision updates from S18 hardening (the original records above are unchanged):
+
+- OI-ARCH-006 → DECIDED for internal beta. The backend now enforces conservative,
+  environment-overridable admission defaults: `MAX_DAILY_TEXT_TURNS=100`,
+  `MAX_DAILY_LIVE_SESSIONS=20`, `MAX_ACTIVE_LIVE_SESSIONS_PER_USER=1`,
+  `MAX_LIVE_SESSION_SECONDS=900`, provider circuit breakers and the
+  `VOICE_ENABLED`/`TEXT_ENABLED` kill switches. These are request-count proxies,
+  not token or audio-second budgets; S31 measures real spend and may replace them.
+  Evidence: `app/core/config.py`, `app/core/limits.py`, `ops/README.md`,
+  `tests/hardening/test_admission_and_resilience.py`.
+- OI-S16-001 → RESOLVED as recommended: `websockets==15.0.1` is now a direct
+  project dependency with a regenerated lockfile; `google-genai==1.10.0` and the
+  isolated wire transport are unchanged, so no SDK migration was attempted.
+  Evidence: `pyproject.toml`, `uv.lock`, `sh ops/security_scan.sh`.
+- OI-S22-001 → assessed, still OPEN. S18 changed no REST contract: a final-page
+  sync cursor is an API decision for S23/S30 with measured history cost, and
+  internal-beta histories stay small (the daily text budget bounds growth).
+  Nothing in hardening blocks adding it later.
+
+### OI-S18-001 — Access/refresh signing key rotation
+
+- Status: OPEN
+- Source session: S18
+- Component: backend authentication secrets
+- Question: how should `AUTH_JWT_SECRET` be rotated without signing everyone out?
+- Why non-blocking: internal beta can rotate in a maintenance window; every user
+  simply re-authenticates, which the S21 client already handles.
+- Current assumption: rotation is a planned re-login event, not a live operation.
+- Options: keep single-secret rotation with forced re-login; add a verification-only
+  previous-secret window plus a separate refresh-hash pepper.
+- Recommendation: before external beta, split the refresh-token HMAC pepper from
+  the access-token signing key, then add a previous-key verification window. The
+  same secret currently signs access tokens and hashes stored refresh tokens, so a
+  naive rotation also invalidates every stored refresh hash.
+- Affects sessions: S30, S31, S33.
+- Revisit trigger/by: before external beta or the first credential incident.
+- Resolution:
+- Evidence: `app/modules/auth/tokens.py`, S12 handoff known limitations.
+
+### OI-S18-002 — Single-instance realtime and limit state
+
+- Status: OPEN
+- Source session: S18
+- Component: backend scaling and recovery
+- Question: when do realtime claims, active-session limits, circuit breakers and
+  metrics move out of process memory?
+- Why non-blocking: internal beta runs one backend instance and `ops/README.md`
+  states that as a deployment rule; daily budgets already live in Redis.
+- Current assumption: one worker/instance; abrupt process death clears claims and
+  in-memory counters, which frees the user instead of stranding them.
+- Options: keep process-local state; move claims and limits to Redis leases; add
+  sticky routing or a session ownership registry.
+- Recommendation: move claims and the active-session limit to Redis leases at the
+  same time as the second instance; scrape metrics per instance until then.
+- Affects sessions: S31, S33.
+- Revisit trigger/by: first horizontal scale-out or measured restart impact.
+- Resolution:
+- Evidence: `app/modules/realtime/sessions.py`, `app/core/metrics.py`, S14 handoff.
+
+### OI-S18-003 — Live idle timeout and token/audio budgets
+
+- Status: OPEN
+- Source session: S18
+- Component: cost controls
+- Question: should the backend also enforce a WebSocket idle timeout and true
+  token/audio-second budgets, as architecture section 14 lists?
+- Why non-blocking: the 900-second duration cap, one active session per user and
+  the daily session count already bound provider exposure per user and day.
+- Current assumption: no idle timeout; the realtime contract does not require a
+  client ping, so a silent open session is bounded only by the duration cap.
+- Options: keep duration-only caps; add an idle deadline derived from the
+  advertised heartbeat interval; meter provider `usage.updated` into Redis budgets.
+- Recommendation: meter `usage.updated` tokens and audio milliseconds during S31
+  measurements, then agree the idle deadline with the Android client.
+- Affects sessions: S31, S32, S33.
+- Revisit trigger/by: S31 provider measurements.
+- Resolution:
+- Evidence: `app/modules/realtime/gateway.py`, `contracts/realtime/v1/README.md`.
+
 ## S23 inbox
 
 <!-- S23 adds OI-S23-* records here. -->
