@@ -344,8 +344,8 @@ W4:    S17  S21      S22  S26
         │      \      /      │
 W5:    S18      S23         S27
           \      │          /
-W6:       S30   S32   S31  S28
-             \   │   │   /
+W6:       S30   S32   S31   (S28 deferred)
+             \   │   │
 W7:              S33
 ~~~
 
@@ -354,7 +354,7 @@ W7:              S33
 Критические пути:
 
 - voice backend: S00 → S10 → S15 → S16 → S31 → S33;
-- voice Android: S00 → S20 → S24 → S25 → S26 → S27 → S28 → S33;
+- voice Android: S00 → S20 → S24 → S25 → S26 → S31 → S33 (S27/S28 отложены, ADR-009);
 - text/auth: S10/S20 → S11/S13/S12/S14/S21/S22/S23 → S30;
 - tools: S13/S14/S15 → S17 → S32.
 
@@ -888,6 +888,10 @@ W7:              S33
 
 ### S27 — Foreground wake phrase
 
+**Status:** DEFERRED out of PoC scope by ADR-009. Код смержен и выключен по
+умолчанию; корпус, latency, CPU и battery не измеряются, пока activation не
+вернётся в scope.
+
 **Objective:** добавить локальный wake-word trigger без отправки pre-trigger audio в облако.
 
 **Inputs:**
@@ -914,6 +918,9 @@ W7:              S33
 **Consumers:** S28, S33.
 
 ### S28 — System assistant spike
+
+**Status:** DEFERRED out of PoC scope by ADR-009; не начинается и не входит в
+S33 gate.
 
 **Objective:** определить реально поддерживаемый системный assistant/hotword режим на Android.
 
