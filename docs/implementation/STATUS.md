@@ -18,14 +18,14 @@
 | S16 | W3 | COMPLETED | S13,S15 | Fable 5.1 xhigh | [S16](handoffs/S16.md) | c86b0ae | Gemini Live factory integrated; cloud smoke remains S31 |
 | S25 | W3 | COMPLETED | S15,S20,S24 | Sol xhigh | [S25](handoffs/S25.md) | c86b0ae | Android main at 6e7395b; physical gate verified |
 | S17 | W4 | COMPLETED | S13,S14,S15 | Fable 5.1 xhigh | [S17](handoffs/S17.md) | e9ca3f1 | read-only tool policy/audit integrated; backend gate PASS |
-| S21 | W4 | PARTIAL | S12,S20 | Sol high | [S21-R1](handoffs/S21-R1.md) | e9ca3f1 | Keystore PASS; sign-out reachable after W5; real OAuth run pending |
+| S21 | W4 | COMPLETED | S12,S20 | Sol high | [S21-R2](handoffs/S21-R2.md) | b7a6c10 | real sign-in/refresh/logout/re-login PASS on SM-S938B |
 | S22 | W4 | COMPLETED | S11,S14,S20 | Sol high | [S22](handoffs/S22.md) | e9ca3f1 | Android main 452949c; cache/Room gate PASS |
 | S26 | W4 | COMPLETED | S16,S24,S25 | Fable 5.1 xhigh | [S26-R1](handoffs/S26-R1.md) | e9ca3f1 | Android main 7db3e6f; physical flush/cancel 83/84 ms PASS |
 | S18 | W5 | COMPLETED | S12,S14,S16,S17 | Sol high | [S18](handoffs/S18.md) | adccdfc | hardening/deploy gate re-verified by integrator |
 | S23 | W5 | COMPLETED | S14,S20,S22 | Terra high | [S23](handoffs/S23.md) | adccdfc | Android main 3b6f7b1; chat wired into navigation |
 | S27 | W5 | PARTIAL | S24,S26 | Sol xhigh | [S27](handoffs/S27.md) | adccdfc | wiring integrated; corpus/device/battery gates NOT RUN |
 | S28 | W6 | PENDING | S27 | Sol xhigh | — | — | blocked by unmet S27 completion gates |
-| S30 | W6 | PENDING | S12,S14,S21,S23 | Sol high | — | — | awaits S21 real OAuth closeout |
+| S30 | W6 | READY | S12,S14,S21,S23 | Sol high | — | — | S21 device gate closed; auth/text E2E |
 | S31 | W6 | READY | S16,S25,S26 | Fable 5.1 xhigh | — | — | S26 physical gate passed; voice E2E |
 | S32 | W6 | READY | S17,S23,S25 | Sol high | — | — | S23 integrated; tool E2E dependencies complete |
 | S33 | W7 | PENDING | S18,S28,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate |
@@ -46,18 +46,21 @@ Deployment now assumes exactly one backend instance (OI-S18-002).
 Android main is `3b6f7b1`: chat and conversation list are reachable and
 account-scoped, wake-word lifecycle is wired behind a single microphone
 arbiter, sign-out is reachable from Settings, and the gate passed with 68 unit
-tests plus mock/live debug assembly and lint. No device was attached, so no
-instrumentation or on-device measurement ran in this wave.
+tests plus mock/live debug assembly and lint.
 
-S31 and S32 are READY. S30 still awaits the S21 OAuth closeout. S28 stays
-PENDING because its S27 dependency is PARTIAL.
+S21-R2 then closed the real Google auth gate on a physical SM-S938B against a
+configured live build: sign-in, session restore, refresh, logout and re-login
+all pass at backend `b7a6c10`. That gate exposed and fixed a backend defect —
+the certificate-fetch wrapper rejected google-auth's positional transport call,
+so every genuine ID token answered 401; see [S21-R2](handoffs/S21-R2.md). The
+same device run also exercised the W5 text chat and the Settings wake controls.
+Wake quality, latency, CPU and battery remain unmeasured.
+
+S30, S31 and S32 are READY. S28 stays PENDING because its S27 dependency is
+PARTIAL.
 
 ## Blocking conditions
 
-- S21: follow [local OAuth setup](S21_LOCAL_GOOGLE_AUTH_SETUP.md) for Android/Web
-  client pairing and reachable backend, then run real sign-in, refresh, logout
-  and re-login via `Продолжи S21 по handoff`. Physical Keystore gate already
-  passed and sign-out is now reachable in the authenticated UI.
 - S27: needs an independent speech corpus (held-out positive clips from several
   voices plus long negative recordings) to tune the provisional KWS threshold
   `1.0`, and an attached device for trigger latency, CPU/thermal and an
