@@ -8,6 +8,7 @@ from app.modules.auth.google import GoogleIdTokenVerifier, InvalidGoogleTokenErr
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from google.auth import crypt, jwt
+from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
 
@@ -25,6 +26,40 @@ def valid_claims() -> dict[str, Any]:
         "picture": "https://example.test/avatar.png",
         "locale": "ru",
     }
+
+
+@pytest.mark.asyncio
+async def test_transport_wrapper_accepts_the_positional_google_auth_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """google-auth fetches certificates as request(url, method="GET")."""
+    calls: list[tuple[str, str, int | None]] = []
+
+    class FakeSession:
+        def close(self) -> None:
+            return None
+
+    class FakeRequest:
+        def __init__(self) -> None:
+            self.session = FakeSession()
+
+        def __call__(self, url: str, method: str = "GET", **kwargs: Any) -> object:
+            calls.append((url, method, kwargs.get("timeout")))
+            return object()
+
+    monkeypatch.setattr(google_requests, "Request", FakeRequest)
+
+    def verify(token: str, request: Any, audience: str) -> dict[str, Any]:
+        del token, audience
+        request("https://www.googleapis.com/oauth2/v3/certs", method="GET")
+        return valid_claims()
+
+    identity = await GoogleIdTokenVerifier(verify_token=verify).verify(
+        "signed-token", audience="web-client-id", nonce="n" * 32
+    )
+
+    assert identity.subject == "google-subject"
+    assert calls == [("https://www.googleapis.com/oauth2/v3/certs", "GET", 10)]
 
 
 @pytest.mark.asyncio

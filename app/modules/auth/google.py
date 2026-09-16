@@ -58,9 +58,10 @@ class GoogleIdTokenVerifier:
     def _verify_sync(self, token: str, audience: str) -> Mapping[str, Any]:
         request = google_requests.Request()
         try:
-            # google-auth accepts a transport callable; cap each certificate fetch.
-            def bounded_request(**kwargs: Any) -> Any:
-                return request(**{**kwargs, "timeout": 10})
+            # google-auth calls the transport positionally (url, method=...); accept both
+            # forms and cap each certificate fetch.
+            def bounded_request(*args: Any, **kwargs: Any) -> Any:
+                return request(*args, **{**kwargs, "timeout": 10})
 
             return self._verify_token(token, bounded_request, audience)
         finally:
