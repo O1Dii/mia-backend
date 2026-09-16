@@ -379,12 +379,12 @@ W7:              S33
 | S26 | Android VAD/barge-in | S16, S24, S25 | W4 | Fable 5.1 xhigh | Sol xhigh | 45K |
 | S18 | backend hardening/deployment | S12, S14, S16, S17 | W5 | Sol high | Opus 5 high | 45K |
 | S23 | Android text chat UI/SSE | S14, S20, S22 | W5 | Terra high | Sonnet 5 high | 30K |
-| S27 | foreground wake phrase | S24, S26 | W5 | Sol xhigh | Opus 5 high | 40K |
-| S28 | ROLE_ASSISTANT/system assistant spike | S27 | W6 | Sol xhigh | Fable 5.1 high | 45K |
+| S27 | foreground wake phrase (DEFERRED, ADR-009) | S24, S26 | W5 | Sol xhigh | Opus 5 high | 40K |
+| S28 | ROLE_ASSISTANT/system assistant spike (DEFERRED, ADR-009) | S27 | W6 | Sol xhigh | Fable 5.1 high | 45K |
 | S30 | auth + text E2E integration | S12, S14, S21, S23 | W6 | Sol high | Opus 5 high | 35K |
 | S31 | voice E2E integration | S16, S25, S26 | W6 | Fable 5.1 xhigh | Sol xhigh | 60K |
 | S32 | tool E2E integration | S17, S23, S25 | W6 | Sol high | Opus 5 high | 40K |
-| S33 | final beta audit/release gate | S18, S28, S30, S31, S32 | W7 | Fable 5.1 xhigh | Sol xhigh | 65K |
+| S33 | final beta audit/release gate | S18, S30, S31, S32 | W7 | Fable 5.1 xhigh | Sol xhigh | 65K |
 
 Из 23 core sessions:
 
@@ -1031,7 +1031,7 @@ W7:              S33
 
 **Inputs:**
 
-- S18/S28/S30/S31/S32 handoffs;
+- S18/S30/S31/S32 handoffs;
 - STATUS;
 - active OPEN_ISSUES;
 - git logs/diffs since S00;
@@ -1089,11 +1089,14 @@ W7:              S33
 ### W5 gate
 
 - backend deployable;
-- Android text and foreground wake feature-complete in their scopes.
+- Android text feature-complete in its scope;
+- foreground wake merged but out of PoC scope (ADR-009): no quality, latency or
+  battery claim, disabled by default.
 
 ### W6 gate
 
-- four integration handoffs exist;
+- three integration handoffs exist (S30/S31/S32; S28 is out of scope per
+  ADR-009);
 - capability/latency/limitations measured;
 - no unresolved blocker hidden in OPEN_ISSUES.
 

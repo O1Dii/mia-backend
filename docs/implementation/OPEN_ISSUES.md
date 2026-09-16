@@ -12,7 +12,7 @@ Integration session обновляет этот индекс после merge.
 | --- | --- | --- | --- | --- | --- |
 | OI-ARCH-001 | OPEN | Android identity | Какой финальный application ID? | временный ID для PoC, не release OAuth | before S21-R1/release OAuth |
 | OI-ARCH-002 | RESOLVED | Android platform | Какой minSdk? | API 26 для PoC | resolved in S20 |
-| OI-ARCH-003 | OPEN | Wake word | Какая финальная активационная фраза? | tap-to-talk, затем временная phrase | before S27 |
+| OI-ARCH-003 | SUPERSEDED | Wake word | Какая финальная активационная фраза? | activation отложена (ADR-009) | если activation вернётся в scope |
 | OI-ARCH-004 | RESOLVED | Tools | Какой внешний read-only tool идёт первым? | system.get_current_datetime реализован | resolved in W4 |
 | OI-ARCH-005 | OPEN | Voice history | Насколько output transcript считается точным текстом ответа? | показывать как transcript с delivery metadata | S31 |
 | OI-ARCH-006 | DECIDED | Cost controls | Каковы точные daily/session Gemini limits? | request-count admission defaults в config, см. S18 inbox | S31 измеряет реальный расход |
@@ -79,7 +79,7 @@ Integration session обновляет этот индекс после merge.
 
 ### OI-ARCH-003 — Final wake phrase
 
-- Status: OPEN
+- Status: SUPERSEDED
 - Source session: architecture
 - Component: wake word
 - Question: какая phrase является продуктовой и собирается для KWS evaluation?
@@ -88,9 +88,14 @@ Integration session обновляет этот индекс после merge.
 - Options: «Привет, Мия»; другой брендовый вариант.
 - Recommendation: короткая фонетически отличимая phrase, проверенная на RU/BY.
 - Affects sessions: S27, S28.
-- Revisit trigger/by: before S27.
-- Resolution:
-- Evidence:
+- Revisit trigger/by: отложено вместе с activation scope (ADR-009).
+- Resolution: SUPERSEDED as a PoC question on 2026-09-16. Wake-phrase (S27) and
+  system-assistant (S28) activation are out of internal-beta scope per
+  [ADR-009](../adr/0009-defer-wake-word-activation.md); «Привет, Мия» remains the
+  provisional phrase in the disabled module. The phrase is decided only if
+  activation returns to scope.
+- Evidence: [ADR-009](../adr/0009-defer-wake-word-activation.md), S27 handoff,
+  `core/wake/evaluation/README.md`.
 
 ### OI-ARCH-004 — First external tool
 
@@ -128,7 +133,7 @@ Integration session обновляет этот индекс после merge.
 
 ### OI-ARCH-006 — Gemini quotas
 
-- Status: OPEN
+- Status: DECIDED
 - Source session: architecture
 - Component: cost controls
 - Question: какие session duration/daily audio/token limits достаточны для internal beta?
@@ -137,9 +142,14 @@ Integration session обновляет этот индекс после merge.
 - Options: fixed limits; environment-specific limits.
 - Recommendation: environment-specific values, measured in S31.
 - Affects sessions: S16, S18, S31.
-- Revisit trigger/by: S18/S31.
-- Resolution:
-- Evidence:
+- Revisit trigger/by: S31 с измеренным реальным расходом.
+- Resolution: DECIDED in S18 — консервативные, переопределяемые через окружение
+  admission defaults (`MAX_DAILY_TEXT_TURNS`, `MAX_DAILY_LIVE_SESSIONS`,
+  `MAX_ACTIVE_LIVE_SESSIONS_PER_USER`, `MAX_LIVE_SESSION_SECONDS`), circuit
+  breakers и kill switches. Это прокси по числу запросов, а не token/audio
+  бюджеты; S31 измеряет расход и может их заменить (OI-S18-003).
+- Evidence: S18 handoff и его блок в этом файле, `app/core/limits.py`,
+  `tests/hardening/test_admission_and_resilience.py`.
 
 ## S00 inbox
 
