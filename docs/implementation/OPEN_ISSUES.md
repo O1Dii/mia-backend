@@ -25,6 +25,18 @@ Integration session обновляет этот индекс после merge.
 | OI-S18-003 | OPEN | Cost controls | Нужны ли Live idle timeout и token/audio budgets? | request-count proxies из OI-ARCH-006 | S31 |
 | OI-W5-001 | OPEN | Wake word privacy | Должен ли logout удалять локальные wake-шаблоны голоса? | logout выключает wake, шаблоны остаются на устройстве | before shared-device beta |
 | OI-W5-002 | OPEN | Android chat | Как отбросить pending-операцию для удалённого на сервере conversation? | операция остаётся retryable без discard-действия | S30 |
+| OI-W6-001 | OPEN | Provider tests | Почему ни один тест не подавал провайдеру реальную декларацию из registry? | фикстуры используют `{"type": "object"}` | S33 |
+| OI-W6-002 | OPEN | Live transcripts | Какому turn_id принадлежит реплика, расшифрованная до commit? | приписывается предыдущему turn | S33 |
+| OI-W6-003 | OPEN | Live diagnostics | Как отличить дефект mapping от сетевого сбоя в логах? | никак: причина поглощается | before beta |
+| OI-W6-004 | OPEN | Gemini Live model | Какая Live-модель поддерживается адаптером? | `gemini-2.5-flash-native-audio-latest` | S31-R1 |
+| OI-W6-005 | OPEN | Barge-in | Сохраняются ли 83/84 ms после изменения playback-пути? | не измерено заново | S31-R1 |
+| OI-W6-006 | OPEN | Backend composition | Нужен ли явный override verifier/provider в `install_runtime_api`? | monkeypatch атрибутов модуля | S33 |
+| OI-W6-007 | OPEN | Auth config | Нужен ли более низкий пол `auth_access_token_ttl_seconds` для тестов? | токен выпускается вручную | S33 |
+| OI-W6-008 | OPEN | Live idle | Должна ли тишина 90 s завершать Live-сессию как «провайдер недоступен»? | завершает | S31-R1 |
+| OI-W6-009 | OPEN | Live session slots | Как освободить слот после убийства приложения? | ждать idle timeout | S31-R1 |
+| OI-W6-010 | OPEN | Realtime gateway | Стоит ли гейтвею повторно отменять tool-задачи при закрытии? | отменяет; executor это терпит | S33 |
+| OI-W6-011 | OPEN | Tool cancellation | Должен ли клиент узнавать об отмене tool-вызова? | видит только `response.interrupted` | S33 |
+| OI-W6-012 | OPEN | Tool audit | Почему у отменённой записи `error_code = tool_execution_failed`? | статус и код расходятся | S33 |
 
 ## Record template
 
@@ -459,15 +471,223 @@ gates recorded in the S27 handoff, not open issues.
 
 ## S30 inbox
 
-<!-- S30 adds OI-S30-* records here. -->
+### OI-W6-006 — Composition has no injection seam for the verifier and text provider
+
+- Status: OPEN
+- Source session: S30
+- Component: backend composition
+- Question: должен ли `install_runtime_api` принимать явные overrides для
+  `GoogleIdTokenVerifier` и text provider, как `install_auth` уже принимает
+  `service=`/`cache=`?
+- Why non-blocking: full-stack тесты работают через monkeypatch атрибутов модуля.
+- Current assumption: monkeypatch `app.modules.auth.composition.GoogleIdTokenVerifier`
+  и `app.composition.FakeAIProvider`.
+- Options: (a) необязательные параметры override; (b) фабрики в Settings;
+  (c) оставить monkeypatch.
+- Recommendation: (a). Переименование импорта сейчас ломает тесты молча и
+  в опасную сторону — в сторону реального обращения к Google.
+- Affects sessions: S18, S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: `tests/e2e/test_auth_text_journey.py`.
+
+### OI-W6-007 — Access-token TTL floor blocks configuration-driven expiry tests
+
+- Status: OPEN
+- Source session: S30
+- Component: backend auth configuration
+- Question: нужен ли более низкий пол `auth_access_token_ttl_seconds`
+  (сейчас `ge=600`) для test/dev окружений?
+- Why non-blocking: истёкший токен выпускается напрямую через `TokenManager`.
+- Current assumption: пол остаётся 600 s во всех окружениях.
+- Options: (a) пол зависит от `app_env`; (b) оставить как есть.
+- Recommendation: (b) до появления второго потребителя; зафиксировать причину.
+- Affects sessions: S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: `app/core/config.py`, `tests/e2e/test_auth_text_journey.py`.
 
 ## S31 inbox
 
-<!-- S31 adds OI-S31-* records here. -->
+### OI-W6-002 — Turn attribution for a transcript that precedes the commit
+
+- Status: OPEN
+- Source session: S31 (via S16-R1)
+- Component: Gemini Live mapping
+- Question: какому turn_id принадлежит реплика, которую Gemini расшифровал до
+  того, как клиент закоммитил следующий turn?
+- Why non-blocking: события доходят и корректно отображаются; расходится только
+  корреляция.
+- Current assumption: приписывается `_last_state`, то есть предыдущему turn.
+- Options: (a) буферизовать до commit; (b) выдавать предварительный turn_id;
+  (c) оставить как есть и задокументировать.
+- Recommendation: (a), если голосовая история будет группироваться по turn.
+- Affects sessions: S31-R1, S33.
+- Revisit trigger/by: когда голосовые turn попадут в историю.
+- Resolution: —
+- Evidence: `app/providers/ai/gemini_live/mapping.py` `_input_state`.
+
+### OI-W6-003 — Provider failures are indistinguishable in the logs
+
+- Status: OPEN
+- Source session: S31 (via S16-R1)
+- Component: Gemini Live adapter
+- Question: как отличить дефект mapping от сетевого сбоя, не включая
+  временную инструментацию?
+- Why non-blocking: пользователь получает корректный retryable-сбой.
+- Current assumption: `_receive_loop` ловит `Exception` и теряет причину;
+  наружу идёт «provider unavailable».
+- Options: (a) логировать только тип исключения (как это уже делает
+  `JsonFormatter`); (b) счётчик по классу ошибки; (c) оставить.
+- Recommendation: (a) — тип класса это серверный код, не содержимое.
+- Affects sessions: S18, S33.
+- Revisit trigger/by: before beta.
+- Resolution: —
+- Evidence: `app/providers/ai/gemini_live/adapter.py` `_receive_loop`.
+
+### OI-W6-004 — Gemini Live model compatibility
+
+- Status: DECIDED
+- Source session: S31
+- Component: Gemini Live provider
+- Question: какая Live-модель поддерживается адаптером S16?
+- Why non-blocking: рабочая модель найдена и зафиксирована.
+- Current assumption: `gemini-2.5-flash-native-audio-latest`.
+- Options: —
+- Recommendation: закреплять модель явно и перепроверять адаптер при смене.
+- Affects sessions: S31-R1, S33.
+- Revisit trigger/by: при смене Live-модели.
+- Resolution: измерено против живого API: `gemini-3.8-live` подключается, но не
+  отвечает; `gemini-3.1-flash-live-preview` не подключается;
+  `gemini-2.5-flash-native-audio-latest` даёт полный ответ (27 control +
+  45 audio событий). Более новые Live-модели не являются drop-in заменой.
+- Evidence: [S16-R1](handoffs/S16-R1.md).
+
+### OI-W6-005 — Barge-in latency after the playback change
+
+- Status: OPEN
+- Source session: S31 (via S25-R1)
+- Component: Android voice
+- Question: сохраняются ли 83/84 ms speech-to-flush и speech-to-cancel-send
+  после того, как playback-путь стал приостанавливаться?
+- Why non-blocking: путь отмены не менялся; изменилось только поведение
+  переполненного буфера.
+- Current assumption: цифры S26-R1 всё ещё ориентир, но не подтверждены.
+- Options: (a) перезапустить `BargeInDeviceTest`; (b) измерить против
+  реального облачного ответа.
+- Recommendation: (b) — S26-R1 измерял инъецированное аудио и fake gateway.
+- Affects sessions: S31-R1, S33.
+- Revisit trigger/by: S31-R1.
+- Resolution: —
+- Evidence: [S25-R1](handoffs/S25-R1.md), [S26-R1](handoffs/S26-R1.md).
+
+### OI-W6-008 — Silence ends a Live session as a provider failure
+
+- Status: OPEN
+- Source session: S31
+- Component: Gemini Live adapter
+- Question: должна ли тишина в 90 s завершать Live-сессию с кодом
+  `realtime_provider_unavailable`?
+- Why non-blocking: tap-to-talk сессии короткие, а ошибка retryable.
+- Current assumption: `idle_timeout_seconds = 90` применяется к любому
+  молчанию провайдера, включая нормальное ожидание речи пользователя.
+- Options: (a) считать idle timeout нормальным завершением; (b) keepalive;
+  (c) увеличить таймаут.
+- Recommendation: (a) с явным закрытием, иначе ассистент «ломается», пока
+  пользователь думает.
+- Affects sessions: S31-R1, S33.
+- Revisit trigger/by: S31-R1.
+- Resolution: —
+- Evidence: наблюдалось трижды; длительности WS 105 s, 112 s, 118 s.
+
+### OI-W6-009 — An abandoned Live session holds the only slot
+
+- Status: OPEN
+- Source session: S31
+- Component: realtime admission
+- Question: как освободить слот `MAX_ACTIVE_LIVE_SESSIONS_PER_USER`, если
+  приложение убито и сессия не закрыта штатно?
+- Why non-blocking: слот освобождается сам по idle timeout.
+- Current assumption: пользователь ждёт до 90 s перед новой голосовой сессией.
+- Options: (a) вытеснять старую сессию при новом connect того же пользователя;
+  (b) короткий keepalive от клиента; (c) оставить.
+- Recommendation: (a) — при cap в одну сессию это выглядит как зависание.
+- Affects sessions: S31-R1, S18, S33.
+- Revisit trigger/by: S31-R1.
+- Resolution: —
+- Evidence: повторные connect отвергались до истечения старой сессии.
 
 ## S32 inbox
 
-<!-- S32 adds OI-S32-* records here. -->
+### OI-W6-001 — No provider test used a real registry declaration
+
+- Status: OPEN
+- Source session: S32 (via S17-R1)
+- Component: provider tests
+- Question: как не допустить повторения дефекта, при котором зелёный provider
+  suite ничего не говорит о совместимости с облаком?
+- Why non-blocking: конкретный дефект исправлен и закрыт регрессией.
+- Current assumption: фикстуры объявляют `parameters={"type": "object"}`.
+- Options: (a) обязать каждый provider suite прогонять
+  `current_datetime_registry().declarations()`; (b) contract-тест на маппинг;
+  (c) оставить точечную регрессию.
+- Recommendation: (a) — дефект был полностью невидим для фикстур.
+- Affects sessions: S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: [S17-R1](handoffs/S17-R1.md).
+
+### OI-W6-010 — The gateway re-cancels tool tasks at session close
+
+- Status: OPEN
+- Source session: S32
+- Component: realtime gateway
+- Question: стоит ли отменять tool-задачи повторно в teardown, вместо ожидания
+  уже отменённых?
+- Why non-blocking: executor теперь переживает повторную отмену.
+- Current assumption: `gateway.py` отменяет задачи и в `response.cancel`,
+  и в `finally`.
+- Options: (a) отменять только не-`cancelling()` задачи; (b) полагаться на
+  существующий `gather`; (c) оставить.
+- Recommendation: (a) — отмена финализирующейся задачи это ловушка для любого
+  будущего tool с cleanup.
+- Affects sessions: S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: `app/modules/realtime/gateway.py` teardown; [S32](handoffs/S32.md).
+
+### OI-W6-011 — A cancelled tool call is invisible to the client
+
+- Status: OPEN
+- Source session: S32
+- Component: realtime contract
+- Question: должен ли клиент получать `tool.call.cancelled`, или он обязан
+  вывести отмену из `response.interrupted`?
+- Why non-blocking: `ToolCallCancelled` уже существует в контракте AIEvent, а
+  PoC-инструмент мгновенный.
+- Current assumption: клиент видит только `response.interrupted`.
+- Options: (a) публиковать событие отмены; (b) оставить вывод на клиенте.
+- Recommendation: (a) до того, как появится долгий инструмент.
+- Affects sessions: S33.
+- Revisit trigger/by: перед первым долгим инструментом.
+- Resolution: —
+- Evidence: `app/providers/ai/base/events.py`.
+
+### OI-W6-012 — A cancelled audit row carries a failure error code
+
+- Status: OPEN
+- Source session: S32
+- Component: tool audit
+- Question: корректно ли, что у записи со `status='cancelled'` стоит
+  `error_code = 'tool_execution_failed'`?
+- Why non-blocking: статус — источник истины, и он верен.
+- Current assumption: код и статус расходятся.
+- Options: (a) отдельный код отмены; (b) пустой код при отмене; (c) оставить.
+- Recommendation: (b) — отмена это не сбой.
+- Affects sessions: S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: `app/modules/tools/executor.py`.
 
 ## S33 inbox
 

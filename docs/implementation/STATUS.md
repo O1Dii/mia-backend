@@ -25,51 +25,76 @@
 | S23 | W5 | COMPLETED | S14,S20,S22 | Terra high | [S23](handoffs/S23.md) | adccdfc | Android main 3b6f7b1; chat wired into navigation |
 | S27 | W5 | PARTIAL | S24,S26 | Sol xhigh | [S27](handoffs/S27.md) | adccdfc | DEFERRED out of PoC scope (ADR-009); merged, disabled by default |
 | S28 | W6 | PENDING | S27 | Sol xhigh | — | — | DEFERRED out of PoC scope (ADR-009); not started |
-| S30 | W6 | READY | S12,S14,S21,S23 | Sol high | — | — | S21 device gate closed; auth/text E2E |
-| S31 | W6 | READY | S16,S25,S26 | Fable 5.1 xhigh | — | — | S26 physical gate passed; voice E2E |
-| S32 | W6 | READY | S17,S23,S25 | Sol high | — | — | S23 integrated; tool E2E dependencies complete |
-| S33 | W7 | PENDING | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; S28 dropped per ADR-009 |
+| S30 | W6 | COMPLETED | S12,S14,S21,S23 | Sol high | [S30](handoffs/S30.md) | d8db5ce | real sign-in → Gemini text → restart → retry PASS on SM-S938B |
+| S31 | W6 | PARTIAL | S16,S25,S26 | Fable 5.1 xhigh | [S31](handoffs/S31.md) | d8db5ce / Android ed8e05f | voice made reachable; one real round trip; soak/barge-in/latency NOT measured |
+| S32 | W6 | PARTIAL | S17,S23,S25 | Sol high | [S32](handoffs/S32.md) | d8db5ce | both modalities proven in-process; cloud/device tool smoke NOT run |
+| S33 | W7 | PENDING | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; inherits two PARTIAL inputs |
+| S17-R1 | W6 | COMPLETED | S17 | Opus 5 high | [S17-R1](handoffs/S17-R1.md) | d8db5ce | Gemini tool schema translation |
+| S16-R1 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R1](handoffs/S16-R1.md) | d8db5ce | Live input transcript continuation |
+| S25-R1 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R1](handoffs/S25-R1.md) | Android ed8e05f | playback backpressure |
 
 ## Current wave gate
 
-W5 is integrated and PASSED as re-scoped. Backend hardening (S18) and Android
-text chat (S23) meet their Definition of Done. S27 foreground wake does not meet
-its original Definition of Done and is no longer required to: wake-phrase
-activation is out of internal-beta scope per ADR-009.
+W6 is integrated and **PARTIAL**. Backend is at `d8db5ce`, Android at `ed8e05f`.
 
-Backend is at coordination main with the full gate re-run by the integrator:
-ruff/format, mypy, 142 passed / 1 credential skip against PostgreSQL 16 and
-Redis 7, `alembic check` plus migration up/down/up, and contract validation
-(5 schemas, 18 operations, 36 fixtures, 25 error codes). Container smoke,
-release-step migration on empty and existing databases, readiness fail-closed
-behaviour, backup/restore drill and dependency scan were verified inside S18.
-Deployment now assumes exactly one backend instance (OI-S18-002).
+The wave's main result is that running the product against real Gemini for the
+first time found four defects that every green suite had missed, and all four
+are fixed with regressions that fail on the pre-fix code:
 
-Android main is `3b6f7b1`: chat and conversation list are reachable and
-account-scoped, wake-word lifecycle is wired behind a single microphone
-arbiter, sign-out is reachable from Settings, and the gate passed with 68 unit
-tests plus mock/live debug assembly and lint.
+1. [S17-R1](handoffs/S17-R1.md) — the registry's raw JSON Schema was rejected by
+   both Gemini surfaces, so **every** real text turn and **every** Live session
+   failed. Provider fixtures used `{"type": "object"}` and never saw it.
+2. [S16-R1](handoffs/S16-R1.md) — the Live mapper treated a transcript fragment
+   after a final one as a protocol violation, so a session died the moment a user
+   spoke a second time.
+3. [S25-R1](handoffs/S25-R1.md) — a full playback jitter buffer failed the turn
+   instead of applying backpressure, killing every cloud answer ~26 ms in.
+4. [S32](handoffs/S32.md) — a cancelled tool call's audit row stayed `running`
+   forever, so S17's "cancellation is recorded" guarantee was false.
 
-S21-R2 then closed the real Google auth gate on a physical SM-S938B against a
-configured live build: sign-in, session restore, refresh, logout and re-login
-all pass at backend `b7a6c10`. That gate exposed and fixed a backend defect —
-the certificate-fetch wrapper rejected google-auth's positional transport call,
-so every genuine ID token answered 401; see [S21-R2](handoffs/S21-R2.md). The
-same device run also exercised the W5 text chat and the Settings wake controls.
-Wake quality, latency, CPU and battery remain unmeasured by design.
+S31 also found that **voice was not reachable in the app at all**: the voice
+destination rendered `Text("Voice scaffold")`, so S25 and S26 had never run
+inside the product. It is now wired.
 
-S30, S31 and S32 are READY, and they are the only remaining inputs to the S33
-release gate. S27 and S28 are deferred out of scope (ADR-009): the internal beta
-activates voice by tap-to-talk only.
+Gates at the integrated head: ruff/format, mypy (108 files), 180 passed /
+1 credential skip against PostgreSQL 16 and Redis 7, `alembic check`, contract
+validation (5 schemas, 18 operations, 36 fixtures, 25 error codes); Android
+`verifyContractFixtures test lint assembleDebug` with 80 unit tests and both
+debug APKs.
+
+S30 is COMPLETE on a physical SM-S938B against real Gemini: clean install,
+Google sign-in, conversation, streamed answer, process restart, persistent
+history, refresh, and retry of a failed turn reusing its durable operation.
+
+S31 and S32 are PARTIAL, and the gap is measurement, not implementation:
+
+- S31 observed one complete round trip — device microphone → backend → Gemini
+  Live → response transcripts and audio frames back on the device. **Audible
+  playback, the 20-turn soak, interruption against cloud audio, reconnect and
+  every latency figure are unmeasured.** The blocker is acoustic: the phone
+  captured synthesized speech at ~8 % of full scale, which its own VAD detects
+  but Gemini does not reliably treat as speech. Closing it needs the phone close
+  to the sound source or a person speaking to it.
+- S32 proved both modalities in-process with the real composed application, but
+  the model has never actually chosen to call the tool: the cloud and device
+  tool smoke were not run.
+
+`GEMINI_LIVE_MODEL` must be `gemini-2.5-flash-native-audio-latest`
+([OI-W6-004](OPEN_ISSUES.md)). Newer Live models are not drop-in replacements:
+`gemini-3.8-live` connects and never answers, `gemini-3.1-flash-live-preview`
+does not connect.
 
 ## Blocking conditions
 
-None. Wake-phrase activation is no longer a blocker: S27 and S28 are out of
-internal-beta scope by product decision ([ADR-009](../adr/0009-defer-wake-word-activation.md)).
-The wake module stays merged and disabled by default, and no quality, latency,
-CPU or battery figure is claimed anywhere. If activation returns to scope, S27
-resumes from its handoff and needs an independent speech corpus plus an
-eight-hour visible-app battery run before S28 may start.
+S33 must not be started as a clean release gate: two of its four inputs are
+PARTIAL. Before S33, one bounded session (S31-R1) should close the voice
+measurements with the phone physically placed at the sound source, and the same
+session can run the device tool smoke that S32 left open. Neither needs new
+authority — only the device in front of a speaker, or a person speaking to it.
+
+Wake-phrase activation remains out of internal-beta scope
+([ADR-009](../adr/0009-defer-wake-word-activation.md)); S27 and S28 are
+unchanged by this wave.
 
 ## Integration history
 
@@ -81,3 +106,4 @@ eight-hour visible-app battery run before S28 may start.
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
 | W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PASS | parallel S18 + Android S23/S27 integration; S21-R2 auth closeout at b7a6c10; wake deferred by ADR-009 |
+| W6 | 2026-09-20 | d8db5ce / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; four cloud-only defects repaired (S17-R1, S16-R1, S25-R1, S32); voice measurements and tool cloud smoke outstanding |
