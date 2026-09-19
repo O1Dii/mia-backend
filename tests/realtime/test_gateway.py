@@ -8,6 +8,7 @@ from typing import Any, cast
 from uuid import UUID, uuid5
 
 import pytest
+from app.modules.realtime import gateway as gateway_module
 from app.modules.realtime.contracts import (
     INPUT_AUDIO_FORMAT,
     OUTPUT_AUDIO_FORMAT,
@@ -60,8 +61,9 @@ def build_harness(
     provider_type: Callable[[RealtimeSession], RealtimeProviderSession] = FakeRealtimeProvider,
     input_queue_size: int = 8,
     tool_executor: ToolExecutor | None = None,
+    max_active_per_user: int | None = None,
 ) -> Harness:
-    store = InMemoryRealtimeSessionStore()
+    store = InMemoryRealtimeSessionStore(max_active_per_user=max_active_per_user)
     authenticator = StaticAuthenticator()
     providers: list[RealtimeProviderSession] = []
 
@@ -466,3 +468,29 @@ def test_disconnect_closes_provider_and_marks_session_interrupted() -> None:
     session = asyncio.run(harness.store.get(UUID(session_id)))
     assert session is not None
     assert session.status is RealtimeSessionStatus.INTERRUPTED
+
+
+def test_a_vanished_client_releases_its_session_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A killed app leaves the socket open until something else notices.
+
+    With one active session per user that blocked the next voice attempt until the
+    provider's own idle timeout fired, which W6 measured at 90 s.
+    """
+    monkeypatch.setattr(gateway_module, "_CLIENT_INACTIVITY_SECONDS", 0.2)
+    harness = build_harness(max_active_per_user=1)
+    session_id = create_session(harness.client, key="realtime-session-key-inactive-1")
+
+    with harness.client.websocket_connect(
+        f"/v1/realtime?session_id={session_id}",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    ) as websocket:
+        websocket.send_json(configure(session_id))
+        websocket.receive_json()
+        # Then the client goes away without closing: send nothing at all.
+        with pytest.raises(WebSocketDisconnect) as disconnect:
+            websocket.receive_json()
+    assert disconnect.value.code == 1001
+
+    # The slot is free immediately, so the user can start talking again.
+    second = create_session(harness.client, key="realtime-session-key-inactive-2")
+    assert second != session_id

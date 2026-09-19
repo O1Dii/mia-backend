@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
+from typing import cast
 from uuid import UUID
 
 from google.genai import types  # type: ignore[import-untyped]
@@ -13,7 +15,7 @@ from app.modules.realtime.contracts import INPUT_AUDIO_FORMAT, OUTPUT_AUDIO_FORM
 from app.modules.realtime.provider import ProviderAudio, ProviderControl, ProviderOutput
 from app.modules.realtime.sessions import RealtimeSession
 from app.providers.ai.gemini_live.config import GeminiLiveConfig
-from app.providers.ai.gemini_live.mapping import GeminiLiveEventMapper, InvalidGeminiLiveMessage
+from app.providers.ai.gemini_live.mapping import GeminiLiveEventMapper
 from app.providers.ai.gemini_live.resumption import (
     GeminiLiveResumeStore,
     InMemoryGeminiLiveResumeStore,
@@ -28,6 +30,13 @@ from app.providers.ai.gemini_live.transport import (
 
 class GeminiLiveAdapterError(RuntimeError):
     """Sanitized provider failure safe to cross the adapter boundary."""
+
+
+# Distinguishes "the provider iterator ended" from any real message.
+_EXHAUSTED = object()
+
+# Bounds the pre-commit buffer; see `_defer`.
+_MAX_DEFERRED_MESSAGES = 32
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +82,9 @@ class GeminiLiveAdapter:
         self._setup: GeminiLiveSetup | None = None
         self._resume_handle: str | None = None
         self._input_audio_bytes = 0
+        self._last_client_activity = time.monotonic()
         self._deferred_messages: list[types.LiveServerMessage] = []
+        self._dropped_deferred_messages = 0
         self._configured = False
         self._closed = False
 
@@ -137,6 +148,7 @@ class GeminiLiveAdapter:
             # Mark input before yielding to receive, so early transcription is
             # deferred until the gateway supplies its stream/turn IDs at commit.
             self._input_audio_bytes += len(chunk)
+            self._last_client_activity = time.monotonic()
             self._resume_handle = None
             try:
                 async with asyncio.timeout(self._config.request_timeout_seconds):
@@ -176,6 +188,7 @@ class GeminiLiveAdapter:
             try:
                 async with asyncio.timeout(self._config.request_timeout_seconds):
                     await transport.end_audio_stream()
+                self._last_client_activity = time.monotonic()
             except TimeoutError:
                 raise GeminiLiveAdapterError("Gemini Live send timed out.") from None
             except Exception:
@@ -194,14 +207,22 @@ class GeminiLiveAdapter:
             try:
                 async with asyncio.timeout(self._config.request_timeout_seconds):
                     await transport.send_tool_response(call_id=raw_id, name=name, response=response)
+                self._last_client_activity = time.monotonic()
             except TimeoutError:
                 raise GeminiLiveAdapterError("Gemini Live tool response timed out.") from None
             except Exception:
                 raise GeminiLiveAdapterError("Gemini Live tool response failed.") from None
 
     def _defer(self, message: types.LiveServerMessage) -> None:
-        if len(self._deferred_messages) >= 32:
-            raise InvalidGeminiLiveMessage("too many messages arrived before input commit")
+        if len(self._deferred_messages) >= _MAX_DEFERRED_MESSAGES:
+            # Automatic activity detection lets Gemini open a turn on its own VAD, so
+            # it can speak before the client commits one -- and if the client's local
+            # VAD disagrees, no commit ever arrives. Ending the session over that is
+            # the worst available outcome, so drop the oldest deferred message and
+            # stay usable. Running one VAD instead of two is the real fix; it changes
+            # the wire setup and needs acoustic verification (see the S15-R1 handoff).
+            self._deferred_messages.pop(0)
+            self._dropped_deferred_messages += 1
         self._deferred_messages.append(message)
 
     @staticmethod
@@ -318,18 +339,39 @@ class GeminiLiveAdapter:
 
     async def _receive_connection(self, transport: GeminiLiveTransport) -> bool:
         iterator = transport.receive()
-        while not self._closed:
-            try:
-                message = await asyncio.wait_for(
-                    anext(iterator), timeout=self._config.idle_timeout_seconds
-                )
-            except StopAsyncIteration:
-                return True
-            await self._record_resumption(message)
-            await self._map_and_queue(message)
-            if message.go_away is not None:
-                return True
-        return False
+        # The read is owned by a task rather than awaited directly: a timeout must not
+        # cancel it. Cancelling `anext` closes the generator, so the connection could
+        # never survive one idle window.
+        pending: asyncio.Task[object] | None = None
+        try:
+            while not self._closed:
+                waiting_since = time.monotonic()
+                if pending is None:
+                    pending = asyncio.ensure_future(anext(iterator, _EXHAUSTED))
+                done, _ = await asyncio.wait({pending}, timeout=self._config.idle_timeout_seconds)
+                if not done:
+                    # The provider having nothing to say is not a failure. A user
+                    # thinking in silence still streams microphone frames, and ending
+                    # that session as "provider unavailable" is exactly what a voice
+                    # assistant must not do. The timeout guards a socket that has gone
+                    # quiet in *both* directions, so it fires only once the client has
+                    # stopped sending too.
+                    if self._last_client_activity > waiting_since:
+                        continue
+                    raise TimeoutError("Gemini Live went idle in both directions")
+                result = pending.result()
+                pending = None
+                if result is _EXHAUSTED:
+                    return True
+                message = cast(types.LiveServerMessage, result)
+                await self._record_resumption(message)
+                await self._map_and_queue(message)
+                if message.go_away is not None:
+                    return True
+            return False
+        finally:
+            if pending is not None:
+                pending.cancel()
 
     async def _receive_loop(self) -> None:
         try:
