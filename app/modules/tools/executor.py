@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from anyio import CancelScope
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -194,6 +193,24 @@ class ToolExecutor:
             row.error_code = outcome.error_code
             row.finished_at = datetime.now(UTC)
 
+    async def _finish_cancelled(self, principal: ToolPrincipal, outcome: ToolOutcome) -> None:
+        """Record the terminal row even when the caller is cancelled again.
+
+        A realtime barge-in cancels the running tool task and the session
+        close that follows cancels it once more. Every ``Task.cancel`` is
+        delivered, so awaiting the audit write inline aborts it mid
+        transaction and leaves the row ``running``. Run the write as its own
+        task and wait for it out, then let the cancellation propagate.
+        """
+        pending = asyncio.ensure_future(self._finish(principal, outcome))
+        while True:
+            try:
+                await asyncio.shield(pending)
+                return
+            except asyncio.CancelledError:
+                if pending.done():
+                    raise
+
     async def execute(
         self,
         *,
@@ -249,13 +266,10 @@ class ToolExecutor:
                         raise ValueError("tool output is too large")
                     outcome = ToolOutcome(call_id, name, "succeeded", result=result)
                 except asyncio.CancelledError:
-                    with CancelScope(shield=True):
-                        await self._finish(
-                            principal,
-                            ToolOutcome(
-                                call_id, name, "cancelled", error_code="tool_execution_failed"
-                            ),
-                        )
+                    await self._finish_cancelled(
+                        principal,
+                        ToolOutcome(call_id, name, "cancelled", error_code="tool_execution_failed"),
+                    )
                     raise
                 except Exception:
                     outcome = self._failure(call_id, name, "tool_execution_failed")
