@@ -83,6 +83,7 @@ class GeminiLiveAdapter:
         self._resume_handle: str | None = None
         self._input_audio_bytes = 0
         self._last_client_activity = time.monotonic()
+        self._activity_open = False
         self._deferred_messages: list[types.LiveServerMessage] = []
         self._dropped_deferred_messages = 0
         self._configured = False
@@ -153,6 +154,13 @@ class GeminiLiveAdapter:
             try:
                 async with asyncio.timeout(self._config.request_timeout_seconds):
                     await self._resume_store.delete(self._session.id)
+                    if not self._activity_open:
+                        # Automatic detection is disabled, so the turn's boundaries are
+                        # ours to mark. The first frame of a stream opens the activity;
+                        # with START_OF_ACTIVITY_INTERRUPTS this is also what interrupts
+                        # a response the user is talking over.
+                        await transport.start_activity()
+                        self._activity_open = True
                     await transport.send_audio(bytes(chunk))
             except TimeoutError:
                 raise GeminiLiveAdapterError("Gemini Live send timed out.") from None
@@ -185,9 +193,13 @@ class GeminiLiveAdapter:
 
         async with self._transport_lock:
             transport = self._require_transport()
+            if not self._activity_open:
+                # Nothing was streamed, so there is no activity to end.
+                return
             try:
                 async with asyncio.timeout(self._config.request_timeout_seconds):
-                    await transport.end_audio_stream()
+                    await transport.end_activity()
+                self._activity_open = False
                 self._last_client_activity = time.monotonic()
             except TimeoutError:
                 raise GeminiLiveAdapterError("Gemini Live send timed out.") from None
@@ -314,6 +326,7 @@ class GeminiLiveAdapter:
                 try:
                     self._transport = await self._connect(setup)
                     self._setup = setup
+                    self._activity_open = False
                     return
                 except asyncio.CancelledError:
                     raise

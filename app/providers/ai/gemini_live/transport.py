@@ -51,7 +51,9 @@ class GeminiLiveSetup:
 class GeminiLiveTransport(Protocol):
     async def send_audio(self, chunk: bytes) -> None: ...
 
-    async def end_audio_stream(self) -> None: ...
+    async def start_activity(self) -> None: ...
+
+    async def end_activity(self) -> None: ...
 
     async def send_tool_response(
         self, *, call_id: str, name: str, response: Mapping[str, object]
@@ -93,8 +95,13 @@ class GoogleGenAILiveTransport:
             }
         )
 
-    async def end_audio_stream(self) -> None:
-        await self._send({"realtimeInput": {"audioStreamEnd": True}})
+    async def start_activity(self) -> None:
+        await self._send({"realtimeInput": {"activityStart": {}}})
+
+    async def end_activity(self) -> None:
+        # `audioStreamEnd` is not sent while automatic detection is disabled; the
+        # end of a turn is marked by `activityEnd`.
+        await self._send({"realtimeInput": {"activityEnd": {}}})
 
     async def send_tool_response(
         self, *, call_id: str, name: str, response: Mapping[str, object]
@@ -145,7 +152,14 @@ class GoogleGenAILiveTransportFactory:
             },
             "systemInstruction": {"parts": [{"text": setup.system_instruction}]},
             "realtimeInputConfig": {
-                "automaticActivityDetection": {"disabled": False},
+                # MIA's realtime contract is client-driven: the Android controller runs
+                # its own VAD (S26) and commits a turn explicitly. Leaving the provider's
+                # detection on meant two detectors disagreeing -- Gemini opened turns the
+                # client never committed, which overflowed the pre-commit buffer and
+                # ended sessions on ordinary room noise. One detector, the client's.
+                "automaticActivityDetection": {"disabled": True},
+                # An `activityStart` still interrupts a response in flight, which is what
+                # barge-in needs.
                 "activityHandling": "START_OF_ACTIVITY_INTERRUPTS",
             },
             "sessionResumption": {"handle": setup.resume_handle} if setup.resume_handle else {},

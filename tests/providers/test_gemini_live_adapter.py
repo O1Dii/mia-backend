@@ -80,7 +80,8 @@ class QueueTransport:
 
     def __init__(self) -> None:
         self.sent_audio: list[bytes] = []
-        self.audio_stream_ends = 0
+        self.activity_starts = 0
+        self.activity_ends = 0
         self.closed = False
         self.tool_responses: list[tuple[str, str, dict[str, object]]] = []
         self.incoming: asyncio.Queue[types.LiveServerMessage | object] = asyncio.Queue()
@@ -88,8 +89,11 @@ class QueueTransport:
     async def send_audio(self, chunk: bytes) -> None:
         self.sent_audio.append(chunk)
 
-    async def end_audio_stream(self) -> None:
-        self.audio_stream_ends += 1
+    async def start_activity(self) -> None:
+        self.activity_starts += 1
+
+    async def end_activity(self) -> None:
+        self.activity_ends += 1
 
     async def send_tool_response(
         self, *, call_id: str, name: str, response: Mapping[str, object]
@@ -155,7 +159,8 @@ async def test_adapter_configures_pcm_transcripts_tools_and_streams_audio() -> N
     await adapter.send_audio(chunk)
     await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
     assert factory.transports[0].sent_audio == [chunk]
-    assert factory.transports[0].audio_stream_ends == 1
+    assert factory.transports[0].activity_starts == 1
+    assert factory.transports[0].activity_ends == 1
 
     events = adapter.events()
     speech_started = await next_output(events)
