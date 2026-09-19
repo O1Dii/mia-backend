@@ -32,11 +32,15 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-005 | OPEN | Barge-in | Сохраняются ли 83/84 ms после изменения playback-пути? | не измерено заново | S31-R1 |
 | OI-W6-006 | OPEN | Backend composition | Нужен ли явный override verifier/provider в `install_runtime_api`? | monkeypatch атрибутов модуля | S33 |
 | OI-W6-007 | OPEN | Auth config | Нужен ли более низкий пол `auth_access_token_ttl_seconds` для тестов? | токен выпускается вручную | S33 |
-| OI-W6-008 | OPEN | Live idle | Должна ли тишина 90 s завершать Live-сессию как «провайдер недоступен»? | завершает | S31-R1 |
-| OI-W6-009 | OPEN | Live session slots | Как освободить слот после убийства приложения? | ждать idle timeout | S31-R1 |
+| OI-W6-008 | RESOLVED | Live idle | Должна ли тишина 90 s завершать Live-сессию как «провайдер недоступен»? | нет; простой считается по обоим направлениям | resolved in S15-R1 |
+| OI-W6-009 | RESOLVED | Live session slots | Как освободить слот после убийства приложения? | гейтвей закрывает мёртвый сокет | resolved in S15-R1 |
 | OI-W6-010 | OPEN | Realtime gateway | Стоит ли гейтвею повторно отменять tool-задачи при закрытии? | отменяет; executor это терпит | S33 |
 | OI-W6-011 | OPEN | Tool cancellation | Должен ли клиент узнавать об отмене tool-вызова? | видит только `response.interrupted` | S33 |
 | OI-W6-012 | OPEN | Tool audit | Почему у отменённой записи `error_code = tool_execution_failed`? | статус и код расходятся | S33 |
+| OI-W6-013 | OPEN | Tool contract | Нужен ли непрозрачный provider-токен в ToolCallRequested/ToolFeedback? | нет; текст закреплён на Gemini 2.5 | next planning cycle |
+| OI-W6-014 | OPEN | Credential smokes | Где запускать smoke-тесты, требующие ключа? | нигде: в production-образе нет pip | S33 |
+| OI-W6-015 | OPEN | Realtime runtime | Должно ли окно неактивности клиента настраиваться оператором? | константа 30 s в модуле | S33 |
+| OI-W6-016 | OPEN | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | экран остаётся в «waiting» | S31-R1 |
 
 ## Record template
 
@@ -597,8 +601,10 @@ gates recorded in the S27 handoff, not open issues.
   пользователь думает.
 - Affects sessions: S31-R1, S33.
 - Revisit trigger/by: S31-R1.
-- Resolution: —
-- Evidence: наблюдалось трижды; длительности WS 105 s, 112 s, 118 s.
+- Resolution: RESOLVED в [S15-R1](handoffs/S15-R1.md). «Простой» теперь означает
+  тишину в обе стороны: пока клиент шлёт кадры микрофона, сессия живёт. На
+  устройстве сессия продержалась 180 s без ошибки.
+- Evidence: [S15-R1](handoffs/S15-R1.md).
 
 ### OI-W6-009 — An abandoned Live session holds the only slot
 
@@ -614,8 +620,89 @@ gates recorded in the S27 handoff, not open issues.
 - Recommendation: (a) — при cap в одну сессию это выглядит как зависание.
 - Affects sessions: S31-R1, S18, S33.
 - Revisit trigger/by: S31-R1.
+- Resolution: RESOLVED в [S15-R1](handoffs/S15-R1.md) через (b)-подобный
+  серверный вариант: сокет, молчащий в обе стороны 30 s, закрывается кодом 1001,
+  и слот освобождается. Исходящий трафик считается активностью, поэтому клиент,
+  слушающий ответ, не отключается.
+- Evidence: [S15-R1](handoffs/S15-R1.md); повторный старт сразу после убийства
+  приложения прошёл.
+
+## S13-R1 inbox
+
+### OI-W6-013 — Should the neutral tool contract carry a provider continuation token?
+
+- Status: OPEN
+- Source session: S13-R1
+- Component: tool contract
+- Question: нужно ли `ToolCallRequested`/`ToolFeedback` нести непрозрачный
+  provider-токен (для Gemini — `thought_signature`), чтобы ручной tool-loop
+  работал на моделях 3.x?
+- Why non-blocking: PoC закреплён на `gemini-2.5-flash`, где продолжение хода
+  принимается.
+- Current assumption: нейтральный контракт не несёт provider-специфичных полей.
+- Options: (a) непрозрачное поле, которое адаптер кладёт и возвращает;
+  (b) хранить его в состоянии адаптера по call_id; (c) оставаться на 2.5.
+- Recommendation: (b) — нейтральный контракт остаётся чистым, а знание
+  провайдера живёт в провайдере.
+- Affects sessions: S33 и следующий цикл планирования.
+- Revisit trigger/by: когда потребуется модель 3.x.
 - Resolution: —
-- Evidence: повторные connect отвергались до истечения старой сессии.
+- Evidence: [S13-R1](handoffs/S13-R1.md).
+
+### OI-W6-014 — Credential-gated smokes have nowhere to run
+
+- Status: OPEN
+- Source session: S13-R1
+- Component: verification
+- Question: где выполнять smoke-тесты, требующие `GEMINI_API_KEY`?
+- Why non-blocking: поведение проверено эквивалентным запуском того же пути
+  внутри контейнера.
+- Current assumption: тесты пропускаются везде; в production-образе нет pip,
+  а ключ по политике недоступен host-процессу.
+- Options: (a) отдельный test-образ с dev-группой; (b) запуск в managed
+  окружении, где есть ключ; (c) оставить как документированный ручной шаг.
+- Recommendation: (a) — иначе S16 Live smoke и эти два никогда не выполнятся.
+- Affects sessions: S18, S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: [S13-R1](handoffs/S13-R1.md), S16 handoff (smoke пропущен с W3).
+
+## S15-R1 inbox
+
+### OI-W6-015 — Client inactivity window is a module constant
+
+- Status: OPEN
+- Source session: S15-R1
+- Component: realtime gateway
+- Question: должно ли окно неактивности клиента (30 s) настраиваться оператором?
+- Why non-blocking: значение с запасом больше любой нормальной паузы клиента, а
+  исходящий трафик считается активностью.
+- Current assumption: `_CLIENT_INACTIVITY_SECONDS = 30.0` в модуле.
+- Options: (a) переменная окружения рядом с прочими admission-настройками;
+  (b) оставить константой.
+- Recommendation: (a) вместе со следующей ревизией ops-настроек.
+- Affects sessions: S18, S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: [S15-R1](handoffs/S15-R1.md).
+
+### OI-W6-016 — The client does not notice a closed socket while waiting
+
+- Status: OPEN
+- Source session: S15-R1
+- Component: Android voice
+- Question: почему экран остаётся в состоянии «waiting» после того, как гейтвей
+  закрыл сессию?
+- Why non-blocking: пользователь может выйти с экрана и начать заново.
+- Current assumption: обработка закрытия сокета не покрывает
+  `WaitingForResponse`.
+- Options: (a) переводить в retryable-ошибку по закрытию в любом состоянии;
+  (b) таймаут ожидания ответа на клиенте.
+- Recommendation: (a), плюс (b) как страховка.
+- Affects sessions: S31-R1.
+- Revisit trigger/by: S31-R1.
+- Resolution: —
+- Evidence: наблюдалось при 180-секундном удержании сессии.
 
 ## S32 inbox
 

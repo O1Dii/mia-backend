@@ -27,15 +27,17 @@
 | S28 | W6 | PENDING | S27 | Sol xhigh | — | — | DEFERRED out of PoC scope (ADR-009); not started |
 | S30 | W6 | COMPLETED | S12,S14,S21,S23 | Sol high | [S30](handoffs/S30.md) | d8db5ce | real sign-in → Gemini text → restart → retry PASS on SM-S938B |
 | S31 | W6 | PARTIAL | S16,S25,S26 | Fable 5.1 xhigh | [S31](handoffs/S31.md) | d8db5ce / Android ed8e05f | voice made reachable; one real round trip; soak/barge-in/latency NOT measured |
-| S32 | W6 | PARTIAL | S17,S23,S25 | Sol high | [S32](handoffs/S32.md) | d8db5ce | both modalities proven in-process; cloud/device tool smoke NOT run |
+| S32 | W6 | PARTIAL | S17,S23,S25 | Sol high | [S32](handoffs/S32.md) | 5b05d0f | text modality closed on device against real Gemini; voice modality waits on S31 |
 | S33 | W7 | PENDING | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; inherits two PARTIAL inputs |
 | S17-R1 | W6 | COMPLETED | S17 | Opus 5 high | [S17-R1](handoffs/S17-R1.md) | d8db5ce | Gemini tool schema translation |
 | S16-R1 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R1](handoffs/S16-R1.md) | d8db5ce | Live input transcript continuation |
 | S25-R1 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R1](handoffs/S25-R1.md) | Android ed8e05f | playback backpressure |
+| S13-R1 | W6 | COMPLETED | S13 | Opus 5 high | [S13-R1](handoffs/S13-R1.md) | 2edb942 | Gemini 3.x rejects the tool continuation; text pinned to 2.5 |
+| S15-R1 | W6 | COMPLETED | S15 | Opus 5 high | [S15-R1](handoffs/S15-R1.md) | 5b05d0f | silent and noisy Live sessions no longer die |
 
 ## Current wave gate
 
-W6 is integrated and **PARTIAL**. Backend is at `d8db5ce`, Android at `ed8e05f`.
+W6 is integrated and **PARTIAL**. Backend is at `5b05d0f`, Android at `ed8e05f`.
 
 The wave's main result is that running the product against real Gemini for the
 first time found four defects that every green suite had missed, and all four
@@ -75,14 +77,34 @@ S31 and S32 are PARTIAL, and the gap is measurement, not implementation:
   captured synthesized speech at ~8 % of full scale, which its own VAD detects
   but Gemini does not reliably treat as speech. Closing it needs the phone close
   to the sound source or a person speaking to it.
-- S32 proved both modalities in-process with the real composed application, but
-  the model has never actually chosen to call the tool: the cloud and device
-  tool smoke were not run.
+- S32's **text modality is now closed on the device** against real Gemini: the
+  model chose `system.get_current_datetime`, the executor ran it under policy,
+  the answer came back as "The current date and time in Europe/Minsk is
+  2026-09-20 01:31:17.", and the audit row and canonical `tool_call`/`tool_result`
+  entries are in place. The voice modality still waits on S31.
 
-`GEMINI_LIVE_MODEL` must be `gemini-2.5-flash-native-audio-latest`
-([OI-W6-004](OPEN_ISSUES.md)). Newer Live models are not drop-in replacements:
+A second, acoustic-free round after the wave closed added three more repairs:
+
+5. [S13-R1](handoffs/S13-R1.md) — the whole Gemini 3.x family rejects the tool
+   continuation turn, because MIA rebuilds the `functionCall` part without the
+   `thought_signature` the model requires. The tool ran and was audited
+   `succeeded`, then the turn failed. Text is pinned to `gemini-2.5-flash`.
+6. [S15-R1](handoffs/S15-R1.md) — three ways a healthy Live session died for
+   being quiet: an inbound-only idle timeout reported as "provider unavailable",
+   a vanished client holding the only session slot, and ordinary room noise
+   overflowing the pre-commit buffer in ~30 s. A session now holds 180 s on the
+   device without failing, and a killed app's slot is reusable at once.
+
+`GEMINI_TEXT_MODEL` must be a 2.5 text model and `GEMINI_LIVE_MODEL` must be
+`gemini-2.5-flash-native-audio-latest` ([OI-W6-004](OPEN_ISSUES.md),
+[OI-W6-013](OPEN_ISSUES.md)). Newer models are not drop-in replacements:
 `gemini-3.8-live` connects and never answers, `gemini-3.1-flash-live-preview`
-does not connect.
+does not connect, and every 3.x text model breaks tools.
+
+The deepest open finding is that **two voice activity detectors run against each
+other**: MIA's contract is client-commit-driven while the Live setup leaves
+Gemini's automatic activity detection on. S15-R1 stops that from ending sessions,
+but aligning the two belongs to S31-R1, where speech can judge it.
 
 ## Blocking conditions
 
@@ -106,4 +128,4 @@ unchanged by this wave.
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
 | W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PASS | parallel S18 + Android S23/S27 integration; S21-R2 auth closeout at b7a6c10; wake deferred by ADR-009 |
-| W6 | 2026-09-20 | d8db5ce / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; four cloud-only defects repaired (S17-R1, S16-R1, S25-R1, S32); voice measurements and tool cloud smoke outstanding |
+| W6 | 2026-09-20 | 5b05d0f / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; six cloud-only defects repaired (S17-R1, S16-R1, S25-R1, S32, S13-R1, S15-R1); voice measurements outstanding |
