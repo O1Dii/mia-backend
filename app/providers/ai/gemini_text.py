@@ -24,6 +24,7 @@ from app.providers.ai.base import (
     UsageReported,
 )
 from app.providers.ai.base.events import FinishReason, ProviderErrorCode
+from app.providers.ai.tool_schema import to_gemini_schema
 
 
 class _GeminiModels(Protocol):
@@ -118,7 +119,7 @@ class GeminiTextAIProvider:
             types.FunctionDeclaration(
                 name=tool.name,
                 description=tool.description,
-                parameters=dict(tool.parameters),
+                parameters=to_gemini_schema(tool.parameters),
             )
             for tool in request.tools
         ]

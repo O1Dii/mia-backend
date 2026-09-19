@@ -177,9 +177,20 @@ class GeminiLiveEventMapper:
             already_final = state.output_transcript_final
 
         if already_final:
-            if text:
+            if not text:
+                return []
+            if not input_audio:
+                # An output transcript belongs to one response, so text after its
+                # final fragment really is inconsistent.
                 raise InvalidGeminiLiveMessage("Gemini appended text after a final transcript")
-            return []
+            # Input transcription runs continuously and is not bound to our commit
+            # boundaries: with automatic activity detection Gemini keeps transcribing
+            # while the next utterance arrives, before the client commits its turn.
+            # Such a fragment starts the next transcript rather than corrupting the
+            # finished one.
+            combined = text
+            state.input_transcript = combined
+            state.input_transcript_final = False
         response_id = None if input_audio else state.response_id
         if finished:
             if input_audio:

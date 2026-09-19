@@ -21,6 +21,7 @@ from pydantic import SecretStr
 from websockets.asyncio.client import ClientConnection, connect
 
 from app.providers.ai.base import ToolDefinition
+from app.providers.ai.tool_schema import to_gemini_schema
 
 _ENDPOINT = (
     "wss://generativelanguage.googleapis.com/ws/"
@@ -164,7 +165,7 @@ class GoogleGenAILiveTransportFactory:
                         {
                             "name": tool.name,
                             "description": tool.description,
-                            "parameters": dict(tool.parameters),
+                            "parameters": to_gemini_schema(tool.parameters),
                         }
                         for tool in setup.tools
                     ]
