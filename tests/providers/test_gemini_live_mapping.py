@@ -301,3 +301,68 @@ def test_large_provider_audio_is_split_to_public_frame_limit_without_data_loss()
     audio = [event.data for event in outputs if isinstance(event, ProviderAudio)]
     assert [len(frame) for frame in audio] == [4096, 4096, 2048]
     assert b"".join(audio) == pcm
+
+
+def _input_transcription(text: str, *, finished: bool = False) -> types.LiveServerMessage:
+    return types.LiveServerMessage(
+        server_content=types.LiveServerContent(
+            input_transcription=types.Transcription(text=text, finished=finished),
+        ),
+    )
+
+
+def test_input_transcription_after_a_final_fragment_starts_the_next_transcript() -> None:
+    """Gemini transcribes continuously; the next utterance may arrive before our commit.
+
+    W6 found that the mapper treated such a fragment as a protocol violation, which
+    failed the whole realtime session as soon as a user spoke a second time.
+    """
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+
+    first = live_mapper.map_message(_input_transcription("where am I", finished=True))
+    finals = [
+        event
+        for event in first
+        if isinstance(event, ProviderControl) and event.event_type == "transcript.input.final"
+    ]
+    assert [event.payload["text"] for event in finals] == ["where am I"]
+
+    second = live_mapper.map_message(_input_transcription("and what time is it"))
+    deltas = [
+        event
+        for event in second
+        if isinstance(event, ProviderControl) and event.event_type == "transcript.input.delta"
+    ]
+    assert [event.payload["text"] for event in deltas] == ["and what time is it"]
+
+    closing = live_mapper.map_message(_input_transcription("", finished=True))
+    closing_finals = [
+        event
+        for event in closing
+        if isinstance(event, ProviderControl) and event.event_type == "transcript.input.final"
+    ]
+    # The new transcript stands on its own; the finished one is not re-sent or appended to.
+    assert [event.payload["text"] for event in closing_finals] == ["and what time is it"]
+    validate_controls([*first, *second, *closing])
+
+
+def test_output_transcription_after_a_final_fragment_is_still_rejected() -> None:
+    """An output transcript belongs to one response, so appending to it stays invalid."""
+    live_mapper = mapper()
+    live_mapper.commit_turn(stream_id=STREAM_ID, turn_id=TURN_ID, input_audio_bytes=640)
+    live_mapper.map_message(
+        types.LiveServerMessage(
+            server_content=types.LiveServerContent(
+                output_transcription=types.Transcription(text="Minsk.", finished=True),
+            ),
+        )
+    )
+    with pytest.raises(InvalidGeminiLiveMessage):
+        live_mapper.map_message(
+            types.LiveServerMessage(
+                server_content=types.LiveServerContent(
+                    output_transcription=types.Transcription(text=" And more."),
+                ),
+            )
+        )
