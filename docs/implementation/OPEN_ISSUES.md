@@ -41,6 +41,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-014 | OPEN | Credential smokes | Где запускать smoke-тесты, требующие ключа? | нигде: в production-образе нет pip | S33 |
 | OI-W6-015 | OPEN | Realtime runtime | Должно ли окно неактивности клиента настраиваться оператором? | константа 30 s в модуле | S33 |
 | OI-W6-016 | OPEN | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | экран остаётся в «waiting» | S31-R1 |
+| OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
 
 ## Record template
 
@@ -703,6 +704,27 @@ gates recorded in the S27 handoff, not open issues.
 - Revisit trigger/by: S31-R1.
 - Resolution: —
 - Evidence: наблюдалось при 180-секундном удержании сессии.
+
+## S16-R2 inbox
+
+### OI-W6-017 — Barge-in now has two mechanisms
+
+- Status: OPEN
+- Source session: S16-R2
+- Component: Android voice / Gemini Live
+- Question: как взаимодействуют локальное перебивание (flush + `response.cancel`)
+  и provider-side interrupt от `activityStart` при `START_OF_ACTIVITY_INTERRUPTS`?
+- Why non-blocking: оба ведут к нужному результату — старый ответ прекращается.
+- Current assumption: клиент глушит воспроизведение локально, а провайдер
+  останавливает генерацию при открытии новой активности.
+- Options: (a) измерить оба и оставить; (b) полагаться только на provider-side;
+  (c) полагаться только на локальный.
+- Recommendation: (a). До замеров нельзя называть ни одну цифру barge-in
+  латентности: 83/84 ms из S26-R1 получены на другом протоколе.
+- Affects sessions: S31-R1, S33.
+- Revisit trigger/by: S31-R1.
+- Resolution: —
+- Evidence: [S16-R2](handoffs/S16-R2.md), [S26-R1](handoffs/S26-R1.md).
 
 ## S32 inbox
 

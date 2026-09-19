@@ -34,10 +34,11 @@
 | S25-R1 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R1](handoffs/S25-R1.md) | Android ed8e05f | playback backpressure |
 | S13-R1 | W6 | COMPLETED | S13 | Opus 5 high | [S13-R1](handoffs/S13-R1.md) | 2edb942 | Gemini 3.x rejects the tool continuation; text pinned to 2.5 |
 | S15-R1 | W6 | COMPLETED | S15 | Opus 5 high | [S15-R1](handoffs/S15-R1.md) | 5b05d0f | silent and noisy Live sessions no longer die |
+| S16-R2 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R2](handoffs/S16-R2.md) | 485147b | one VAD: manual activity detection driven by the client's commit |
 
 ## Current wave gate
 
-W6 is integrated and **PARTIAL**. Backend is at `5b05d0f`, Android at `ed8e05f`.
+W6 is integrated and **PARTIAL**. Backend is at `485147b`, Android at `ed8e05f`.
 
 The wave's main result is that running the product against real Gemini for the
 first time found four defects that every green suite had missed, and all four
@@ -101,18 +102,28 @@ A second, acoustic-free round after the wave closed added three more repairs:
 `gemini-3.8-live` connects and never answers, `gemini-3.1-flash-live-preview`
 does not connect, and every 3.x text model breaks tools.
 
-The deepest open finding is that **two voice activity detectors run against each
-other**: MIA's contract is client-commit-driven while the Live setup leaves
-Gemini's automatic activity detection on. S15-R1 stops that from ending sessions,
-but aligning the two belongs to S31-R1, where speech can judge it.
+7. [S16-R2](handoffs/S16-R2.md) — the deepest finding of the wave, and now
+   closed: MIA ran **two voice activity detectors against each other**. The
+   contract is client-commit-driven, but the Live setup left Gemini's automatic
+   detection on, so the provider opened turns the client never committed.
+   Automatic detection is disabled and the turn is now bounded by explicit
+   `activityStart`/`activityEnd`. Against real Gemini the same speech produces a
+   full answer when MIA commits and **zero events** when it does not — the
+   property the contract always assumed and never had. A device session held
+   180 s in `listening` without a spurious turn.
+
+No barge-in latency figure currently stands. S26-R1's 83/84 ms were measured on
+the previous protocol against a fake gateway, and barge-in now also reaches the
+provider through `activityStart` ([OI-W6-017](OPEN_ISSUES.md)). S31-R1 must
+re-measure before anyone quotes a number.
 
 ## Blocking conditions
 
 S33 must not be started as a clean release gate: two of its four inputs are
-PARTIAL. Before S33, one bounded session (S31-R1) should close the voice
-measurements with the phone physically placed at the sound source, and the same
-session can run the device tool smoke that S32 left open. Neither needs new
-authority — only the device in front of a speaker, or a person speaking to it.
+PARTIAL. What remains is now purely acoustic. One bounded session (S31-R1) with
+the phone at the sound source, or a person speaking to it, closes the voice
+measurements and the voice tool smoke. No new authority is needed and no code
+change is known to be outstanding.
 
 Wake-phrase activation remains out of internal-beta scope
 ([ADR-009](../adr/0009-defer-wake-word-activation.md)); S27 and S28 are
@@ -128,4 +139,4 @@ unchanged by this wave.
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
 | W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PASS | parallel S18 + Android S23/S27 integration; S21-R2 auth closeout at b7a6c10; wake deferred by ADR-009 |
-| W6 | 2026-09-20 | 5b05d0f / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; six cloud-only defects repaired (S17-R1, S16-R1, S25-R1, S32, S13-R1, S15-R1); voice measurements outstanding |
+| W6 | 2026-09-20 | 485147b / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; seven cloud-only defects repaired (S17-R1, S16-R1, S25-R1, S32, S13-R1, S15-R1, S16-R2); acoustic voice measurements outstanding |
