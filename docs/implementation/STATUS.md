@@ -28,7 +28,8 @@
 | S30 | W6 | COMPLETED | S12,S14,S21,S23 | Sol high | [S30](handoffs/S30.md) | d8db5ce | real sign-in → Gemini text → restart → retry PASS on SM-S938B |
 | S31 | W6 | PARTIAL | S16,S25,S26 | Fable 5.1 xhigh | [S31](handoffs/S31.md) | d8db5ce / Android ed8e05f | voice made reachable; one real round trip; soak/barge-in/latency NOT measured |
 | S32 | W6 | PARTIAL | S17,S23,S25 | Sol high | [S32](handoffs/S32.md) | 5b05d0f | text modality closed on device against real Gemini; voice modality waits on S31 |
-| S33 | W7 | PENDING | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; inherits two PARTIAL inputs |
+| S31-R1 | W6 | READY | S31,S16-R2,S25-R3 | Fable 5.1 xhigh | — | — | acoustic closeout: soak, barge-in, latency, voice tool smoke |
+| S33 | W7 | PENDING | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; blocked on S31-R1 |
 | S17-R1 | W6 | COMPLETED | S17 | Opus 5 high | [S17-R1](handoffs/S17-R1.md) | d8db5ce | Gemini tool schema translation |
 | S16-R1 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R1](handoffs/S16-R1.md) | d8db5ce | Live input transcript continuation |
 | S25-R1 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R1](handoffs/S25-R1.md) | Android ed8e05f | playback backpressure |
@@ -152,6 +153,12 @@ re-measure before anyone quotes a number.
 The procedure for running any of this on a phone is in
 [DEVICE_GATE.md](DEVICE_GATE.md); it is no longer something a session has to
 reconstruct.
+
+**The next command is `Выполни S31-R1`.** It has no session card in the plan —
+it is a repair, so its input is [S31](handoffs/S31.md) "Incomplete work" plus
+[S16-R2](handoffs/S16-R2.md) and [S25-R3](handoffs/S25-R3.md), which changed the
+protocol and the playback path it must measure. It needs the phone at the sound
+source or a person speaking to it, and nothing else.
 
 S33 must not be started as a clean release gate: two of its four inputs are
 PARTIAL. What remains is now measurement rather than repair. One bounded session
