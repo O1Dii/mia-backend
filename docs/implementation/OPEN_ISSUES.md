@@ -43,7 +43,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-016 | RESOLVED | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | OkHttp не отдавал onClosed без ответа на close-фрейм | resolved in S25-R2 |
 | OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
-| OI-W6-019 | OPEN | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | причина не установлена | S31-R1 |
+| OI-W6-019 | RESOLVED | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | клиент сам закрывал сокет кодом 1013 | resolved in S25-R3 |
 
 ## Record template
 
@@ -778,6 +778,11 @@ gates recorded in the S27 handoff, not open issues.
   локальный и облачный VAD ведут себя нетипично.
 - Affects sessions: S31-R1.
 - Revisit trigger/by: S31-R1.
+- Resolution: RESOLVED в [S25-R3](handoffs/S25-R3.md) по рекомендации (a)+(c).
+  Сокет закрывал сам клиент кодом 1013: [S25-R1](handoffs/S25-R1.md) ждал место
+  в playback-буфере внутри `events.collect`, останавливая потребителя канала на
+  32 события, а Gemini льёт ответ быстрее, чем тот играет. Сбой barge-in был
+  симптомом двумя шагами ниже. Аудио ответа теперь ждёт в собственной очереди.
 - Resolution: —
 - Evidence: [S25-R2](handoffs/S25-R2.md); backend `websocket_completed`
   duration 7593 ms без close_code и 45222 ms с 1011.

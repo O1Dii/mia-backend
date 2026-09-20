@@ -37,10 +37,11 @@
 | S16-R2 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R2](handoffs/S16-R2.md) | 485147b | one VAD: manual activity detection driven by the client's commit |
 | S18-R1 | W6 | COMPLETED | S18 | Opus 5 high | [S18-R1](handoffs/S18-R1.md) | 3516dcd | verification image; credential smokes execute for the first time since W3 |
 | S25-R2 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R2](handoffs/S25-R2.md) | Android f055769 | a server-initiated close now reaches the client; confirmed on device |
+| S25-R3 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R3](handoffs/S25-R3.md) | Android 30a4ea8 | playback backpressure off the event stream; three spoken turns hold on device |
 
 ## Current wave gate
 
-W6 is integrated and **PARTIAL**. Backend is at `3516dcd`, Android at `f055769`.
+W6 is integrated and **PARTIAL**. Backend is at `3516dcd`, Android at `30a4ea8`.
 
 The wave's main result is that running the product against real Gemini for the
 first time found four defects that every green suite had missed, and all four
@@ -128,11 +129,17 @@ does not connect, and every 3.x text model breaks tools.
    given the event. Confirmed on the device: stopping the backend mid-session
    now surfaces a retryable error within 3 s.
 
-Those device runs also exposed something this repair did not cause and does not
-fix: voice sessions sometimes end on their own after 7–45 s, with no server
-close and no server error ([OI-W6-019](OPEN_ISSUES.md)). Before S25-R2 such a
-session simply hung, which is why it had never been seen. It is not root-caused,
-and every observation so far was made on room noise rather than speech.
+10. [S25-R3](handoffs/S25-R3.md) — and the defect S25-R2 made visible turned
+    out to be **this wave's own** [S25-R1](handoffs/S25-R1.md). Waiting for
+    playback room inside the inbound event collector stalled the client's
+    32-slot queue, so the client closed its own socket with 1013 on the first
+    real answer. The failed barge-in everyone could see was two steps
+    downstream. A response's audio now waits in a queue of its own.
+
+With that, **three consecutive spoken turns completed on the device against real
+Gemini without the session ending** — each `listening → waiting → listening`,
+with the WebSocket never closing. That is the first working voice loop observed
+in this wave. Audibility is still unconfirmed: nobody listened to the phone.
 
 No barge-in latency figure currently stands. S26-R1's 83/84 ms were measured on
 the previous protocol against a fake gateway, and barge-in now also reaches the
@@ -142,10 +149,11 @@ re-measure before anyone quotes a number.
 ## Blocking conditions
 
 S33 must not be started as a clean release gate: two of its four inputs are
-PARTIAL. What remains is now purely acoustic. One bounded session (S31-R1) with
-the phone at the sound source, or a person speaking to it, closes the voice
-measurements and the voice tool smoke. No new authority is needed and no code
-change is known to be outstanding.
+PARTIAL. What remains is now measurement rather than repair. One bounded session
+(S31-R1) with the phone at the sound source, or a person speaking to it, closes
+the voice measurements and the voice tool smoke: the 20-turn soak can now be
+attempted, because sessions survive real answers. No new authority is needed and
+no code change is known to be outstanding.
 
 Wake-phrase activation remains out of internal-beta scope
 ([ADR-009](../adr/0009-defer-wake-word-activation.md)); S27 and S28 are
@@ -161,4 +169,4 @@ unchanged by this wave.
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
 | W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PASS | parallel S18 + Android S23/S27 integration; S21-R2 auth closeout at b7a6c10; wake deferred by ADR-009 |
-| W6 | 2026-09-20 | 3516dcd / Android f055769 | PARTIAL | parallel S30/S32 + S31 device work; eight defects repaired plus the verification gap that hid them (S18-R1); acoustic voice measurements outstanding |
+| W6 | 2026-09-20 | 3516dcd / Android 30a4ea8 | PARTIAL | parallel S30/S32 + S31 device work; nine defects repaired plus the verification gap that hid them (S18-R1); three spoken turns hold on device; acoustic measurements outstanding |
