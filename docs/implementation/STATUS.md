@@ -148,6 +148,10 @@ re-measure before anyone quotes a number.
 
 ## Blocking conditions
 
+The procedure for running any of this on a phone is in
+[DEVICE_GATE.md](DEVICE_GATE.md); it is no longer something a session has to
+reconstruct.
+
 S33 must not be started as a clean release gate: two of its four inputs are
 PARTIAL. What remains is now measurement rather than repair. One bounded session
 (S31-R1) with the phone at the sound source, or a person speaking to it, closes

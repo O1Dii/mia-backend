@@ -42,6 +42,7 @@ docs/implementation/SESSION_EXECUTION_PLAN.md
 docs/implementation/SESSION_PROMPT_TEMPLATE.md
 docs/implementation/STATUS.md
 docs/implementation/OPEN_ISSUES.md
+docs/implementation/DEVICE_GATE.md
 docs/implementation/handoffs/_TEMPLATE.md
 docs/implementation/handoffs/Sxx.md
 ~~~

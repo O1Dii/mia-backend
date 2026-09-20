@@ -28,7 +28,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-001 | OPEN | Provider tests | Почему ни один тест не подавал провайдеру реальную декларацию из registry? | фикстуры используют `{"type": "object"}` | S33 |
 | OI-W6-002 | OPEN | Live transcripts | Какому turn_id принадлежит реплика, расшифрованная до commit? | приписывается предыдущему turn | S33 |
 | OI-W6-003 | OPEN | Live diagnostics | Как отличить дефект mapping от сетевого сбоя в логах? | никак: причина поглощается | before beta |
-| OI-W6-004 | OPEN | Gemini Live model | Какая Live-модель поддерживается адаптером? | `gemini-2.5-flash-native-audio-latest` | S31-R1 |
+| OI-W6-004 | DECIDED | Gemini Live model | Какая Live-модель поддерживается адаптером? | `gemini-2.5-flash-native-audio-latest` | S31-R1 |
 | OI-W6-005 | OPEN | Barge-in | Сохраняются ли 83/84 ms после изменения playback-пути? | не измерено заново | S31-R1 |
 | OI-W6-006 | OPEN | Backend composition | Нужен ли явный override verifier/provider в `install_runtime_api`? | monkeypatch атрибутов модуля | S33 |
 | OI-W6-007 | OPEN | Auth config | Нужен ли более низкий пол `auth_access_token_ttl_seconds` для тестов? | токен выпускается вручную | S33 |
@@ -266,7 +266,7 @@ the session's REST/SSE lifecycle, ownership, retry, and disconnect gates pass.
 
 ### OI-S16-001 — Own the Live transport dependency during hardening
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S16
 - Component: backend/Gemini Live dependency
 - Question: should S18 declare the already locked `websockets==15.0.1` directly,
@@ -590,7 +590,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-008 — Silence ends a Live session as a provider failure
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S31
 - Component: Gemini Live adapter
 - Question: должна ли тишина в 90 s завершать Live-сессию с кодом
@@ -611,7 +611,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-009 — An abandoned Live session holds the only slot
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S31
 - Component: realtime admission
 - Question: как освободить слот `MAX_ACTIVE_LIVE_SESSIONS_PER_USER`, если
@@ -654,7 +654,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-014 — Credential-gated smokes have nowhere to run
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S13-R1
 - Component: verification
 - Question: где выполнять smoke-тесты, требующие `GEMINI_API_KEY`?
@@ -693,7 +693,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-016 — The client does not notice a closed socket while waiting
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S15-R1
 - Component: Android voice
 - Question: почему экран остаётся в состоянии «waiting» после того, как гейтвей
@@ -757,7 +757,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-019 — Voice sessions sometimes end on their own
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S25-R2
 - Component: Android voice / realtime
 - Question: почему голосовая сессия на устройстве иногда обрывается сама через
