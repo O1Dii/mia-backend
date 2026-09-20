@@ -43,6 +43,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-016 | RESOLVED | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | OkHttp не отдавал onClosed без ответа на close-фрейм | resolved in S25-R2 |
 | OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
+| OI-W6-019 | OPEN | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | причина не установлена | S31-R1 |
 
 ## Record template
 
@@ -751,6 +752,35 @@ gates recorded in the S27 handoff, not open issues.
 - Revisit trigger/by: S33.
 - Resolution: —
 - Evidence: [S18-R1](handoffs/S18-R1.md), `ops/README.md`.
+
+## S25-R2 inbox
+
+### OI-W6-019 — Voice sessions sometimes end on their own
+
+- Status: OPEN
+- Source session: S25-R2
+- Component: Android voice / realtime
+- Question: почему голосовая сессия на устройстве иногда обрывается сама через
+  7–45 секунд?
+- Why non-blocking: сбой retryable, экран предлагает переподключиться, и
+  воспроизводится он непостоянно: соседние прогоны держались 180 с.
+- Current assumption: причина не установлена. Наблюдалось следующее:
+  гейтвей **не** закрывал сокет (в одном случае `websocket_completed` вовсе без
+  `close_code`), `_fail` на сервере не вызывался, а клиент сообщал
+  `Could not interrupt the realtime response` в состоянии `Interrupting`.
+  Последнее — симптом: `cancelResponse` возвращает результат `WebSocket.send`,
+  а тот даёт false на уже закрывающемся сокете. То есть соединение умирало
+  раньше перебивания, и причина его смерти неизвестна.
+- Options: (a) залогировать закрытия сокета на клиенте (кодом и стороной);
+  (b) проверить, не рвёт ли соединение `adb reverse`; (c) воспроизвести с
+  настоящей речью, где barge-in идёт по нормальному пути.
+- Recommendation: (c) вместе с (a). Все наблюдения сделаны на шуме, где
+  локальный и облачный VAD ведут себя нетипично.
+- Affects sessions: S31-R1.
+- Revisit trigger/by: S31-R1.
+- Resolution: —
+- Evidence: [S25-R2](handoffs/S25-R2.md); backend `websocket_completed`
+  duration 7593 ms без close_code и 45222 ms с 1011.
 
 ## S32 inbox
 

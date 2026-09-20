@@ -36,7 +36,7 @@
 | S15-R1 | W6 | COMPLETED | S15 | Opus 5 high | [S15-R1](handoffs/S15-R1.md) | 5b05d0f | silent and noisy Live sessions no longer die |
 | S16-R2 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R2](handoffs/S16-R2.md) | 485147b | one VAD: manual activity detection driven by the client's commit |
 | S18-R1 | W6 | COMPLETED | S18 | Opus 5 high | [S18-R1](handoffs/S18-R1.md) | 3516dcd | verification image; credential smokes execute for the first time since W3 |
-| S25-R2 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R2](handoffs/S25-R2.md) | Android f055769 | a server-initiated close now reaches the client |
+| S25-R2 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R2](handoffs/S25-R2.md) | Android f055769 | a server-initiated close now reaches the client; confirmed on device |
 
 ## Current wave gate
 
@@ -125,7 +125,14 @@ does not connect, and every 3.x text model breaks tools.
    never: OkHttp delivers `onClosed` only once the peer's close frame is
    answered, and the listener never answered. The gateway hung up and the voice
    screen waited forever. The controller was blameless; it was simply never
-   given the event.
+   given the event. Confirmed on the device: stopping the backend mid-session
+   now surfaces a retryable error within 3 s.
+
+Those device runs also exposed something this repair did not cause and does not
+fix: voice sessions sometimes end on their own after 7–45 s, with no server
+close and no server error ([OI-W6-019](OPEN_ISSUES.md)). Before S25-R2 such a
+session simply hung, which is why it had never been seen. It is not root-caused,
+and every observation so far was made on room noise rather than speech.
 
 No barge-in latency figure currently stands. S26-R1's 83/84 ms were measured on
 the previous protocol against a fake gateway, and barge-in now also reaches the
