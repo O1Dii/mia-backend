@@ -35,10 +35,11 @@
 | S13-R1 | W6 | COMPLETED | S13 | Opus 5 high | [S13-R1](handoffs/S13-R1.md) | 2edb942 | Gemini 3.x rejects the tool continuation; text pinned to 2.5 |
 | S15-R1 | W6 | COMPLETED | S15 | Opus 5 high | [S15-R1](handoffs/S15-R1.md) | 5b05d0f | silent and noisy Live sessions no longer die |
 | S16-R2 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R2](handoffs/S16-R2.md) | 485147b | one VAD: manual activity detection driven by the client's commit |
+| S18-R1 | W6 | COMPLETED | S18 | Opus 5 high | [S18-R1](handoffs/S18-R1.md) | 3516dcd | verification image; credential smokes execute for the first time since W3 |
 
 ## Current wave gate
 
-W6 is integrated and **PARTIAL**. Backend is at `485147b`, Android at `ed8e05f`.
+W6 is integrated and **PARTIAL**. Backend is at `3516dcd`, Android at `ed8e05f`.
 
 The wave's main result is that running the product against real Gemini for the
 first time found four defects that every green suite had missed, and all four
@@ -112,6 +113,13 @@ does not connect, and every 3.x text model breaks tools.
    property the contract always assumed and never had. A device session held
    180 s in `listening` without a spurious turn.
 
+8. [S18-R1](handoffs/S18-R1.md) — the credential-gated provider smokes had
+   nowhere to execute and had been reporting SKIP since W3, which reads as
+   coverage. That is how the three cloud-only defects above reached a device
+   session unnoticed. `Dockerfile.test` and `ops/credential_smoke.sh` give them
+   a home; the Live smoke passed against the real API for the first time, and
+   the release image is untouched.
+
 No barge-in latency figure currently stands. S26-R1's 83/84 ms were measured on
 the previous protocol against a fake gateway, and barge-in now also reaches the
 provider through `activityStart` ([OI-W6-017](OPEN_ISSUES.md)). S31-R1 must
@@ -139,4 +147,4 @@ unchanged by this wave.
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
 | W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PASS | parallel S18 + Android S23/S27 integration; S21-R2 auth closeout at b7a6c10; wake deferred by ADR-009 |
-| W6 | 2026-09-20 | 485147b / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; seven cloud-only defects repaired (S17-R1, S16-R1, S25-R1, S32, S13-R1, S15-R1, S16-R2); acoustic voice measurements outstanding |
+| W6 | 2026-09-20 | 3516dcd / Android ed8e05f | PARTIAL | parallel S30/S32 + S31 device work; seven cloud-only defects repaired plus the verification gap that hid them (S18-R1); acoustic voice measurements outstanding |

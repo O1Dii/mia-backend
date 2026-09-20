@@ -38,10 +38,11 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-011 | OPEN | Tool cancellation | Должен ли клиент узнавать об отмене tool-вызова? | видит только `response.interrupted` | S33 |
 | OI-W6-012 | OPEN | Tool audit | Почему у отменённой записи `error_code = tool_execution_failed`? | статус и код расходятся | S33 |
 | OI-W6-013 | OPEN | Tool contract | Нужен ли непрозрачный provider-токен в ToolCallRequested/ToolFeedback? | нет; текст закреплён на Gemini 2.5 | next planning cycle |
-| OI-W6-014 | OPEN | Credential smokes | Где запускать smoke-тесты, требующие ключа? | нигде: в production-образе нет pip | S33 |
+| OI-W6-014 | RESOLVED | Credential smokes | Где запускать smoke-тесты, требующие ключа? | в `Dockerfile.test` через `ops/credential_smoke.sh` | resolved in S18-R1 |
 | OI-W6-015 | OPEN | Realtime runtime | Должно ли окно неактивности клиента настраиваться оператором? | константа 30 s в модуле | S33 |
 | OI-W6-016 | OPEN | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | экран остаётся в «waiting» | S31-R1 |
 | OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
+| OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
 
 ## Record template
 
@@ -665,8 +666,10 @@ gates recorded in the S27 handoff, not open issues.
 - Recommendation: (a) — иначе S16 Live smoke и эти два никогда не выполнятся.
 - Affects sessions: S18, S33.
 - Revisit trigger/by: S33.
-- Resolution: —
-- Evidence: [S13-R1](handoffs/S13-R1.md), S16 handoff (smoke пропущен с W3).
+- Resolution: RESOLVED в [S18-R1](handoffs/S18-R1.md) вариантом (a). Live smoke
+  впервые реально выполнился и прошёл против настоящего API. Остаётся вопрос,
+  кто запускает его в CI — [OI-W6-018](#oi-w6-018--who-runs-the-credential-smoke).
+- Evidence: [S18-R1](handoffs/S18-R1.md).
 
 ## S15-R1 inbox
 
@@ -725,6 +728,25 @@ gates recorded in the S27 handoff, not open issues.
 - Revisit trigger/by: S31-R1.
 - Resolution: —
 - Evidence: [S16-R2](handoffs/S16-R2.md), [S26-R1](handoffs/S26-R1.md).
+
+## S18-R1 inbox
+
+### OI-W6-018 — Who runs the credential smoke
+
+- Status: OPEN
+- Source session: S18-R1
+- Component: CI / release process
+- Question: должен ли credential smoke выполняться автоматически, и где взять
+  для этого ключ?
+- Why non-blocking: скрипт документирован и запускается вручную одной командой.
+- Current assumption: ручной шаг перед релизом и после правок провайдера.
+- Options: (a) отдельный CI job с секретом; (b) запуск в staging-окружении, где
+  ключ уже есть; (c) оставить ручным.
+- Recommendation: (b) — не требует раздавать ключ CI-раннерам.
+- Affects sessions: S33.
+- Revisit trigger/by: S33.
+- Resolution: —
+- Evidence: [S18-R1](handoffs/S18-R1.md), `ops/README.md`.
 
 ## S32 inbox
 
