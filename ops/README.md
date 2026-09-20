@@ -79,6 +79,30 @@ openings (`mia_provider_circuit_open`) and sustained latency
 (`mia_http_request_duration_seconds`). If provider errors or spend escalate, use
 the kill switches.
 
+## Provider credential smoke
+
+```sh
+sh ops/credential_smoke.sh
+```
+
+Runs the credential-gated provider smokes against the real Gemini API. The
+runtime image ships no test runner and `.dockerignore` keeps tests out of its
+build context, so these tests previously had nowhere to execute: they skipped
+from W3 onward while real provider defects accumulated. The script builds
+`Dockerfile.test` — a verification image that is never deployed — and runs them
+there. Docker reads the secret file; the script prints no credential.
+
+Read the result carefully. A **skip** means the environment could not be
+reached, not that the check passed: throttling, timeouts and provider outages
+skip with the reason printed by `-rs`, because they say nothing about whether
+MIA builds a request the API accepts. Anything else is a genuine rejection and
+fails. Run it after changing a provider adapter, a tool declaration or a model,
+and before a release.
+
+Override the environment file with `MIA_ENV_FILE`, the models with
+`GEMINI_TEXT_MODEL` / `GEMINI_LIVE_MODEL`, and the selection with
+`MIA_SMOKE_TARGETS`; extra arguments are passed to pytest.
+
 ## Dependency and security scan
 
 ```sh
