@@ -41,7 +41,8 @@
 
 ## Current wave gate
 
-W6 is integrated and **PARTIAL**. Backend is at `3516dcd`, Android at `30a4ea8`.
+W6 is integrated and **PARTIAL**. Both repositories are on `main`: backend
+`37922dd`, Android `30a4ea8`. No session branch holds unmerged work.
 
 The wave's main result is that running the product against real Gemini for the
 first time found four defects that every green suite had missed, and all four
@@ -173,4 +174,4 @@ unchanged by this wave.
 | W3 | 2026-09-12 | c86b0ae | PASS | parallel W3 + cross-repository wave integration |
 | W4 | 2026-09-14 | e9ca3f1 / Android 7db3e6f | PARTIAL | parallel W4 + S26 physical closeout; S21 OAuth gate pending |
 | W5 | 2026-09-16 | adccdfc / Android 3b6f7b1 | PASS | parallel S18 + Android S23/S27 integration; S21-R2 auth closeout at b7a6c10; wake deferred by ADR-009 |
-| W6 | 2026-09-20 | 3516dcd / Android 30a4ea8 | PARTIAL | parallel S30/S32 + S31 device work; nine defects repaired plus the verification gap that hid them (S18-R1); three spoken turns hold on device; acoustic measurements outstanding |
+| W6 | 2026-09-20 | 37922dd / Android 30a4ea8 | PARTIAL | parallel S30/S32 + S31 device work; nine defects repaired plus the verification gap that hid them (S18-R1); three spoken turns hold on device; acoustic measurements outstanding |
