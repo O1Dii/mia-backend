@@ -40,7 +40,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-013 | OPEN | Tool contract | Нужен ли непрозрачный provider-токен в ToolCallRequested/ToolFeedback? | нет; текст закреплён на Gemini 2.5 | next planning cycle |
 | OI-W6-014 | RESOLVED | Credential smokes | Где запускать smoke-тесты, требующие ключа? | в `Dockerfile.test` через `ops/credential_smoke.sh` | resolved in S18-R1 |
 | OI-W6-015 | OPEN | Realtime runtime | Должно ли окно неактивности клиента настраиваться оператором? | константа 30 s в модуле | S33 |
-| OI-W6-016 | OPEN | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | экран остаётся в «waiting» | S31-R1 |
+| OI-W6-016 | RESOLVED | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | OkHttp не отдавал onClosed без ответа на close-фрейм | resolved in S25-R2 |
 | OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
 
@@ -705,8 +705,12 @@ gates recorded in the S27 handoff, not open issues.
 - Recommendation: (a), плюс (b) как страховка.
 - Affects sessions: S31-R1.
 - Revisit trigger/by: S31-R1.
-- Resolution: —
-- Evidence: наблюдалось при 180-секундном удержании сессии.
+- Resolution: RESOLVED в [S25-R2](handoffs/S25-R2.md). Контроллер был ни при чём:
+  он уже умел превращать `Closed` в retryable-ошибку, но события не получал.
+  OkHttp вызывает `onClosed` только после того, как клиент ответит на close-фрейм,
+  а слушатель не переопределял `onClosing` и не отвечал. Вариант (b) не
+  потребовался.
+- Evidence: [S25-R2](handoffs/S25-R2.md).
 
 ## S16-R2 inbox
 
