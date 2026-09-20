@@ -87,13 +87,13 @@ async def test_setup_handshake_pcm_and_multiple_turns(monkeypatch: pytest.Monkey
     assert config["generationConfig"] == {"responseModalities": ["AUDIO"], "maxOutputTokens": 512}
     assert config["inputAudioTranscription"] == config["outputAudioTranscription"] == {}
     assert config["sessionResumption"] == {"handle": "opaque-test-handle"}
-    assert config["realtimeInputConfig"]["automaticActivityDetection"] == {"disabled": False}
+    assert config["realtimeInputConfig"]["automaticActivityDetection"] == {"disabled": True}
     assert config["tools"][0]["functionDeclarations"][0]["name"] == "system.get_current_datetime"
     assert config["contextWindowCompression"]["slidingWindow"] == {"targetTokens": 8_000}
     assert "opaque-test-handle" not in repr(setup())
 
     await transport.send_audio(b"\x00\x01")
-    await transport.end_audio_stream()
+    await transport.end_activity()
     await transport.send_tool_response(
         call_id="opaque-wire-id",
         name="system.get_current_datetime",
@@ -107,7 +107,7 @@ async def test_setup_handshake_pcm_and_multiple_turns(monkeypatch: pytest.Monkey
             }
         }
     }
-    assert socket.sent[2] == {"realtimeInput": {"audioStreamEnd": True}}
+    assert socket.sent[2] == {"realtimeInput": {"activityEnd": {}}}
     assert socket.sent[3] == {
         "toolResponse": {
             "functionResponses": [
@@ -174,7 +174,7 @@ async def fixture_server() -> AsyncIterator[str]:
         await socket.send('{"setupComplete": {}}')
         audio = json.loads(await socket.recv())["realtimeInput"]["audio"]
         assert base64.b64decode(audio["data"]) == bytes(1280)
-        assert json.loads(await socket.recv()) == {"realtimeInput": {"audioStreamEnd": True}}
+        assert json.loads(await socket.recv()) == {"realtimeInput": {"activityEnd": {}}}
         for message in messages:
             await socket.send(json.dumps(message))
         await socket.wait_closed()
@@ -194,7 +194,7 @@ async def test_real_websocket_codec_with_deterministic_provider_fixture(
         )
         try:
             await transport.send_audio(bytes(1280))
-            await transport.end_audio_stream()
+            await transport.end_activity()
             messages: list[types.LiveServerMessage] = []
             async with asyncio.timeout(2):
                 async for message in transport.receive():

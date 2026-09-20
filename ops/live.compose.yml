@@ -1,0 +1,30 @@
+# Local overlay that points the backend at real Gemini instead of the fake provider.
+#
+# `docker-compose.yml` hardcodes AI_PROVIDER=fake, which is right for everyday work
+# and useless for a device gate: every cloud-only defect this project has hit was
+# invisible in fake mode. Use this overlay whenever a run has to exercise the real
+# provider.
+#
+#   MIA_BACKEND_PORT=8088 docker compose -f docker-compose.yml -f ops/live.compose.yml up -d --build
+#
+# Docker reads `.env`; nothing here needs the values. See docs/implementation/DEVICE_GATE.md.
+services:
+  backend:
+    env_file:
+      - .env
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      AI_PROVIDER: gemini
+      # Pinned deliberately. Gemini 3.x text models reject the manual tool loop
+      # (S13-R1) and the newer Live models are not drop-in replacements for the
+      # S16 adapter (OI-W6-004). Override only with evidence.
+      GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-gemini-2.5-flash}
+      GEMINI_LIVE_MODEL: ${GEMINI_LIVE_MODEL:-gemini-2.5-flash-native-audio-latest}
+      DATABASE_URL: postgresql+asyncpg://mia:mia-local-only@postgres:5432/mia
+      REDIS_URL: redis://redis:6379/0
+      # A gate reconnects far more often than a person does; the production
+      # default of 20 is not the constraint being tested here.
+      MAX_DAILY_LIVE_SESSIONS: ${MAX_DAILY_LIVE_SESSIONS:-300}
+      METRICS_ENABLED: "true"
+      FORWARDED_ALLOW_IPS: "*"

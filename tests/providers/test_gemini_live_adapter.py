@@ -23,6 +23,7 @@ from app.providers.ai.gemini_live import (
     GeminiLiveTransport,
     InMemoryGeminiLiveResumeStore,
 )
+from app.providers.ai.gemini_live.adapter import _MAX_DEFERRED_MESSAGES
 from google.genai import types  # type: ignore[import-untyped]
 from pydantic import SecretStr
 
@@ -79,7 +80,8 @@ class QueueTransport:
 
     def __init__(self) -> None:
         self.sent_audio: list[bytes] = []
-        self.audio_stream_ends = 0
+        self.activity_starts = 0
+        self.activity_ends = 0
         self.closed = False
         self.tool_responses: list[tuple[str, str, dict[str, object]]] = []
         self.incoming: asyncio.Queue[types.LiveServerMessage | object] = asyncio.Queue()
@@ -87,8 +89,11 @@ class QueueTransport:
     async def send_audio(self, chunk: bytes) -> None:
         self.sent_audio.append(chunk)
 
-    async def end_audio_stream(self) -> None:
-        self.audio_stream_ends += 1
+    async def start_activity(self) -> None:
+        self.activity_starts += 1
+
+    async def end_activity(self) -> None:
+        self.activity_ends += 1
 
     async def send_tool_response(
         self, *, call_id: str, name: str, response: Mapping[str, object]
@@ -154,7 +159,8 @@ async def test_adapter_configures_pcm_transcripts_tools_and_streams_audio() -> N
     await adapter.send_audio(chunk)
     await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
     assert factory.transports[0].sent_audio == [chunk]
-    assert factory.transports[0].audio_stream_ends == 1
+    assert factory.transports[0].activity_starts == 1
+    assert factory.transports[0].activity_ends == 1
 
     events = adapter.events()
     speech_started = await next_output(events)
@@ -499,3 +505,80 @@ def test_config_repr_redacts_api_key_and_rejects_unsafe_tool_names() -> None:
                 ),
             ),
         )
+
+
+async def test_provider_silence_does_not_end_a_session_the_client_is_still_feeding() -> None:
+    """A user thinking in silence still streams microphone frames.
+
+    W6 found that the idle timeout counted only inbound traffic, so a Live session
+    ended as "provider unavailable" after 90 s of the assistant simply having
+    nothing to say. The timeout now guards a socket quiet in both directions.
+    """
+    adapter = GeminiLiveAdapter(
+        realtime_session(),
+        replace(live_config(), idle_timeout_seconds=0.02),
+        transport_factory=RecordingFactory(),
+    )
+    await adapter.configure(configure_payload())
+    events = adapter.events()
+
+    async def keep_streaming() -> None:
+        for _ in range(40):
+            await adapter.send_audio(bytes(640))
+            await asyncio.sleep(0.01)
+
+    streaming = asyncio.create_task(keep_streaming())
+    try:
+        # No event at all is the pass condition: a failure would surface here.
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(next_output(events), timeout=0.2)
+    finally:
+        streaming.cancel()
+        await asyncio.gather(streaming, return_exceptions=True)
+        await adapter.close()
+
+
+async def test_a_flood_of_pre_commit_turns_degrades_instead_of_ending_the_session() -> None:
+    """Gemini's own VAD can open turns the client never commits.
+
+    W6 watched a real device session die after ~30 s with "too many messages
+    arrived before input commit": room noise triggered the provider's activity
+    detection while the client's local VAD stayed silent, so no commit ever
+    drained the buffer. Dropping the oldest deferred message is survivable;
+    ending the voice session is not.
+    """
+    factory = RecordingFactory()
+    adapter = GeminiLiveAdapter(realtime_session(), live_config(), transport_factory=factory)
+    await adapter.configure(configure_payload())
+    events = adapter.events()
+
+    for _ in range(_MAX_DEFERRED_MESSAGES * 3):
+        await factory.transports[0].push(
+            types.LiveServerMessage(
+                server_content=types.LiveServerContent(
+                    output_transcription=types.Transcription(text="noise"),
+                ),
+            )
+        )
+    await asyncio.sleep(0.05)
+    assert adapter._dropped_deferred_messages > 0
+
+    # The session is still alive: committing a turn still drains and produces events.
+    collected: list[ProviderOutput] = []
+
+    async def consume() -> None:
+        async for event in events:
+            collected.append(event)
+
+    consumer = asyncio.create_task(consume())
+    await adapter.send_audio(bytes(640))
+    await adapter.commit_audio(stream_id=STREAM_ID, turn_id=TURN_ID)
+    await asyncio.sleep(0.05)
+    consumer.cancel()
+    await asyncio.gather(consumer, return_exceptions=True)
+    await adapter.close()
+
+    assert any(
+        isinstance(event, ProviderControl) and event.event_type == "input_audio.speech_started"
+        for event in collected
+    )

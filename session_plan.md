@@ -47,6 +47,7 @@ Codex получает этот workflow через `AGENTS.md`, а Claude Code 
 - Статусы: [docs/implementation/STATUS.md](docs/implementation/STATUS.md)
 - Неблокирующие вопросы: [docs/implementation/OPEN_ISSUES.md](docs/implementation/OPEN_ISSUES.md)
 - Внутренний context-packet template: [docs/implementation/SESSION_PROMPT_TEMPLATE.md](docs/implementation/SESSION_PROMPT_TEMPLATE.md)
+- Прогон на физическом устройстве: [docs/implementation/DEVICE_GATE.md](docs/implementation/DEVICE_GATE.md)
 - Handoffs: [docs/implementation/handoffs](docs/implementation/handoffs)
 
 ## Secret boundary

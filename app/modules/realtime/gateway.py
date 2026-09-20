@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -44,6 +45,11 @@ from app.modules.tools import ToolExecutor, ToolPrincipal
 
 logger = logging.getLogger(__name__)
 _EXPIRY_GRACE_SECONDS = 5.0
+# A healthy client streams microphone frames continuously while it is listening, so
+# silence this long means the socket is dead rather than quiet. Without it the server
+# keeps a vanished client's session, and with one active session per user that blocks
+# the next voice attempt until the provider's own idle timeout fires.
+_CLIENT_INACTIVITY_SECONDS = 30.0
 
 
 class ConnectionPhase(StrEnum):
@@ -114,6 +120,8 @@ class _RealtimeConnection:
         self._response_turns: dict[UUID, UUID] = {}
         self._failed = False
         self._normal_close = False
+        self._client_inactive = False
+        self._last_server_send = time.monotonic()
         self._request_id = request_id or f"ws_{uuid4().hex}"
 
     def _event(
@@ -148,6 +156,7 @@ class _RealtimeConnection:
         response_id: UUID | None = None,
     ) -> None:
         async with self._send_lock:
+            self._last_server_send = time.monotonic()
             await self._websocket.send_json(
                 self._event(
                     event_type,
@@ -461,6 +470,7 @@ class _RealtimeConnection:
                     if output.response_id in self._cancelled_responses:
                         continue
                     async with self._send_lock:
+                        self._last_server_send = time.monotonic()
                         await self._websocket.send_bytes(output.data)
                     continue
                 if (
@@ -547,7 +557,25 @@ class _RealtimeConnection:
             output_task = asyncio.create_task(self._output_worker())
 
             while not self._failed and self._phase is not ConnectionPhase.CLOSING:
-                message = await self._websocket.receive()
+                waiting_since = time.monotonic()
+                try:
+                    message = await asyncio.wait_for(
+                        self._websocket.receive(), timeout=_CLIENT_INACTIVITY_SECONDS
+                    )
+                except TimeoutError:
+                    # Serving a response counts as traffic: a client waiting for the
+                    # assistant to finish speaking legitimately sends nothing, and
+                    # closing it then would cut off the answer.
+                    if self._last_server_send > waiting_since:
+                        continue
+                    # Otherwise treat it as the disconnect it almost certainly is. No
+                    # error event is sent: a vanished client cannot read one, and
+                    # inventing a public error code would change the realtime schema
+                    # without an ADR.
+                    logger.info("realtime_client_inactive", extra={"session_id": self._session.id})
+                    METRICS.inc("mia_realtime_sessions_client_inactive_total")
+                    self._client_inactive = True
+                    break
                 if message.get("type") == "websocket.disconnect":
                     break
                 text = message.get("text")
@@ -579,7 +607,10 @@ class _RealtimeConnection:
                 return_exceptions=True,
             )
             if self._websocket.application_state is WebSocketState.CONNECTED:
-                await self._websocket.close(code=1000 if self._normal_close else 1011)
+                close_code = 1000 if self._normal_close else 1011
+                if self._client_inactive:
+                    close_code = 1001
+                await self._websocket.close(code=close_code)
 
 
 class RealtimeGateway:

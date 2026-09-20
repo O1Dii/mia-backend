@@ -552,7 +552,11 @@ class ScriptedLiveTransport:
     async def send_audio(self, chunk: bytes) -> None:
         return None
 
-    async def end_audio_stream(self) -> None:
+    async def start_activity(self) -> None:
+        return None
+
+    async def end_activity(self) -> None:
+        # Automatic activity detection is disabled, so the turn ends here.
         for message in self._on_commit:
             await self._incoming.put(message)
 

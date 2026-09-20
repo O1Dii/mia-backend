@@ -1,0 +1,38 @@
+# Verification image. Never deployed.
+#
+# The runtime image in `Dockerfile` deliberately ships no test runner, and
+# `.dockerignore` keeps tests out of its build context entirely. That left the
+# credential-gated provider smokes with nowhere to execute: they skipped from W3
+# onward while real Gemini defects accumulated undetected (S17-R1, S16-R1,
+# S13-R1). This image exists solely so they can run.
+#
+# It is a separate file rather than a stage in `Dockerfile` so the release build
+# context keeps excluding tests: see `Dockerfile.test.dockerignore`. Both files
+# install from the same `pyproject.toml` and `uv.lock`, so dependency versions
+# cannot drift apart.
+#
+# Run it through `ops/credential_smoke.sh`.
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    PYTHONPATH=/app \
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+COPY pyproject.toml uv.lock README.md ./
+# Unlike the runtime image this keeps the dev group, which carries pytest.
+RUN pip install --no-cache-dir uv==0.12.12 && uv sync --frozen
+COPY app ./app
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
+COPY tests ./tests
+COPY contracts ./contracts
+
+RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin mia
+USER 10001
+
+CMD ["pytest", "-q", "-rs", "-p", "no:cacheprovider", \
+     "tests/providers/test_gemini_live_smoke.py", \
+     "tests/providers/test_gemini_text_smoke.py"]
