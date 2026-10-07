@@ -4,6 +4,52 @@
 
 Допустимые состояния: PENDING, READY, IN_PROGRESS, COMPLETED, PARTIAL, BLOCKED, FAILED, SUPERSEDED.
 
+## New web platform direction — 2026-10-05
+
+По прямому запросу пользователя реализованы WEB-P1 + WEB-P1-R1 и код
+WEB-P1-R2: React, семь плагинов, выбранная модель → tools → runtime, дашборд,
+Интернет/новости, manifest v2 и SDK. Теперь есть страницы плагинов с реальными
+скриншотами и отзывами, Google-only hosted auth, постоянные изолированные аккаунты,
+установки/состояния/раскладка в SQLite, браузерная диктовка и озвучка.
+Рабочее дерево на базе `c5fc60f`, отдельного integrated commit пока нет.
+
+**WEB-P1-R2: COMPLETED для shared-server POC, 2026-10-06.** Опубликовано
+на [https://mindmapgen.xyz/mia/](https://mindmapgen.xyz/mia/); плитка Мии видна в
+общем хабе. Подключение выполнено после разрешения пользователя на операционное
+использование env values только как переменных, без просмотра/вывода. Штатный
+VPN/SSH tool получил пароль через окружение. Публичные проверки PASS: auth
+required, anonymous workspace 401, реальные assets/screenshots 200, все пять
+карточек хаба сохранены, соседние приложения 200/uptimes unchanged. Live Chromium:
+плитка → Google login → OAuth redirect; no JS/resource errors, mobile no overflow.
+Container healthy, UID 10001/read-only/384MB; SQLite directory 700; nginx valid.
+Google consent в аккаунте владельца не выполнялся: это интерактивный шаг входа.
+
+**WEB-P1-R3: COMPLETED, 2026-10-06.** Исправлен и опубликован 403 после Google
+return: middleware разрешает только top-level GET/HEAD static entry; API/CSRF
+checks сохраняются. Backend regression FAIL before / PASS after; 71 tests PASS.
+Реальный Chromium 303 return regression FAIL на старом релизе / PASS на новом:
+страница 200, UI загружается, anonymous workspace 401, cross-site API 403.
+Публичный smoke PASS; MIA healthy, соседние apps/cards/uptimes сохранены.
+Google config/callback не менялись. [R3](handoffs/WEB-P1-R3.md).
+
+Текущая проверка: production build/TypeScript/Prettier PASS; 20 Chromium journeys
+PASS; Ruff/format/mypy PASS; 58 web tests + 13 Google verifier tests = 71 PASS.
+Реальный amd64 release container локально и на сервере healthy: обязательный Google-вход, anonymous
+workspace 401, login/assets/screenshots через `/mia/`, mobile 390px без overflow.
+Shell syntax/Compose/diff PASS. Платных обращений к моделям и реального Google
+consent не было. Предыдущие RSS/schema/backend проверки остаются историческими.
+
+План: [WEB_PLATFORM_PLAN](../WEB_PLATFORM_PLAN.md). Архитектура/SDK:
+[PLUGIN_DEVELOPMENT](../PLUGIN_DEVELOPMENT.md). Запуск:
+[web/README](../../web/README.md). Деплой: [deploy/README](../../deploy/README.md).
+Свидетельства: [WEB-P1](handoffs/WEB-P1.md), [WEB-P1-R1](handoffs/WEB-P1-R1.md),
+[WEB-P1-R2](handoffs/WEB-P1-R2.md), [WEB-P1-R3](handoffs/WEB-P1-R3.md). Ключи/подключения всё ещё в памяти до 8h/restart;
+SDK grants до часа. Hosted loopback inference отключён до companion connector.
+Новые вопросы в WEB-P1 inbox `OPEN_ISSUES.md`. Старые voice gates и готовность
+S31-R1/S33 не изменены.
+
+## Original Android/backend sessions
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S00 | W0 | COMPLETED | — | Fable 5.1 high | [S00](handoffs/S00.md) | b56c17f | contracts/governance baseline verified |

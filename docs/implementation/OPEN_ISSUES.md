@@ -862,3 +862,102 @@ gates recorded in the S27 handoff, not open issues.
 ## S33 inbox
 
 <!-- S33 adds OI-S33-* records here. -->
+
+## WEB-P1 inbox — new web platform
+
+This direction was requested directly on 2026-10-05 and is tracked separately
+from the old voice/session dependency graph. These issues do not change its gates.
+
+### OI-WEB-001 — Persistent web identities and model credentials
+
+- Status: OPEN
+- Source session: WEB-P1
+- Component: Web auth and provider connections
+- Question: какой hosting/vault будет использоваться для постоянных BYOK-подключений?
+- Why non-blocking: hosted Google accounts/workspaces уже постоянны; BYOK остаётся в памяти до 8h/restart и явно требует повторного ввода.
+- Current assumption: WEB-P1-R2 переиспользует shared Google OAuth и собственную Secure/HttpOnly session; ключи не попадают в browser storage/SQLite. Vault/KMS ещё не реализован.
+- Options: managed cloud vault; локальный companion vault; смешанная конфигурация.
+- Recommendation: shared authenticated backend + managed vault, локальный inference через companion connector.
+- Affects sessions: WEB-P2, WEB-P6.
+- Revisit trigger/by: перед обещанием постоянного хранения API-ключей и публичной beta.
+- Resolution: —
+- Evidence: `app/web_poc/main.py`, `docs/WEB_PLATFORM_PLAN.md`.
+
+### OI-WEB-002 — Reminder execution outside an open browser
+
+- Status: OPEN
+- Source session: WEB-P1
+- Component: Scheduler / notifications
+- Question: какие устройства должны выполнять будильники при закрытой вкладке и отсутствии сети?
+- Why non-blocking: web POC явно ограничивает напоминания открытой вкладкой.
+- Current assumption: shared server deadlines + browser notifications для POC; durable scheduler/push или device agent для продукта.
+- Options: backend scheduler + push; native/column scheduler; оба с единой identity/idempotency.
+- Recommendation: backend jobs для cloud-автоматизаций и локальный device scheduler для колонки.
+- Affects sessions: WEB-P4, WEB-P6.
+- Revisit trigger/by: перед background notifications и обещанием надёжного будильника.
+- Resolution: —
+- Evidence: `web/src/plugins/scheduler.ts`, `web/src/App.tsx`, `web/README.md`.
+
+### OI-WEB-003 — Community publication and executable plugins
+
+- Status: OPEN
+- Source session: WEB-P1
+- Component: Plugin store / SDK
+- Question: когда открывать сторонним авторам workflow/UI runtime и публикацию версий?
+- Why non-blocking: локальный manifest v2, ограниченные actions, iframe view и SDK уже работают; публичной публикации нет.
+- Current assumption: перед public catalog нужны immutable versions, verified author/client identity, pinned grants и review; локальный HTML sandbox не является production gate.
+- Options: только рецепты; declarative workflow; executable extension sandbox.
+- Recommendation: recipe-first publication с grants/versioning, затем расширять runtime по фактическим потребностям.
+- Affects sessions: WEB-P3, WEB-P5.
+- Revisit trigger/by: до публичной публикации community-плагинов.
+- Resolution: —
+- Evidence: `docs/PLUGIN_DEVELOPMENT.md`, `contracts/plugins/v2/application.schema.json`, `packages/mia-sdk/`.
+
+### OI-WEB-004 — Live verification of web provider accounts
+
+- Status: OPEN
+- Source session: WEB-P1
+- Component: Provider verification
+- Question: какие конкретные модели доступны реальным аккаунтам и локальной установке владельца?
+- Why non-blocking: native adapter protocols и journeys проверены без paid calls; UI даёт editable model ID и явный «Тест API».
+- Current assumption: model names в формах — примеры, credentials не были прочитаны и live web smoke не запускался.
+- Options: ручной тест в UI; staging credential smoke после WEB-P2.
+- Recommendation: проверить выбранные провайдеры через UI и позже добавить managed smoke suite.
+- Affects sessions: WEB-P2.
+- Revisit trigger/by: при первом подключении реальных моделей / до публичной beta.
+- Resolution: —
+- Evidence: `tests/web_poc/test_web_api.py`, `web/src/components/Models.tsx`.
+
+### OI-WEB-005 — Durable installation state and app identity after runtime POC
+
+- Status: OPEN
+- Source session: WEB-P1-R1
+- Component: Plugin runtime / SDK / persistence
+- Question: как переносить локальную установку и привязанные приложения в постоянный аккаунт?
+- Why non-blocking: hosted Google accounts/installations/state/layout уже сохраняются в SQLite и изолированы; SDK grants остаются временными.
+- Current assumption: WEB-P1-R2 сохраняет installations/state/layout/reviews аккаунта после restart. SDK grants остаются в памяти до часа; connection keys до 8h. Анонимные локальные данные не переносятся в Google-аккаунт автоматически.
+- Recommendation: продолжить WEB-P2: явная миграция локальных данных, PostgreSQL/vault и production PKCE/device grants. Не переносить временные bearer tokens автоматически.
+- Affects sessions: WEB-P2, WEB-P6.
+- Revisit trigger/by: до хранения важных пользовательских данных и подключения устройств.
+- Resolution: —
+- Evidence: `docs/implementation/handoffs/WEB-P1-R1.md`, `app/web_poc/runtime.py`, `app/web_poc/extensions.py`.
+
+### OI-WEB-006 — Shared-server VPN/SSH access
+
+- Status: RESOLVED
+- Source session: WEB-P1-R2
+- Component: Deployment
+- Question: разрешено ли операционное использование credentials для подключения к серверу?
+- Current assumption: пользователь разрешил сохранённые env values только как переменные, без просмотра/вывода. Wrapper загрузил deployment environment с отключённым tracing и подавленными диагностическими сообщениями; `SERVER_PASSWORD` передан shared authentication tool через окружение, grep fallback не использовался.
+- Affects sessions: WEB-P1-R2 publication only; old Sxx gates unchanged.
+- Resolution: 2026-10-06 VPN/SSH connection, checksum-verified image upload and isolated MIA release completed. Public health/auth/401/assets/screenshots/hub-card checks PASS; actual Chromium hub → login → Google OAuth redirect PASS; neighboring applications/uptimes preserved.
+- Evidence: user authorization, `deploy/README.md`, `deploy/publish-via-shared-server.sh`, `docs/implementation/handoffs/WEB-P1-R2.md`, `docs/previews/mia-live-hub.png`.
+
+### OI-WEB-007 — Google return rejected by Fetch Metadata boundary
+
+- Status: RESOLVED
+- Source session: WEB-P1-R3
+- Component: Hosted web middleware / Google return
+- Problem: Google return to `/mia/?signin=google` was rejected as cross-site with 403; callback is already configured on the shared server.
+- Resolution: allow only top-level GET/HEAD static entry navigation; retain origin/metadata checks on API, mutations, iframe and fetch requests. Regression FAIL before / PASS after; 71 backend tests PASS. Published 2026-10-06; real Chromium cross-site 303 return now 200/UI loaded; API cross-site 403 and anonymous workspace 401 remain. Container healthy, existing apps/cards/uptimes preserved.
+- Evidence: `tests/web_poc/test_accounts.py`, `web/scripts/verify-hosted-auth-return.mjs`, `docs/implementation/handoffs/WEB-P1-R3.md`.

@@ -50,6 +50,26 @@ Codex получает этот workflow через `AGENTS.md`, а Claude Code 
 - Прогон на физическом устройстве: [docs/implementation/DEVICE_GATE.md](docs/implementation/DEVICE_GATE.md)
 - Handoffs: [docs/implementation/handoffs](docs/implementation/handoffs)
 
+## Новое направление: web-платформа
+
+2026-10-05 пользователь расширил продукт до платформы приложений вокруг локальных
+и облачных моделей. Первый localhost POC реализован отдельно от старого voice
+release gate: [WEB-P1 handoff](docs/implementation/handoffs/WEB-P1.md).
+Обновление по прямому запросу: [WEB-P1-R1](docs/implementation/handoffs/WEB-P1-R1.md) —
+исполняемые навыки, общий runtime, дашборд, Интернет, manifest v2 и SDK приложений.
+[WEB-P1-R2](docs/implementation/handoffs/WEB-P1-R2.md) — страницы плагинов,
+Google-аккаунты/SQLite, браузерный голос и опубликованный amd64 POC
+на https://mindmapgen.xyz/mia/ с плиткой общего хаба (2026-10-06).
+[WEB-P1-R3](docs/implementation/handoffs/WEB-P1-R3.md) — исправление 403 при
+возврате после Google OAuth, узкое исключение для загрузки публичной страницы.
+
+- Новый план и следующие этапы: [WEB_PLATFORM_PLAN](docs/WEB_PLATFORM_PLAN.md).
+- Добавление плагинов и будущий SDK: [PLUGIN_DEVELOPMENT](docs/PLUGIN_DEVELOPMENT.md).
+- Запуск React/web API: [web/README.md](web/README.md).
+
+WEB-P2 и последующие этапы пока являются roadmap, а не исполняемыми Sxx session
+cards. Статусы S31-R1/S33 и старые краткие команды остаются в прежнем плане.
+
 ## Secret boundary
 
 `.env` существует, но никогда не читается и не выводится исполнителем. Session может опираться только на задокументированные имена переменных и результат безопасного запуска приложения; значения секретов не попадают в context packet или handoff.

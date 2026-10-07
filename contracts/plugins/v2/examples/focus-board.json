@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "2.0",
+  "id": "community.focus-board",
+  "version": "1.0.0",
+  "name": "Мой фокус",
+  "description": "Ваше приложение и виджет главной задачи. Попросите Мию сменить фокус — плитка обновится.",
+  "author": "Вы",
+  "skill": "Когда пользователь просит сменить главный фокус или задачу в приложении «Мой фокус», вызови set_focus с task. Результат автоматически появится в виджете.",
+  "permissions": [
+    "state.read",
+    "state.write",
+    "ai.generate"
+  ],
+  "actions": [
+    {
+      "name": "set_focus",
+      "description": "Set the main task in the focus board widget",
+      "inputs": {
+        "task": {
+          "type": "string",
+          "description": "",
+          "maxLength": 240,
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      },
+      "effect": "state.patch"
+    }
+  ],
+  "view": {
+    "type": "fields",
+    "fields": [
+      "task"
+    ],
+    "html": ""
+  },
+  "downloads": []
+}

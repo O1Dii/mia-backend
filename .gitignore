@@ -37,3 +37,9 @@ htmlcov/
 coverage.xml
 *.log
 tmp/
+
+# Web dependencies and browser test output.
+node_modules/
+playwright-report/
+test-results/
+*.tsbuildinfo

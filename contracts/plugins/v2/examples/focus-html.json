@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "2.0",
+  "id": "community.focus-html",
+  "version": "1.0.0",
+  "name": "Фокус · HTML",
+  "description": "Ваше приложение и виджет главной задачи. Попросите Мию сменить фокус — плитка обновится.",
+  "author": "Вы",
+  "skill": "Когда пользователь просит сменить главный фокус или задачу в приложении «Мой фокус», вызови set_focus с task. Результат автоматически появится в виджете.",
+  "permissions": [
+    "state.read",
+    "state.write",
+    "ai.generate"
+  ],
+  "actions": [
+    {
+      "name": "set_focus",
+      "description": "Set the main task in the focus board widget",
+      "inputs": {
+        "task": {
+          "type": "string",
+          "description": "",
+          "maxLength": 240,
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      },
+      "effect": "state.patch"
+    }
+  ],
+  "view": {
+    "type": "html",
+    "fields": [],
+    "html": "<h2>Одна важная задача</h2><input id=\"task\" placeholder=\"Что сегодня главное?\"/><button id=\"save\">Сохранить</button><p id=\"result\"></p><script>\nasync function show(){const state=await mia.state();document.querySelector('#result').textContent=state.task||'Выберите фокус дня'}\ndocument.querySelector('#save').onclick=async()=>{try{await mia.invoke('set_focus',{task:document.querySelector('#task').value});await show()}catch(e){document.querySelector('#result').textContent=e.message}};\nwindow.addEventListener('message',e=>{if(e.source===parent&&e.data?.event==='state.changed')document.querySelector('#result').textContent=e.data.state.task||''});show();\n</script>"
+  },
+  "downloads": []
+}

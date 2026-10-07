@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Таймер · MIA SDK</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#121724;color:#f3eee5;font:16px system-ui;display:grid;place-items:center;padding:24px}main{max-width:560px;width:100%;padding:36px;border:1px solid #384251;border-radius:30px;background:radial-gradient(ellipse at top right,#30463d,transparent 70%),#19212c}small{letter-spacing:.16em;color:#a9c5b4}h1{font-weight:500;font-size:32px}p{line-height:1.6;color:#bcc8cf}button,input{font:inherit;padding:14px;border-radius:12px;border:1px solid #53605e}button{cursor:pointer;background:#cce8a0;color:#172a24}button:disabled{opacity:.5;cursor:wait}input{min-width:0;width:100%;background:#101720;color:white;margin:10px 0}form{display:flex;gap:10px;align-items:center}#time{font-size:clamp(70px,15vw,100px);letter-spacing:-.06em;font-variant-numeric:tabular-nums;margin:24px 0}#code{font:32px monospace;color:#dceeb8;letter-spacing:.12em}#answer{white-space:pre-wrap}a{color:#dceeb8}#error{color:#ffb8a5}button.secondary{background:transparent;color:#cfdbd0}
+</style>
+<main><small>САМОСТОЯТЕЛЬНОЕ ПРИЛОЖЕНИЕ · MIA SDK</small><h1>Время для главного.</h1><p>Та же модель. Тот же таймер.<br>В отдельном интерфейсе.</p>
+<section id="pair"><button id="connect">Подключиться к Мии</button><p id="code"></p><p id="hint"></p><a href="http://127.0.0.1:5173/#apps" target="_blank" rel="noopener">Открыть «Приложения» в Мии ↗</a></section>
+<section id="app" hidden><p id="model"></p><div id="time" role="timer">00:00</div><p id="label"></p><form id="chat"><input aria-label="Запрос модели" id="prompt" placeholder="Поставь таймер на 5 минут" required maxlength="2000"><button id="send">Отправить</button></form><button class="secondary" id="cancel">Отменить таймер</button><p id="answer" role="status"></p></section><p id="error" role="alert"></p><p><small>ЛОКАЛЬНЫЙ POC · ДОСТУП МОЖНО ОТОЗВАТЬ В МИИ</small></p></main>
+<script type="module">
+import {MiaClient} from './mia-sdk.mjs';
+const mia = new MiaClient({pluginId:'mia.timer'});
+const platformLink = document.querySelector('#pair a');
+platformLink.href = mia.baseUrl.startsWith('https:') ? mia.baseUrl + '/#apps' : 'http://127.0.0.1:5173/#apps';
+const $ = id => document.getElementById(id);
+let state={}, linked=false, polling=false, pairTimer;
+function failure(error){$('error').textContent=error.message;}
+$('connect').onclick=async()=>{ $('error').textContent=''; $('connect').disabled=true;
+ try{const pair=await mia.beginPair(); $('code').textContent=pair.user_code; $('hint').textContent='Введите этот код в Мии → Приложения. Сначала установите плагин «Таймер». Код действует 5 минут.';
+ const until=Date.now()+pair.expires_in*1000;
+ async function poll(){try{if(Date.now()>until)throw new Error('Код истёк. Подключитесь снова.'); const result=await mia.pollPair(pair.device_code); if(result.status==='approved'){linked=true;$('pair').hidden=true;$('app').hidden=false;await refresh();}else pairTimer=setTimeout(poll,2000);}catch(e){failure(e);$('connect').disabled=false;}}
+ pairTimer=setTimeout(poll,2000);
+ }catch(e){failure(e);$('connect').disabled=false;}
+};
+async function refresh(){if(!linked||polling)return;polling=true;try{const data=await mia.state();state=data.state;$('model').textContent=data.model?`${data.model.label} · ${data.model.model}`:'Выберите модель в Мии';$('label').textContent=state.label||'Готов к вашему запросу';}catch(e){failure(e);}finally{polling=false;}}
+setInterval(()=>{const seconds=Math.max(0,Math.ceil((state.deadline?state.deadline-Date.now():state.remaining||0)/1000));$('time').textContent=`${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;},250);
+setInterval(refresh,1500);
+$('chat').onsubmit=async e=>{e.preventDefault();$('error').textContent='';$('send').disabled=true;try{const result=await mia.generate([{role:'user',content:$('prompt').value}]);$('answer').textContent=[result.text,result.warning].filter(Boolean).join('\n');await refresh();}catch(e){failure(e);}finally{$('send').disabled=false;}};
+$('cancel').onclick=async()=>{try{const result=await mia.invoke('mia_timer__cancel');if(!result.ok)throw new Error(result.error);await refresh();}catch(e){failure(e);}};
+window.addEventListener('pagehide',()=>{clearTimeout(pairTimer);mia.disconnect();});
+</script></html>

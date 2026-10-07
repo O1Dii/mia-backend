@@ -1,0 +1,28 @@
+services:
+  mia:
+    image: mia:latest
+    container_name: mia
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8004:8000"
+    environment:
+      MIA_PUBLIC_ORIGIN: https://mindmapgen.xyz
+      MIA_BASE_PATH: /mia
+      MIA_GOOGLE_HUB: "1"
+      MIA_DATABASE_PATH: /data/mia.sqlite3
+      MIA_STATIC_DIR: /app/web/dist
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

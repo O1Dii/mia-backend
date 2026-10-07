@@ -1,12 +1,34 @@
 # MIA
 
-MIA is a provider-neutral conversational assistant platform. This repository is
-the backend and cross-client contract source of truth; the Android client lives
-in a separate sibling repository once S20 creates it.
+MIA is a platform of useful apps and plugins around your AI models: local
+inference or your own cloud API keys. This repository contains the backend,
+cross-client contracts, and the new React web POC. The Android client lives
+in a separate sibling repository.
 
-The current baseline contains governance documents and versioned REST,
-realtime, normalized AI event, and error contracts. The backend scaffold is a
-FastAPI modular monolith with PostgreSQL and Redis readiness probes.
+The existing FastAPI backend includes auth, persistent conversations, REST/SSE,
+Gemini text and realtime, tool policy/audit, and PostgreSQL/Redis integration.
+Its remaining Android voice/release gates are tracked in
+[STATUS](docs/implementation/STATUS.md).
+
+## Web platform POC
+
+The web app includes a searchable plugin store with detail pages, screenshots and reviews, seven plugins, a customizable dashboard and model-driven
+tools, model connections (OpenAI, Anthropic, Gemini, DeepInfra, Groq, Mistral,
+Ollama and LM Studio), tool-enabled chat, import/export of app manifests, and an SDK with a downloadable timer app.
+Google-only hosted login, persistent account workspaces, browser dictation and text-to-speech are implemented. Payments are not implemented.
+Published and verified at [mindmapgen.xyz/mia](https://mindmapgen.xyz/mia/), with a new tile on the shared hub.
+
+- [Run the web POC](web/README.md) — React on localhost:5173, separate local API on 8001.
+- [Platform roadmap](docs/WEB_PLATFORM_PLAN.md) — current scope and the next implementation stages.
+- [Plugin authoring](docs/PLUGIN_DEVELOPMENT.md) — manifest v2, executable skills, scoped SDK and account integration roadmap.
+- [Shared-server deployment](deploy/README.md) — `/mia/`, shared Google OAuth and hub tile.
+- [Google login preview](docs/previews/mia-google-login.png), [plugin page](docs/previews/mia-plugin-page.png).
+- [Dashboard preview](docs/previews/mia-dashboard-desktop.png), [mobile dashboard](docs/previews/mia-dashboard-mobile.png).
+- [Desktop preview](docs/previews/mia-web-desktop.png), [mobile preview](docs/previews/mia-web-mobile.png).
+
+Local development needs no external database or secret-value files. Hosted mode
+requires Google authentication and persists account/plugin state in SQLite.
+Provider keys stay in API process memory and expire after eight hours or restart.
 
 ## Backend local development
 
