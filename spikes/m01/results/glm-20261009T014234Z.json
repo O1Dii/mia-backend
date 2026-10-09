@@ -1,0 +1,189 @@
+{
+  "dry_run": false,
+  "model": "zai-org/GLM-5.3-Flash",
+  "provider": "glm",
+  "rate_limit_headers": {},
+  "steps": {
+    "catalog": {
+      "context_length": 1048576,
+      "model_listed": true,
+      "ok": true,
+      "pricing_usd_per_mtok": {
+        "cache_read_tokens": 0.03,
+        "input_tokens": 0.15,
+        "output_tokens": 0.5
+      },
+      "tags": [
+        "chat",
+        "vlm",
+        "vision",
+        "prompt_cache",
+        "reasoning"
+      ]
+    },
+    "tool_calling": {
+      "arguments_valid_json": true,
+      "continuation_mode": "reasoning_content_replayed",
+      "error": null,
+      "final_text_nonempty": true,
+      "ok": true,
+      "reasoning_seen": true,
+      "tools_called": [
+        "get_time",
+        "add_todo"
+      ],
+      "turns": [
+        {
+          "completed": true,
+          "first_event_ms": 909.7,
+          "first_token_ms": 910.1,
+          "reasoning_chars": 38,
+          "tool_calls": [
+            "get_time"
+          ],
+          "usage": {
+            "completion_tokens": 19,
+            "completion_tokens_details": {
+              "reasoning_tokens": 7
+            },
+            "estimated_cost": 2.4700000000000004e-05,
+            "prompt_tokens": 266,
+            "prompt_tokens_details": {
+              "cache_write_tokens": null,
+              "cached_tokens": 0
+            },
+            "total_tokens": 285
+          }
+        },
+        {
+          "completed": true,
+          "first_event_ms": 1534.2,
+          "first_token_ms": 3113.5,
+          "reasoning_chars": 0,
+          "tool_calls": [
+            "add_todo"
+          ],
+          "usage": {
+            "completion_tokens": 31,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "estimated_cost": 3.1225e-05,
+            "prompt_tokens": 313,
+            "prompt_tokens_details": {
+              "cache_write_tokens": null,
+              "cached_tokens": 0
+            },
+            "total_tokens": 344
+          }
+        },
+        {
+          "completed": true,
+          "first_event_ms": 771.8,
+          "first_token_ms": 771.9,
+          "reasoning_chars": 0,
+          "tool_calls": [],
+          "usage": {
+            "completion_tokens": 23,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "estimated_cost": 3.3275e-05,
+            "prompt_tokens": 367,
+            "prompt_tokens_details": {
+              "cache_write_tokens": null,
+              "cached_tokens": 0
+            },
+            "total_tokens": 390
+          }
+        }
+      ]
+    },
+    "ttft": {
+      "errors": [],
+      "first_content_ms": {
+        "all": [
+          1824.8,
+          2763.0,
+          1239.1,
+          3894.9,
+          5492.0
+        ],
+        "max": 5492.0,
+        "median": 2763.0,
+        "min": 1239.1,
+        "n": 5
+      },
+      "first_event_ms": {
+        "all": [
+          1068.6,
+          1772.8,
+          1229.8,
+          1404.4,
+          5116.7
+        ],
+        "max": 5116.7,
+        "median": 1404.4,
+        "min": 1068.6,
+        "n": 5
+      },
+      "first_token_ms": {
+        "all": [
+          1069.1,
+          1773.2,
+          1239.1,
+          1404.8,
+          5492.0
+        ],
+        "max": 5492.0,
+        "median": 1404.8,
+        "min": 1069.1,
+        "n": 5
+      },
+      "reasoning_chars_seen": true,
+      "runs_ok": 5,
+      "usage_samples": [
+        {
+          "completion_tokens": 11,
+          "completion_tokens_details": {
+            "reasoning_tokens": 5
+          },
+          "estimated_cost": 4.175e-06,
+          "prompt_tokens": 19,
+          "prompt_tokens_details": {
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "total_tokens": 30
+        },
+        {
+          "completion_tokens": 11,
+          "completion_tokens_details": {
+            "reasoning_tokens": 8
+          },
+          "estimated_cost": 4.175e-06,
+          "prompt_tokens": 19,
+          "prompt_tokens_details": {
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "total_tokens": 30
+        },
+        {
+          "completion_tokens": 6,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "estimated_cost": 2.925e-06,
+          "prompt_tokens": 19,
+          "prompt_tokens_details": {
+            "cache_write_tokens": null,
+            "cached_tokens": 0
+          },
+          "total_tokens": 25
+        }
+      ]
+    }
+  },
+  "timestamp": "2026-10-09T01:42:10Z"
+}
