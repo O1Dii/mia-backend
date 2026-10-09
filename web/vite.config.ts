@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
+      input: { main: 'index.html', oauth: 'oauth.html' },
       output: {
         manualChunks(id) {
           if (id.includes('/node_modules/zod/')) return 'validation'
