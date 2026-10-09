@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import Settings
 from app.core.crypto import MasterKeyring
 from app.core.runtime import Runtime
+from app.modules.auth.principal import RequestAuthenticator
 from app.modules.models.adapters import AdapterSettings
 from app.modules.models.chatgpt_plan import oauth
 from app.modules.models.chatgpt_plan.credentials import PlanCredentialStore
@@ -101,9 +102,11 @@ def install_models(
 ) -> ModelsStack:
     """Mount ``/v1/model-connections`` and expose the gateway on ``app.state``."""
     stack = build_models_stack(settings, runtime.database.session_factory)
+    web = getattr(app.state, "request_authenticator", None)
     app.include_router(
         build_models_router(
             authenticator=authenticator,
+            web_authenticator=web if isinstance(web, RequestAuthenticator) else None,
             connections=stack.connections,
             gateway=stack.gateway,
             plan_store=stack.plan_store,

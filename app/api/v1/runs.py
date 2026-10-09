@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.modules.auth.principal import AuthenticationFailure, RequestAuthenticator
 from app.modules.conversations.repositories import (
     ConversationNotFoundError,
     IdempotencyConflictError,
@@ -105,6 +106,10 @@ def _bearer(authorization: str | None) -> str | None:
     return token if separator and scheme.lower() == "bearer" and token else None
 
 
+class _CrossSite(Exception):
+    """A cookie-authenticated mutation from another site."""
+
+
 class RunsRoute(APIRoute):
     """Validation failures use the public envelope without echoing input."""
 
@@ -116,6 +121,8 @@ class RunsRoute(APIRoute):
                 return await original(request)
             except RequestValidationError:
                 return _error(request, 422, "validation_error", "The request is invalid.")
+            except _CrossSite:
+                return _error(request, 403, "permission_denied", "Cross-site request rejected.")
 
         return handle
 
@@ -125,12 +132,30 @@ def _sse(cursor: str, event_type: str, data: dict[str, Any]) -> bytes:
     return f"id: {cursor}\nevent: {event_type}\ndata: {serialized}\n\n".encode()
 
 
-def build_runs_router(*, service: RunService, authenticator: RunsAuthenticator) -> APIRouter:
+def build_runs_router(
+    *,
+    service: RunService,
+    authenticator: RunsAuthenticator,
+    web_authenticator: RequestAuthenticator | None = None,
+) -> APIRouter:
+    """``web_authenticator`` additionally accepts the web ``mia_session`` cookie (M30)."""
     router = APIRouter(prefix="/v1/runs", tags=["Runs"], route_class=RunsRoute)
 
-    async def principal(authorization: str | None) -> AuthenticatedUser | None:
+    async def principal(request: Request, authorization: str | None) -> AuthenticatedUser | None:
         token = _bearer(authorization)
-        return await authenticator.authenticate(token) if token else None
+        if token:
+            return await authenticator.authenticate(token)
+        if authorization is None and web_authenticator is not None:
+            if not request.cookies.get(web_authenticator.policy.session_cookie):
+                return None
+            try:
+                web = await web_authenticator.authenticate(request)
+            except AuthenticationFailure as failure:
+                if failure.status_code == 403:
+                    raise _CrossSite from failure
+                return None
+            return AuthenticatedUser(user_id=uuid.UUID(web.user_id))
+        return None
 
     def unauthorized(request: Request) -> JSONResponse:
         return _error(request, 401, "authentication_required", "Authentication is required.")
@@ -145,7 +170,7 @@ def build_runs_router(*, service: RunService, authenticator: RunsAuthenticator) 
         authorization: str | None = Header(default=None),
         idempotency_key: str = Header(min_length=16, max_length=128, alias="Idempotency-Key"),
     ) -> JSONResponse:
-        user = await principal(authorization)
+        user = await principal(request, authorization)
         if user is None:
             return unauthorized(request)
         try:
@@ -182,7 +207,7 @@ def build_runs_router(*, service: RunService, authenticator: RunsAuthenticator) 
     async def get_run(
         run_id: uuid.UUID, request: Request, authorization: str | None = Header(default=None)
     ) -> JSONResponse:
-        user = await principal(authorization)
+        user = await principal(request, authorization)
         if user is None:
             return unauthorized(request)
         try:
@@ -203,7 +228,7 @@ def build_runs_router(*, service: RunService, authenticator: RunsAuthenticator) 
             default=None, alias="Last-Event-ID", min_length=1, max_length=512
         ),
     ) -> StreamingResponse | JSONResponse:
-        user = await principal(authorization)
+        user = await principal(request, authorization)
         if user is None:
             return unauthorized(request)
         resume = last_event_id or cursor
@@ -241,7 +266,7 @@ def build_runs_router(*, service: RunService, authenticator: RunsAuthenticator) 
         authorization: str | None = Header(default=None),
         idempotency_key: str = Header(min_length=16, max_length=128, alias="Idempotency-Key"),
     ) -> JSONResponse:
-        user = await principal(authorization)
+        user = await principal(request, authorization)
         if user is None:
             return unauthorized(request)
         try:

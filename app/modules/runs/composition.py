@@ -17,6 +17,7 @@ from app.core.ports.memory_provider import MemoryProvider
 from app.core.ports.model_gateway import ModelGateway
 from app.core.ports.tool_router import ToolRouter
 from app.core.runtime import Runtime
+from app.modules.auth.principal import RequestAuthenticator
 from app.modules.conversations.feed import FeedService
 from app.modules.runs.defaults import NoToolRouter, UnconfiguredModelGateway
 from app.modules.runs.engine import EngineConfig, RunEngine
@@ -79,5 +80,12 @@ def install_runs(
         memory=memory,
     )
     app.state.runs = service
-    app.include_router(build_runs_router(service=service, authenticator=authenticator))
+    web = getattr(app.state, "request_authenticator", None)
+    app.include_router(
+        build_runs_router(
+            service=service,
+            authenticator=authenticator,
+            web_authenticator=web if isinstance(web, RequestAuthenticator) else None,
+        )
+    )
     return service

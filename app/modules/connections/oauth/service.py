@@ -11,6 +11,7 @@ refresh token is rejected.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import uuid
@@ -133,6 +134,10 @@ class ConnectionService:
         return self._oauth
 
     @property
+    def flow_ttl_seconds(self) -> int:
+        return int(self._flow_ttl.total_seconds())
+
+    @property
     def redirect_uri(self) -> str:
         return self._base + CALLBACK_PATH
 
@@ -160,7 +165,9 @@ class ConnectionService:
         *,
         return_to: str | None,
         idempotency_key: str,
+        binding: str | None = None,
     ) -> MutationResult:
+        """Begin the OAuth flow; ``binding`` ties the callback to the starting browser (web)."""
         async with self._session_factory() as session:
             installation = await _installation(session, ctx, installation_id)
             target = remote_target(installation)
@@ -209,6 +216,7 @@ class ConnectionService:
             row.flow_state_hash = pkce.hash_state(state)
             row.flow_expires_at = self._clock() + self._flow_ttl
             row.flow_return_to = return_to
+            row.flow_binding_hash = pkce.hash_state(binding) if binding else None
             await session.flush()
             secrets: dict[str, str] = {}
             if registration.client_secret is not None:
@@ -283,9 +291,19 @@ class ConnectionService:
     # ---------------------------------------------------------------- callback
 
     async def complete(
-        self, *, state: str | None, code: str | None, error: str | None
+        self,
+        *,
+        state: str | None,
+        code: str | None,
+        error: str | None,
+        binding: str | None = None,
     ) -> CallbackOutcome:
-        """Finish a flow from the browser redirect; the single-use ``state`` is the credential."""
+        """Finish a flow from the browser redirect; the single-use ``state`` is the credential.
+
+        A flow started by a browser carries a binding hash: the callback must present the
+        matching value (a short-lived Lax cookie), so a link prepared by someone else cannot
+        attach their provider account to this user (login CSRF, OI-M15-003).
+        """
         if not state:
             return CallbackOutcome(False, None, None, "connection_flow_invalid")
         async with self._session_factory() as session, session.begin():
@@ -312,11 +330,17 @@ class ConnectionService:
             snapshot = _Snapshot.of(row)
             return_to = row.flow_return_to
             installation_id = row.installation_id
+            expected_binding = row.flow_binding_hash
             # Single use: the state is burnt before the code is exchanged.
             row.flow_state_hash = None
             row.flow_verifier_ciphertext = None
             row.flow_expires_at = None
             row.flow_return_to = None
+            row.flow_binding_hash = None
+        if expected_binding is not None and not (
+            binding and hmac.compare_digest(pkce.hash_state(binding), expected_binding)
+        ):
+            return CallbackOutcome(False, installation_id, return_to, "connection_flow_invalid")
         if error or not code:
             return CallbackOutcome(False, installation_id, return_to, "connection_oauth_failed")
         try:
