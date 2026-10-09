@@ -17,11 +17,14 @@ PLUGIN_IDS = [
     "builtin.notes",
     "builtin.timer",
 ]
+"""The six no-approval plugins of M14; ``builtin.telegram`` (M41, ``write_external``) has
+its own tests in ``tests/plugins/telegram``."""
+ALL_IDS = sorted([*PLUGIN_IDS, "builtin.telegram"])
 SOURCE = BuiltinManifestSource()
 
 
-def test_source_lists_exactly_the_six_plugins() -> None:
-    assert [plugin.plugin_id for plugin in SOURCE.list()] == PLUGIN_IDS
+def test_source_lists_exactly_the_known_plugins() -> None:
+    assert [plugin.plugin_id for plugin in SOURCE.list()] == ALL_IDS
     assert {plugin.version for plugin in SOURCE.list()} == {"1.0.0"}
     assert SOURCE.get("builtin.timer", "1.0.0") is not None
     assert SOURCE.get("builtin.timer", "9.9.9") is None

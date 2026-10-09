@@ -37,6 +37,7 @@ from app.modules.runs.composition import install_runs
 from app.modules.tools import ToolExecutor, ToolRegistry, current_datetime_registry
 from app.modules.tools.composition import install_tools
 from app.modules.workspace.composition import install_workspace
+from app.plugins.builtin.telegram.composition import install_telegram_plugin
 from app.providers.ai.base import TextAIProvider
 from app.providers.ai.fake import FakeAIProvider
 from app.providers.ai.gemini_live import GeminiLiveAdapterFactory, GeminiLiveConfig
@@ -170,7 +171,8 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         memory=memory.service,
     )
     tools.device_channel.bind_publisher(runs.publish)
-    install_jobs(app, settings, runtime, runs=runs, core_tools=tools.core_tools)
+    jobs = install_jobs(app, settings, runtime, runs=runs, core_tools=tools.core_tools)
+    install_telegram_plugin(app, settings, runtime, jobs=jobs, memory=memory, tools=tools)
     app.include_router(
         build_feed_router(
             service=FeedService(runtime.database.session_factory),
