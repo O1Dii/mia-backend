@@ -509,5 +509,19 @@
     "retryable": false,
     "public_message": "No device tool call is waiting for this result.",
     "owner": "M23"
+  },
+  {
+    "code": "telegram_not_configured",
+    "http_status": 503,
+    "retryable": false,
+    "public_message": "The Telegram bot is not configured on this server.",
+    "owner": "M41"
+  },
+  {
+    "code": "telegram_webhook_forbidden",
+    "http_status": 403,
+    "retryable": false,
+    "public_message": "The webhook secret is missing or wrong.",
+    "owner": "M41"
   }
 ]

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.telegram",
+  "version": "1.0.0",
+  "name": "Telegram",
+  "listing": {
+    "description": "Напишите человеку в Telegram голосом: Mia откроет чат с готовым текстом, а вы нажмёте «Отправить». Бот Mia присылает результаты фоновых задач",
+    "category": "communication",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.builtin.telegram.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "send_message": {
+      "risk": "write_external",
+      "voice": true,
+      "timeoutSeconds": 45
+    },
+    "connect_bot": {
+      "risk": "write_reversible",
+      "timeoutSeconds": 10
+    }
+  },
+  "requires": {
+    "deviceTools": [
+      "telegram.handoff"
+    ]
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": false
+  }
+}

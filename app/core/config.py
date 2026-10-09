@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from typing import Literal
 
@@ -87,6 +88,28 @@ class Settings(BaseSettings):
     """Where published packages (``SKILL.md``, ``ui/``) are materialized; temp dir if unset."""
     connections_oauth_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     connections_oauth_flow_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    # Telegram bot (M41): link (deep link /start <token>), webhook, notify channel.
+    telegram_bot_token: SecretStr | None = Field(default=None, repr=False)
+    """Bot API token (BotFather); without it the bot, its webhook and the channel stay off."""
+    telegram_bot_username: str | None = Field(
+        default=None, pattern=r"^@?[A-Za-z][A-Za-z0-9_]{4,31}$"
+    )
+    """Bot username for deep links ``https://t.me/<username>?start=<token>``."""
+    telegram_webhook_secret: SecretStr | None = Field(default=None, repr=False)
+    """Checked against ``X-Telegram-Bot-Api-Secret-Token`` (1-256 of ``A-Za-z0-9_-``)."""
+    telegram_api_base: str = Field(default="https://api.telegram.org", min_length=8, max_length=256)
+    telegram_request_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    telegram_link_ttl_seconds: int = Field(default=900, ge=60, le=86400)
+
+    @field_validator("telegram_webhook_secret")
+    @classmethod
+    def telegram_secret_alphabet(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,256}", value.get_secret_value()
+        ):
+            message = "TELEGRAM_WEBHOOK_SECRET must be 1-256 characters of A-Z a-z 0-9 _ -"
+            raise ValueError(message)
+        return value
 
     @field_validator("log_level")
     @classmethod
