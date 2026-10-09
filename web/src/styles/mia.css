@@ -1,0 +1,503 @@
+/*
+ * Mia design system: shared components for web (M33).
+ * Built only on --mia-* tokens from tokens.css, so it works in both themes.
+ * Used by the app (styles.css) and by design/preview/index.html.
+ *
+ * Contents: base, aurora background, glass, buttons, field with mic, bubbles, display card, chip, orb.
+ * Motion: every animation and transition respects prefers-reduced-motion (see the end of the file).
+ */
+
+/* ---------- base ---------- */
+.mia-root,
+.mia-root *,
+.mia-root *::before,
+.mia-root *::after {
+  box-sizing: border-box;
+}
+
+.mia-type-display {
+  font-size: var(--mia-type-display-size);
+  font-weight: var(--mia-type-display-weight);
+  line-height: var(--mia-type-display-line);
+  letter-spacing: var(--mia-type-display-tracking);
+}
+.mia-type-headline {
+  font-size: var(--mia-type-headline-size);
+  font-weight: var(--mia-type-headline-weight);
+  line-height: var(--mia-type-headline-line);
+  letter-spacing: var(--mia-type-headline-tracking);
+}
+.mia-type-title {
+  font-size: var(--mia-type-title-size);
+  font-weight: var(--mia-type-title-weight);
+  line-height: var(--mia-type-title-line);
+  letter-spacing: var(--mia-type-title-tracking);
+}
+.mia-type-body {
+  font-size: var(--mia-type-body-size);
+  font-weight: var(--mia-type-body-weight);
+  line-height: var(--mia-type-body-line);
+}
+.mia-type-label {
+  font-size: var(--mia-type-label-size);
+  font-weight: var(--mia-type-label-weight);
+  line-height: var(--mia-type-label-line);
+  letter-spacing: var(--mia-type-label-tracking);
+}
+.mia-type-caption {
+  font-size: var(--mia-type-caption-size);
+  font-weight: var(--mia-type-caption-weight);
+  line-height: var(--mia-type-caption-line, 1.4);
+  letter-spacing: var(--mia-type-caption-tracking);
+}
+
+/* ---------- aurora background ----------
+ * Soft moving gradient behind everything. `.mia-aurora` is a fixed layer; the app applies the same
+ * look to body::before in styles.css so no markup change is needed. */
+.mia-aurora,
+body::before {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      42% 38% at 18% 22%,
+      color-mix(
+        in srgb,
+        var(--mia-color-aurora-1) calc(var(--mia-aurora-opacity) * 100%),
+        transparent
+      ),
+      transparent 70%
+    ),
+    radial-gradient(
+      38% 42% at 82% 28%,
+      color-mix(
+        in srgb,
+        var(--mia-color-aurora-2) calc(var(--mia-aurora-opacity) * 100%),
+        transparent
+      ),
+      transparent 70%
+    ),
+    radial-gradient(
+      46% 40% at 55% 88%,
+      color-mix(
+        in srgb,
+        var(--mia-color-aurora-3) calc(var(--mia-aurora-opacity) * 70%),
+        transparent
+      ),
+      transparent 70%
+    );
+  animation: mia-aurora-drift var(--mia-dur-aurora) ease-in-out infinite alternate;
+  will-change: transform;
+}
+/* Aurora inside a positioned container instead of the viewport (style page panels). */
+.mia-aurora--contained {
+  position: absolute;
+  inset: -25%;
+  z-index: 0;
+}
+@keyframes mia-aurora-drift {
+  0% {
+    transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, 3%, 0) rotate(6deg) scale(1.06);
+  }
+  100% {
+    transform: translate3d(4%, -3%, 0) rotate(-5deg) scale(1.02);
+  }
+}
+
+/* ---------- glass ----------
+ * Layered translucent surface: blur, hairline border, light rim on the top edge, depth shadow.
+ * Levels: default (cards), --raised (hover, popovers), --top (dialogs). */
+.mia-glass {
+  position: relative;
+  background: var(--mia-color-surface-1);
+  border: 1px solid var(--mia-color-border);
+  border-radius: var(--mia-radius-lg);
+  box-shadow:
+    var(--mia-shadow-2),
+    inset 0 1px 0 var(--mia-color-rim);
+  -webkit-backdrop-filter: blur(var(--mia-blur-glass)) saturate(1.5);
+  backdrop-filter: blur(var(--mia-blur-glass)) saturate(1.5);
+  color: var(--mia-color-text);
+}
+.mia-glass--raised {
+  background: var(--mia-color-surface-2);
+  box-shadow:
+    var(--mia-shadow-2),
+    inset 0 1px 0 var(--mia-color-rim);
+}
+.mia-glass--top {
+  background: var(--mia-color-surface-3);
+  border-radius: var(--mia-radius-xl);
+  box-shadow:
+    var(--mia-shadow-3),
+    inset 0 1px 0 var(--mia-color-rim);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mia-glass {
+    background: var(--mia-color-surface-solid);
+  }
+  .mia-glass--top {
+    background: var(--mia-color-surface-solid-3);
+  }
+}
+
+/* ---------- buttons ---------- */
+.mia-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mia-space-2);
+  min-height: var(--mia-size-touch-web);
+  min-width: var(--mia-size-touch-web);
+  padding: 0 var(--mia-space-5);
+  border: 1px solid transparent;
+  border-radius: var(--mia-radius-pill);
+  font: inherit;
+  font-size: var(--mia-type-label-size);
+  font-weight: var(--mia-weight-semibold);
+  letter-spacing: var(--mia-type-label-tracking);
+  color: var(--mia-color-text);
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    transform var(--mia-dur-base) var(--mia-ease-spring-like),
+    box-shadow var(--mia-dur-base) var(--mia-ease-standard),
+    background var(--mia-dur-fast) var(--mia-ease-standard),
+    border-color var(--mia-dur-fast) var(--mia-ease-standard);
+}
+.mia-btn:hover {
+  transform: translateY(-1px);
+}
+.mia-btn:active {
+  transform: scale(0.97);
+}
+.mia-btn:focus-visible,
+.mia-icon-btn:focus-visible,
+.mia-field__input:focus-visible {
+  outline: 2px solid var(--mia-color-focus);
+  outline-offset: 3px;
+}
+.mia-btn:disabled,
+.mia-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.mia-btn--primary {
+  background: var(--mia-gradient-accent);
+  color: var(--mia-color-on-accent);
+  box-shadow:
+    var(--mia-shadow-1),
+    inset 0 1px 0 #ffffff80;
+}
+.mia-btn--primary:hover {
+  box-shadow:
+    var(--mia-shadow-2),
+    inset 0 1px 0 #ffffff80;
+}
+.mia-btn--secondary {
+  background: var(--mia-color-surface-2);
+  border-color: var(--mia-color-border);
+  box-shadow: inset 0 1px 0 var(--mia-color-rim);
+}
+.mia-btn--secondary:hover {
+  background: var(--mia-color-surface-3);
+}
+.mia-btn--ghost:hover {
+  background: var(--mia-color-surface-1);
+}
+.mia-btn--danger {
+  background: var(--mia-color-danger-soft);
+  border-color: var(--mia-color-danger);
+  color: var(--mia-color-danger);
+}
+.mia-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--mia-size-touch-web);
+  height: var(--mia-size-touch-web);
+  padding: 0;
+  border: 1px solid var(--mia-color-border);
+  border-radius: var(--mia-radius-pill);
+  color: var(--mia-color-text);
+  background: var(--mia-color-surface-2);
+  cursor: pointer;
+  transition:
+    transform var(--mia-dur-base) var(--mia-ease-spring-like),
+    background var(--mia-dur-fast) var(--mia-ease-standard);
+}
+.mia-icon-btn:hover {
+  background: var(--mia-color-surface-3);
+}
+.mia-icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* ---------- input field with mic button ---------- */
+.mia-field {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-2);
+  padding: var(--mia-space-1) var(--mia-space-1) var(--mia-space-1) var(--mia-space-5);
+  border-radius: var(--mia-radius-pill);
+  transition:
+    box-shadow var(--mia-dur-base) var(--mia-ease-standard),
+    border-color var(--mia-dur-fast) var(--mia-ease-standard);
+}
+.mia-field:focus-within {
+  border-color: var(--mia-color-focus);
+  box-shadow:
+    var(--mia-shadow-2),
+    0 0 0 3px color-mix(in srgb, var(--mia-color-focus) 28%, transparent);
+}
+.mia-field__input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--mia-size-touch-web);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mia-color-text);
+  font: inherit;
+  font-size: var(--mia-type-body-size);
+  outline: none;
+}
+.mia-field__input::placeholder {
+  color: var(--mia-color-text-muted);
+}
+.mia-field__mic[aria-pressed='true'] {
+  background: var(--mia-color-accent-soft);
+  border-color: var(--mia-color-accent-text);
+  color: var(--mia-color-accent-text);
+}
+
+/* ---------- message bubbles ---------- */
+.mia-bubble {
+  max-width: min(36rem, 86%);
+  padding: var(--mia-space-3) var(--mia-space-4);
+  border-radius: var(--mia-radius-lg);
+  font-size: var(--mia-type-body-size);
+  line-height: var(--mia-type-body-line);
+  overflow-wrap: anywhere;
+}
+.mia-bubble--assistant {
+  align-self: flex-start;
+  border-bottom-left-radius: var(--mia-radius-sm);
+}
+.mia-bubble--user {
+  align-self: flex-end;
+  border-bottom-right-radius: var(--mia-radius-sm);
+  background: var(--mia-gradient-accent);
+  border-color: transparent;
+  color: var(--mia-color-on-accent);
+  box-shadow: var(--mia-shadow-1);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.mia-bubble__meta {
+  display: block;
+  margin-top: var(--mia-space-1);
+  font-size: var(--mia-type-caption-size);
+  color: var(--mia-color-text-muted);
+}
+.mia-bubble--user .mia-bubble__meta {
+  color: var(--mia-color-on-accent);
+  opacity: 0.75;
+}
+
+/* ---------- display card (assistant `display` block: title, body, actions) ---------- */
+.mia-card {
+  display: grid;
+  gap: var(--mia-space-3);
+  padding: var(--mia-space-5);
+}
+.mia-card__eyebrow {
+  font-size: var(--mia-type-caption-size);
+  font-weight: var(--mia-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mia-color-accent-text);
+}
+.mia-card__title {
+  margin: 0;
+  font-size: var(--mia-type-title-size);
+  font-weight: var(--mia-type-title-weight);
+  line-height: var(--mia-type-title-line);
+  letter-spacing: var(--mia-type-title-tracking);
+}
+.mia-card__body {
+  margin: 0;
+  color: var(--mia-color-text-secondary);
+  line-height: var(--mia-type-body-line);
+}
+.mia-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mia-space-2);
+}
+
+/* ---------- chip / status ---------- */
+.mia-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mia-space-1);
+  min-height: 28px;
+  padding: 0 var(--mia-space-3);
+  border-radius: var(--mia-radius-pill);
+  border: 1px solid var(--mia-color-border);
+  background: var(--mia-color-surface-1);
+  font-size: var(--mia-type-caption-size);
+  font-weight: var(--mia-weight-semibold);
+  color: var(--mia-color-text-secondary);
+}
+.mia-chip--success {
+  background: var(--mia-color-success-soft);
+  color: var(--mia-color-success);
+}
+.mia-chip--warning {
+  background: var(--mia-color-warning-soft);
+  color: var(--mia-color-warning);
+}
+.mia-chip--danger {
+  background: var(--mia-color-danger-soft);
+  color: var(--mia-color-danger);
+}
+.mia-chip--accent {
+  background: var(--mia-color-accent-soft);
+  color: var(--mia-color-accent-text);
+}
+
+/* ---------- orb ----------
+ * Voice orb shared by the voice mode and the microphone button.
+ * Drive it with --mia-orb-level (0..1, audio level) and data-state: idle | listening | thinking | speaking.
+ * Example: orb.style.setProperty('--mia-orb-level', String(rms)). */
+.mia-orb {
+  --mia-orb-level: 0;
+  --_s: var(--mia-orb-size, var(--mia-size-orb));
+  position: relative;
+  display: inline-block;
+  width: var(--_s);
+  height: var(--_s);
+  border-radius: 50%;
+  isolation: isolate;
+  transform: scale(calc(1 + var(--mia-orb-level) * 0.14));
+  transition: transform var(--mia-dur-fast) var(--mia-ease-standard);
+  background:
+    radial-gradient(circle at 32% 26%, #ffffffd9 0 6%, transparent 32%),
+    radial-gradient(circle at 70% 72%, var(--mia-color-aurora-2), transparent 60%),
+    radial-gradient(circle at 28% 70%, var(--mia-color-aurora-1), transparent 62%),
+    radial-gradient(circle at 50% 50%, var(--mia-color-aurora-3), var(--mia-color-aurora-2) 100%);
+  box-shadow:
+    inset 0 -8px 18px #00000040,
+    inset 0 6px 14px #ffffff59,
+    var(--mia-shadow-2);
+}
+.mia-orb::before {
+  content: '';
+  position: absolute;
+  inset: -22%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mia-color-aurora-3) 60%, transparent),
+    transparent 68%
+  );
+  opacity: calc(0.35 + var(--mia-orb-level) * 0.65);
+  transform: scale(calc(1 + var(--mia-orb-level) * 0.35));
+  transition:
+    opacity var(--mia-dur-fast) var(--mia-ease-standard),
+    transform var(--mia-dur-fast) var(--mia-ease-standard);
+}
+.mia-orb[data-state='idle'] {
+  animation: mia-orb-breathe 4.8s ease-in-out infinite;
+}
+.mia-orb[data-state='thinking'] {
+  animation: mia-orb-spin 2.4s linear infinite;
+}
+.mia-orb[data-state='listening']::after,
+.mia-orb[data-state='speaking']::after {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--mia-color-accent-text) 55%, transparent);
+  animation: mia-orb-ring 1.8s var(--mia-ease-standard) infinite;
+}
+.mia-orb--sm {
+  --mia-orb-size: 32px;
+  box-shadow:
+    inset 0 -3px 7px #00000040,
+    inset 0 2px 5px #ffffff59,
+    var(--mia-shadow-1);
+}
+.mia-orb--lg {
+  --mia-orb-size: 168px;
+}
+@keyframes mia-orb-breathe {
+  50% {
+    transform: scale(calc(1.04 + var(--mia-orb-level) * 0.14));
+  }
+}
+@keyframes mia-orb-spin {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+@keyframes mia-orb-ring {
+  from {
+    transform: scale(0.96);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+/* ---------- entrance (spring-like) ---------- */
+.mia-rise {
+  animation: mia-rise var(--mia-dur-slow) var(--mia-ease-spring-like) both;
+}
+@keyframes mia-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+}
+
+/* ---------- reduced motion ----------
+ * Motion becomes instant, the aurora and the orb stop drifting; the orb still reflects the audio level
+ * through glow opacity only. */
+@media (prefers-reduced-motion: reduce) {
+  .mia-aurora,
+  body::before,
+  .mia-orb,
+  .mia-orb::after,
+  .mia-rise {
+    animation: none !important;
+  }
+  .mia-btn,
+  .mia-icon-btn,
+  .mia-field,
+  .mia-orb,
+  .mia-orb::before {
+    transition: none !important;
+  }
+  .mia-btn:hover,
+  .mia-btn:active,
+  .mia-icon-btn:active {
+    transform: none;
+  }
+  .mia-orb,
+  .mia-orb::before {
+    transform: none;
+  }
+}

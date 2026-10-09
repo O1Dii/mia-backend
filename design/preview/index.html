@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Дизайн Mia</title>
+    <meta
+      name="description"
+      content="Style page of the Mia design system: tokens and components in both themes."
+    />
+    <!-- Tokens and components come from the app's own files, so this page cannot drift from the product. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+    />
+    <link rel="stylesheet" href="../../web/src/styles/tokens.css" />
+    <link rel="stylesheet" href="../../web/src/styles/mia.css" />
+    <script src="tokens.generated.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--mia-color-bg);
+      }
+      body {
+        margin: 0;
+        font-family: var(--mia-font-sans);
+        font-size: var(--mia-type-body-size);
+        line-height: var(--mia-type-body-line);
+        color: var(--mia-color-text);
+        background: transparent;
+      }
+      body::before {
+        display: none; /* the page uses .mia-aurora below */
+      }
+      .page {
+        position: relative;
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: var(--mia-space-6) 16px var(--mia-space-8);
+      }
+      header.top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--mia-space-4);
+        margin-bottom: var(--mia-space-6);
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h2 {
+        font-size: var(--mia-type-headline-size);
+        letter-spacing: var(--mia-type-headline-tracking);
+        margin-bottom: var(--mia-space-4);
+      }
+      h3 {
+        font-size: var(--mia-type-title-size);
+        letter-spacing: var(--mia-type-title-tracking);
+        margin-bottom: var(--mia-space-3);
+      }
+      section {
+        margin-top: var(--mia-space-7);
+      }
+      .lead {
+        color: var(--mia-color-text-secondary);
+        max-width: 60ch;
+      }
+      .muted {
+        color: var(--mia-color-text-muted);
+        font-size: var(--mia-type-caption-size);
+      }
+      .grid {
+        display: grid;
+        gap: var(--mia-space-4);
+        grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+      }
+      .themes {
+        display: grid;
+        gap: var(--mia-space-5);
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+      }
+      .stage {
+        position: relative;
+        overflow: hidden;
+        isolation: isolate;
+        padding: var(--mia-space-5);
+        border-radius: var(--mia-radius-xl);
+        background: var(--mia-color-bg);
+        color: var(--mia-color-text);
+        border: 1px solid var(--mia-color-border);
+      }
+      .stage > .content {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: var(--mia-space-5);
+      }
+      .stage > .content > h3 {
+        margin: 0;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--mia-space-3);
+      }
+      .swatch {
+        overflow: hidden;
+        border-radius: var(--mia-radius-md);
+        border: 1px solid var(--mia-color-border);
+        background: var(--mia-color-bg-raised);
+        font-size: var(--mia-type-caption-size);
+      }
+      .swatch .chipcolor {
+        height: 56px;
+        background-image:
+          linear-gradient(45deg, #8884 25%, transparent 25% 75%, #8884 75%),
+          linear-gradient(45deg, #8884 25%, transparent 25% 75%, #8884 75%);
+        background-size: 12px 12px;
+        background-position:
+          0 0,
+          6px 6px;
+      }
+      .swatch .chipcolor > i {
+        display: block;
+        height: 100%;
+      }
+      .swatch .meta {
+        padding: var(--mia-space-2) var(--mia-space-3);
+        display: grid;
+        gap: 2px;
+      }
+      .swatch code {
+        color: var(--mia-color-text-muted);
+        font-family: var(--mia-font-mono);
+      }
+      .ratio {
+        font-weight: 700;
+      }
+      .ratio.ok {
+        color: var(--mia-color-success);
+      }
+      .ratio.low {
+        color: var(--mia-color-danger);
+      }
+      .demo-box {
+        display: grid;
+        place-items: center;
+        min-height: 88px;
+        padding: var(--mia-space-3);
+        text-align: center;
+        font-size: var(--mia-type-caption-size);
+        color: var(--mia-color-text-secondary);
+      }
+      .chat {
+        display: flex;
+        flex-direction: column;
+        gap: var(--mia-space-3);
+      }
+      .level {
+        width: 100%;
+        max-width: 280px;
+        accent-color: var(--mia-color-accent-text);
+        min-height: var(--mia-size-touch-web);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--mia-type-label-size);
+      }
+      th,
+      td {
+        text-align: left;
+        padding: var(--mia-space-2) var(--mia-space-3);
+        border-bottom: 1px solid var(--mia-color-border);
+      }
+      .shots a {
+        color: var(--mia-color-accent-text);
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      @media (max-width: 640px) {
+        .page {
+          padding-top: var(--mia-space-5);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mia-aurora" aria-hidden="true"></div>
+    <main class="page">
+      <header class="top">
+        <div>
+          <p class="muted">Mia · дизайн-система · M33</p>
+          <h1 class="mia-type-display">Стиль Mia</h1>
+          <p class="lead">
+            Тёмная тема основная, светлая полноценная. Фон-аврора, слоистое
+            стекло, крупные скругления, пружинные переходы. Общий источник:
+            <code>design/tokens/mia.tokens.json</code>.
+          </p>
+        </div>
+        <div class="row">
+          <button
+            class="mia-btn mia-btn--secondary"
+            id="theme-toggle"
+            type="button"
+          >
+            Тема: система
+          </button>
+          <button
+            class="mia-btn mia-btn--ghost"
+            id="motion-toggle"
+            type="button"
+          >
+            Анимации: вкл
+          </button>
+        </div>
+      </header>
+
+      <section id="themes">
+        <h2>Компоненты в обеих темах</h2>
+        <p class="lead" style="margin-bottom: var(--mia-space-5)">
+          Две темы рядом. Орб реагирует на уровень звука (ползунок), состояние
+          переключается кнопками.
+        </p>
+        <div class="themes" id="stages"></div>
+      </section>
+
+      <section id="colors">
+        <h2>Цвета</h2>
+        <p class="muted" style="margin-bottom: var(--mia-space-4)">
+          Для токенов текста указан контраст к странице (WCAG AA ≥ 4.5).
+          Прозрачные поверхности показаны поверх фона темы.
+        </p>
+        <div class="themes" id="palettes"></div>
+      </section>
+
+      <section id="type">
+        <h2>Типографика</h2>
+        <div
+          class="mia-glass"
+          style="
+            padding: var(--mia-space-5);
+            display: grid;
+            gap: var(--mia-space-4);
+          "
+          id="type-scale"
+        ></div>
+      </section>
+
+      <section id="shape">
+        <h2>Скругления, отступы, глубина</h2>
+        <div class="grid" id="radius"></div>
+        <div
+          class="grid"
+          id="space"
+          style="margin-top: var(--mia-space-5)"
+        ></div>
+        <div
+          class="grid"
+          id="depth"
+          style="margin-top: var(--mia-space-5)"
+        ></div>
+      </section>
+
+      <section id="motion">
+        <h2>Движение</h2>
+        <div
+          class="mia-glass"
+          style="
+            padding: var(--mia-space-5);
+            display: grid;
+            gap: var(--mia-space-4);
+          "
+        >
+          <div class="table-wrap"><table id="motion-table"></table></div>
+          <div class="row">
+            <button class="mia-btn mia-btn--primary" type="button" id="replay">
+              Повторить появление
+            </button>
+            <span class="muted"
+              >Пружина: жёсткость 380, коэффициент демпфирования 0,78. При
+              «уменьшить движение» всё мгновенное.</span
+            >
+          </div>
+          <div class="row" id="rise-demo"></div>
+        </div>
+      </section>
+
+      <section id="breakpoints">
+        <h2>Брейкпоинты и касания</h2>
+        <div class="mia-glass" style="padding: var(--mia-space-5)">
+          <div class="table-wrap"><table id="bp-table"></table></div>
+        </div>
+      </section>
+
+      <section id="screens" class="shots">
+        <h2>Текущие экраны</h2>
+        <p class="lead">
+          Скриншоты экранов web в обеих темах на 390 / 768 / 1440 px лежат в
+          <a href="screenshots/">design/preview/screenshots/</a>
+          (имя: <code>экран-тема-ширина.png</code>), Android — в
+          <a href="screenshots/android/">screenshots/android/</a>.
+        </p>
+        <div
+          class="grid"
+          id="shots"
+          style="margin-top: var(--mia-space-4)"
+        ></div>
+      </section>
+    </main>
+
+    <template id="stage-tpl">
+      <div class="stage">
+        <div class="mia-aurora mia-aurora--contained" aria-hidden="true"></div>
+        <div class="content">
+          <h3 class="stage-title"></h3>
+
+          <div class="row">
+            <button class="mia-btn mia-btn--primary" type="button">
+              Основная
+            </button>
+            <button class="mia-btn mia-btn--secondary" type="button">
+              Вторичная
+            </button>
+            <button class="mia-btn mia-btn--ghost" type="button">
+              Текстовая
+            </button>
+            <button class="mia-btn mia-btn--danger" type="button">
+              Удалить
+            </button>
+            <button class="mia-btn mia-btn--primary" type="button" disabled>
+              Недоступна
+            </button>
+          </div>
+
+          <div class="row">
+            <span class="mia-chip">Нейтральный</span>
+            <span class="mia-chip mia-chip--accent">Акцент</span>
+            <span class="mia-chip mia-chip--success">Готово</span>
+            <span class="mia-chip mia-chip--warning">Внимание</span>
+            <span class="mia-chip mia-chip--danger">Ошибка</span>
+          </div>
+
+          <div class="chat">
+            <div class="mia-bubble mia-bubble--assistant mia-glass">
+              Привет! Я Mia. Могу поставить таймер или записать заметку.
+              <span class="mia-bubble__meta">Mia · 12:04</span>
+            </div>
+            <div class="mia-bubble mia-bubble--user mia-glass">
+              Поставь таймер на пять минут
+              <span class="mia-bubble__meta">Вы · 12:04</span>
+            </div>
+          </div>
+
+          <article class="mia-card mia-glass">
+            <span class="mia-card__eyebrow">Таймер</span>
+            <h4 class="mia-card__title">Таймер на 5 минут запущен</h4>
+            <p class="mia-card__body">
+              Закончится в 12:09. Скажите «отмени таймер», если он больше не
+              нужен.
+            </p>
+            <div class="mia-card__actions">
+              <button class="mia-btn mia-btn--primary" type="button">
+                Открыть
+              </button>
+              <button class="mia-btn mia-btn--secondary" type="button">
+                Отменить
+              </button>
+            </div>
+          </article>
+
+          <form class="mia-field mia-glass" onsubmit="return false;">
+            <input
+              class="mia-field__input"
+              type="text"
+              placeholder="Напишите сообщение"
+              aria-label="Сообщение"
+            />
+            <button
+              class="mia-icon-btn mia-field__mic"
+              type="button"
+              aria-label="Голосовой ввод"
+              aria-pressed="false"
+            >
+              <span
+                class="mia-orb mia-orb--sm"
+                data-state="idle"
+                style="--mia-orb-size: 24px"
+              ></span>
+            </button>
+          </form>
+
+          <div class="row">
+            <span
+              class="mia-orb mia-orb--lg orb-main"
+              data-state="idle"
+              role="img"
+              aria-label="Голосовой шар"
+            ></span>
+            <div
+              class="row"
+              style="flex-direction: column; align-items: flex-start"
+            >
+              <label class="muted" for="lvl">Уровень звука</label>
+              <input
+                class="level"
+                id="lvl"
+                type="range"
+                min="0"
+                max="100"
+                value="30"
+              />
+              <div class="row">
+                <button
+                  class="mia-btn mia-btn--secondary"
+                  type="button"
+                  data-orb="idle"
+                >
+                  idle
+                </button>
+                <button
+                  class="mia-btn mia-btn--secondary"
+                  type="button"
+                  data-orb="listening"
+                >
+                  listening
+                </button>
+                <button
+                  class="mia-btn mia-btn--secondary"
+                  type="button"
+                  data-orb="thinking"
+                >
+                  thinking
+                </button>
+                <button
+                  class="mia-btn mia-btn--secondary"
+                  type="button"
+                  data-orb="speaking"
+                >
+                  speaking
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="mia-glass demo-box" style="flex: 1">Стекло 1</div>
+            <div class="mia-glass mia-glass--raised demo-box" style="flex: 1">
+              Стекло 2
+            </div>
+            <div class="mia-glass mia-glass--top demo-box" style="flex: 1">
+              Стекло 3
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script>
+      const T = window.MIA_TOKENS;
+      const $ = (id) => document.getElementById(id);
+      const el = (tag, cls, html) => {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (html != null) n.innerHTML = html;
+        return n;
+      };
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+
+      // ---- contrast (same math as tests/design/test_tokens.py)
+      const parse = (h) => {
+        h = h.slice(1);
+        const n = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+        return [...n, h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1];
+      };
+      const over = (t, b) =>
+        [0, 1, 2].map((i) => t[i] * t[3] + b[i] * (1 - t[3]));
+      const lum = (c) => {
+        const f = (v) =>
+          (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+      };
+      const ratio = (fg, bg) => {
+        const f = over(parse(fg), parse(bg).slice(0, 3).concat(1));
+        const [hi, lo] = [lum(f), lum(parse(bg))].sort((a, b) => b - a);
+        return (hi + 0.05) / (lo + 0.05);
+      };
+
+      // ---- themed stages
+      const stages = $("stages");
+      const palettes = $("palettes");
+      const names = { dark: "Тёмная тема (основная)", light: "Светлая тема" };
+      for (const theme of ["dark", "light"]) {
+        const stage = $("stage-tpl").content.firstElementChild.cloneNode(true);
+        stage.dataset.miaTheme = theme;
+        stage.querySelector(".stage-title").textContent = names[theme];
+        const orb = stage.querySelector(".orb-main");
+        const lvl = stage.querySelector(".level");
+        const mic = stage.querySelector(".mia-field__mic");
+        const setLevel = (v) => orb.style.setProperty("--mia-orb-level", v);
+        lvl.addEventListener("input", () => setLevel(lvl.value / 100));
+        setLevel(lvl.value / 100);
+        stage
+          .querySelectorAll("[data-orb]")
+          .forEach((b) =>
+            b.addEventListener(
+              "click",
+              () => (orb.dataset.state = b.dataset.orb),
+            ),
+          );
+        mic.addEventListener("click", () => {
+          const on = mic.getAttribute("aria-pressed") !== "true";
+          mic.setAttribute("aria-pressed", String(on));
+          mic.firstElementChild.dataset.state = on ? "listening" : "idle";
+        });
+        stages.append(stage);
+
+        // palette for this theme
+        const panel = el("div", "stage");
+        panel.dataset.miaTheme = theme;
+        const content = el("div", "content");
+        content.append(el("h3", null, names[theme]));
+        const grid = el("div", "grid");
+        const hex = T.hex[theme];
+        for (const key of T.colors) {
+          const sw = el("div", "swatch");
+          const isText =
+            key.startsWith("text") ||
+            ["accent-text", "danger", "warning", "success", "info"].includes(
+              key,
+            );
+          const r = isText ? ratio(hex[key], hex.bg) : null;
+          sw.innerHTML =
+            `<div class="chipcolor"><i style="background:var(--mia-color-${key})"></i></div>` +
+            `<div class="meta"><strong>${key}</strong><code>${hex[key]}</code>` +
+            (r
+              ? `<span class="ratio ${r >= 4.5 ? "ok" : "low"}">${r.toFixed(2)}:1 ${r >= 4.5 ? "AA" : "ниже AA"}</span>`
+              : "") +
+            `</div>`;
+          grid.append(sw);
+        }
+        content.append(grid);
+        panel.append(content);
+        palettes.append(panel);
+      }
+
+      // ---- type
+      const scale = $("type-scale");
+      const samples = {
+        display: "Display · Привет, Mia",
+        headline: "Headline · Ваш день в одном месте",
+        title: "Title · Таймер на 5 минут",
+        body: "Body · Объёмный, спокойный и читаемый текст для длинных ответов.",
+        label: "Label · Кнопка, подпись",
+        caption: "Caption · Мелкая справка",
+      };
+      for (const n of T.type) {
+        const row = el("div");
+        row.innerHTML = `<div class="mia-type-${n}">${samples[n]}</div><span class="muted">--mia-type-${n}-*</span>`;
+        scale.append(row);
+      }
+
+      // ---- shape
+      for (const [k, v] of Object.entries(T.radius)) {
+        const d = el("div", "mia-glass demo-box", `radius.${k}<br>${v}`);
+        d.style.borderRadius = `var(--mia-radius-${k})`;
+        $("radius").append(d);
+      }
+      for (const [k, v] of Object.entries(T.space)) {
+        const d = el("div", "demo-box mia-glass");
+        d.innerHTML = `<span style="display:block;height:12px;width:${v};background:var(--mia-color-accent-text);border-radius:6px"></span>space.${k} · ${v}`;
+        $("space").append(d);
+      }
+      for (const lvl of T.shadows) {
+        const d = el("div", "demo-box mia-glass", `shadow.${lvl}`);
+        d.style.boxShadow = `var(--mia-shadow-${lvl}), inset 0 1px 0 var(--mia-color-rim)`;
+        $("depth").append(d);
+      }
+
+      // ---- motion
+      const mt = $("motion-table");
+      mt.innerHTML = "<tr><th>Токен</th><th>Значение</th></tr>";
+      for (const [k, v] of Object.entries(T.durations))
+        mt.insertAdjacentHTML(
+          "beforeend",
+          `<tr><td>duration.${k}</td><td>${v}</td></tr>`,
+        );
+      for (const [k, v] of Object.entries(T.easings))
+        mt.insertAdjacentHTML(
+          "beforeend",
+          `<tr><td>easing.${k}</td><td>cubic-bezier(${v.join(", ")})</td></tr>`,
+        );
+      const rise = $("rise-demo");
+      const replay = () => {
+        rise.innerHTML = "";
+        for (let i = 0; i < 3; i++) {
+          const c = el(
+            "div",
+            "mia-glass demo-box mia-rise",
+            `Карточка ${i + 1}`,
+          );
+          c.style.animationDelay = `${i * 70}ms`;
+          c.style.flex = "1 1 140px";
+          rise.append(c);
+        }
+      };
+      $("replay").addEventListener("click", replay);
+      replay();
+
+      // ---- breakpoints
+      const bp = $("bp-table");
+      bp.innerHTML =
+        "<tr><th>Токен</th><th>Значение</th><th>Класс окна</th></tr>";
+      const cls = {
+        medium: "compact (телефон) до",
+        expanded: "medium (планшет) до",
+        wide: "expanded (ноутбук) до, далее wide",
+      };
+      for (const [k, v] of Object.entries(T.breakpoints))
+        bp.insertAdjacentHTML(
+          "beforeend",
+          `<tr><td>breakpoint.${k}</td><td>${v}</td><td>${cls[k] || ""}</td></tr>`,
+        );
+      bp.insertAdjacentHTML(
+        "beforeend",
+        `<tr><td>size.touch-web</td><td>${T.touch.web}</td><td>минимальная цель касания, web</td></tr>`,
+      );
+      bp.insertAdjacentHTML(
+        "beforeend",
+        `<tr><td>size.touch-android</td><td>${T.touch.android}</td><td>минимальная цель касания, Android</td></tr>`,
+      );
+
+      // ---- screenshots
+      for (const page of ["store", "dashboard", "chat", "models", "apps"]) {
+        for (const theme of ["dark", "light"]) {
+          const a = el("a", "mia-glass", null);
+          a.href = `screenshots/${page}-${theme}-1440.png`;
+          a.style.padding = "var(--mia-space-3)";
+          a.style.display = "grid";
+          a.style.gap = "8px";
+          a.innerHTML = `<img alt="${page} ${theme}" loading="lazy" style="width:100%;border-radius:var(--mia-radius-sm)" src="screenshots/${page}-${theme}-390.png" /><span class="muted">${page} · ${theme} · 390 / 768 / 1440</span>`;
+          $("shots").append(a);
+        }
+      }
+
+      // ---- toggles
+      const themeBtn = $("theme-toggle");
+      const modes = ["system", "dark", "light"];
+      const labels = { system: "система", dark: "тёмная", light: "светлая" };
+      let mode = 0;
+      themeBtn.addEventListener("click", () => {
+        mode = (mode + 1) % modes.length;
+        if (modes[mode] === "system")
+          document.documentElement.removeAttribute("data-theme");
+        else document.documentElement.setAttribute("data-theme", modes[mode]);
+        themeBtn.textContent = `Тема: ${labels[modes[mode]]}`;
+      });
+      const motionBtn = $("motion-toggle");
+      let paused = false;
+      motionBtn.addEventListener("click", () => {
+        paused = !paused;
+        document.documentElement.style.setProperty(
+          "--mia-preview-play",
+          paused ? "paused" : "running",
+        );
+        document
+          .querySelectorAll(".mia-aurora, .mia-orb")
+          .forEach(
+            (n) => (n.style.animationPlayState = paused ? "paused" : "running"),
+          );
+        motionBtn.textContent = `Анимации: ${paused ? "выкл" : "вкл"}`;
+      });
+      if (reduce.matches) motionBtn.textContent = "Анимации: система отключила";
+
+      // demo audio level on the first orb while listening or speaking
+      if (!reduce.matches) {
+        const orb = document.querySelector(".orb-main");
+        const lvl = orb.closest(".stage").querySelector(".level");
+        setInterval(() => {
+          const st = orb.dataset.state;
+          if (st === "listening" || st === "speaking")
+            orb.style.setProperty(
+              "--mia-orb-level",
+              (0.25 + Math.random() * 0.6).toFixed(2),
+            );
+          else orb.style.setProperty("--mia-orb-level", lvl.value / 100);
+        }, 140);
+      }
+    </script>
+  </body>
+</html>

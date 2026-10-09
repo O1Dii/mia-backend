@@ -1,0 +1,386 @@
+{
+  "$description": "Mia design tokens (W3C Design Tokens format). Single source for web (web/src/styles/tokens.css) and Android (MiaTokens.kt). Generate with design/scripts/build_tokens.py. Colors are #rrggbb or #rrggbbaa. Themes are the groups color.dark and color.light with identical keys.",
+  "color": {
+    "$type": "color",
+    "dark": {
+      "bg": {
+        "$value": "#0a0c10",
+        "$description": "Page base under the aurora"
+      },
+      "bg-raised": {
+        "$value": "#10131a",
+        "$description": "Sheets and sidebars"
+      },
+      "surface-1": {
+        "$value": "#ffffff0f",
+        "$description": "Glass level 1 (cards)"
+      },
+      "surface-2": {
+        "$value": "#ffffff1a",
+        "$description": "Glass level 2 (raised, hover)"
+      },
+      "surface-3": {
+        "$value": "#ffffff26",
+        "$description": "Glass level 3 (dialogs, pressed)"
+      },
+      "surface-solid": {
+        "$value": "#161a22",
+        "$description": "Opaque fallback for glass level 1 (no blur, API < 31)"
+      },
+      "surface-solid-3": {
+        "$value": "#242a36",
+        "$description": "Opaque fallback for glass level 3"
+      },
+      "rim": {
+        "$value": "#ffffff38",
+        "$description": "Light rim on the top edge of glass"
+      },
+      "border": { "$value": "#ffffff1f", "$description": "Hairline border" },
+      "text": { "$value": "#f2f3f5" },
+      "text-secondary": { "$value": "#b6bbc6" },
+      "text-muted": { "$value": "#a9b0bd" },
+      "accent": {
+        "$value": "#d6f882",
+        "$description": "Brand accent as a fill"
+      },
+      "accent-hover": { "$value": "#e4ffa0" },
+      "accent-soft": {
+        "$value": "#d6f88226",
+        "$description": "Tinted accent background"
+      },
+      "accent-text": {
+        "$value": "#d6f882",
+        "$description": "Accent used as text or icon on the page"
+      },
+      "on-accent": {
+        "$value": "#17200a",
+        "$description": "Text on accent fill"
+      },
+      "danger": { "$value": "#ff8f86" },
+      "danger-soft": { "$value": "#ff8f862b" },
+      "warning": { "$value": "#ffc970" },
+      "warning-soft": { "$value": "#ffc9702b" },
+      "success": { "$value": "#82e6ac" },
+      "success-soft": { "$value": "#82e6ac2b" },
+      "info": { "$value": "#93bcff" },
+      "focus": { "$value": "#d6f882", "$description": "Focus ring" },
+      "scrim": { "$value": "#05070bb3" },
+      "aurora-1": {
+        "$value": "#6d4cff",
+        "$description": "Aurora blob: violet"
+      },
+      "aurora-2": { "$value": "#17b8a6", "$description": "Aurora blob: teal" },
+      "aurora-3": { "$value": "#c6e65a", "$description": "Aurora blob: lime" }
+    },
+    "light": {
+      "bg": { "$value": "#f3f4f8" },
+      "bg-raised": { "$value": "#fbfbfd" },
+      "surface-1": { "$value": "#ffffffb8" },
+      "surface-2": { "$value": "#ffffffd6" },
+      "surface-3": { "$value": "#fffffff2" },
+      "surface-solid": { "$value": "#ffffff" },
+      "surface-solid-3": { "$value": "#ffffff" },
+      "rim": { "$value": "#ffffff" },
+      "border": { "$value": "#14161c1f" },
+      "text": { "$value": "#14161c" },
+      "text-secondary": { "$value": "#444a5a" },
+      "text-muted": { "$value": "#586073" },
+      "accent": { "$value": "#c9f25e" },
+      "accent-hover": { "$value": "#b9e445" },
+      "accent-soft": { "$value": "#8fb82a2e" },
+      "accent-text": { "$value": "#435a0b" },
+      "on-accent": { "$value": "#17200a" },
+      "danger": { "$value": "#b3261e" },
+      "danger-soft": { "$value": "#b3261e1f" },
+      "warning": { "$value": "#7f5300" },
+      "warning-soft": { "$value": "#d98e001f" },
+      "success": { "$value": "#1b6a3a" },
+      "success-soft": { "$value": "#1b6a3a1f" },
+      "info": { "$value": "#1d4ba8" },
+      "focus": { "$value": "#435a0b" },
+      "scrim": { "$value": "#14161c66" },
+      "aurora-1": { "$value": "#a99cff" },
+      "aurora-2": { "$value": "#7ee0d2" },
+      "aurora-3": { "$value": "#d9f28e" }
+    }
+  },
+  "gradient": {
+    "$type": "gradient",
+    "$description": "Aurora blob stops: each blob is a radial gradient from aurora-N at alpha to transparent. Opacity is per theme.",
+    "aurora-opacity": {
+      "$type": "number",
+      "dark": { "$value": 0.2 },
+      "light": { "$value": 0.55 }
+    },
+    "accent": {
+      "$description": "Accent button fill, 135deg",
+      "$value": [
+        { "color": "#e4ffa0", "position": 0 },
+        { "color": "#c6ee5c", "position": 1 }
+      ]
+    }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "$description": "Depth levels 1..3; color is baked in per theme.",
+    "dark": {
+      "1": {
+        "$value": [
+          {
+            "color": "#00000066",
+            "offsetX": "0px",
+            "offsetY": "2px",
+            "blur": "8px",
+            "spread": "0px"
+          }
+        ]
+      },
+      "2": {
+        "$value": [
+          {
+            "color": "#00000073",
+            "offsetX": "0px",
+            "offsetY": "8px",
+            "blur": "24px",
+            "spread": "-4px"
+          },
+          {
+            "color": "#00000040",
+            "offsetX": "0px",
+            "offsetY": "2px",
+            "blur": "6px",
+            "spread": "0px"
+          }
+        ]
+      },
+      "3": {
+        "$value": [
+          {
+            "color": "#0000008c",
+            "offsetX": "0px",
+            "offsetY": "24px",
+            "blur": "56px",
+            "spread": "-12px"
+          },
+          {
+            "color": "#00000052",
+            "offsetX": "0px",
+            "offsetY": "6px",
+            "blur": "16px",
+            "spread": "-2px"
+          }
+        ]
+      }
+    },
+    "light": {
+      "1": {
+        "$value": [
+          {
+            "color": "#1f284d14",
+            "offsetX": "0px",
+            "offsetY": "1px",
+            "blur": "4px",
+            "spread": "0px"
+          }
+        ]
+      },
+      "2": {
+        "$value": [
+          {
+            "color": "#1f284d1f",
+            "offsetX": "0px",
+            "offsetY": "8px",
+            "blur": "24px",
+            "spread": "-6px"
+          },
+          {
+            "color": "#1f284d0f",
+            "offsetX": "0px",
+            "offsetY": "2px",
+            "blur": "6px",
+            "spread": "0px"
+          }
+        ]
+      },
+      "3": {
+        "$value": [
+          {
+            "color": "#1f284d33",
+            "offsetX": "0px",
+            "offsetY": "24px",
+            "blur": "56px",
+            "spread": "-14px"
+          },
+          {
+            "color": "#1f284d1a",
+            "offsetX": "0px",
+            "offsetY": "6px",
+            "blur": "16px",
+            "spread": "-2px"
+          }
+        ]
+      }
+    }
+  },
+  "blur": {
+    "$type": "dimension",
+    "glass": {
+      "$value": "28px",
+      "$description": "Backdrop blur of glass surfaces"
+    },
+    "aurora": { "$value": "60px", "$description": "Blur of aurora blobs" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "sm": { "$value": "10px" },
+    "md": { "$value": "16px" },
+    "lg": { "$value": "24px" },
+    "xl": { "$value": "32px" },
+    "pill": { "$value": "999px" }
+  },
+  "space": {
+    "$type": "dimension",
+    "1": { "$value": "4px" },
+    "2": { "$value": "8px" },
+    "3": { "$value": "12px" },
+    "4": { "$value": "16px" },
+    "5": { "$value": "24px" },
+    "6": { "$value": "32px" },
+    "7": { "$value": "48px" },
+    "8": { "$value": "64px" }
+  },
+  "size": {
+    "$type": "dimension",
+    "touch-web": {
+      "$value": "44px",
+      "$description": "Minimum touch target on web"
+    },
+    "touch-android": {
+      "$value": "48px",
+      "$description": "Minimum touch target on Android"
+    },
+    "orb": { "$value": "96px", "$description": "Default orb diameter" }
+  },
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "sans": {
+        "$value": [
+          "Manrope",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif"
+        ]
+      },
+      "mono": {
+        "$value": [
+          "JetBrains Mono",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "monospace"
+        ]
+      }
+    },
+    "weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": 400 },
+      "medium": { "$value": 500 },
+      "semibold": { "$value": 600 },
+      "bold": { "$value": 700 }
+    }
+  },
+  "type": {
+    "$type": "typography",
+    "$description": "fontSize in px (sp on Android), lineHeight is a unitless ratio, letterSpacing in em.",
+    "display": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "40px",
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": 1.1,
+        "letterSpacing": "-0.03em"
+      }
+    },
+    "headline": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "28px",
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": 1.2,
+        "letterSpacing": "-0.02em"
+      }
+    },
+    "title": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "20px",
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": 1.3,
+        "letterSpacing": "-0.01em"
+      }
+    },
+    "body": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "16px",
+        "fontWeight": "{font.weight.regular}",
+        "lineHeight": 1.5,
+        "letterSpacing": "0em"
+      }
+    },
+    "label": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "14px",
+        "fontWeight": "{font.weight.medium}",
+        "lineHeight": 1.4,
+        "letterSpacing": "0.005em"
+      }
+    },
+    "caption": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "12px",
+        "fontWeight": "{font.weight.medium}",
+        "lineHeight": 1.4,
+        "letterSpacing": "0.02em"
+      }
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "fast": { "$value": "120ms" },
+      "base": { "$value": "220ms" },
+      "slow": { "$value": "420ms" },
+      "aurora": {
+        "$value": "38000ms",
+        "$description": "Full drift cycle of the aurora background"
+      }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": { "$value": [0.2, 0, 0, 1] },
+      "emphasized": { "$value": [0.3, 0, 0, 1] },
+      "spring-like": {
+        "$value": [0.34, 1.4, 0.64, 1],
+        "$description": "CSS approximation of the spring with a slight overshoot"
+      }
+    },
+    "spring": {
+      "$description": "Spring parameters for Compose and motion (React). Respect reduced motion: snap to the final state.",
+      "stiffness": { "$type": "number", "$value": 380 },
+      "damping-ratio": { "$type": "number", "$value": 0.78 }
+    }
+  },
+  "breakpoint": {
+    "$type": "dimension",
+    "$description": "Window width classes: compact < medium (phone), medium..expanded (tablet), >= expanded (desktop).",
+    "medium": { "$value": "640px" },
+    "expanded": { "$value": "1024px" },
+    "wide": { "$value": "1440px" }
+  }
+}
