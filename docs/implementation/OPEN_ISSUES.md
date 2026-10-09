@@ -1376,7 +1376,95 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M13 inbox
 
-- Нет записей.
+### OI-M13-001 — Qualified tool names contain dots; OpenAI-style function names do not allow them
+
+- Status: OPEN
+- Source session: M13
+- Component: Model gateway adapters / tool router
+- Question: the contract shows tools to the model as `<plugin>.<tool>` (`qualifiedToolName`, e.g. `builtin.timer.start`); OpenAI-compatible APIs (ChatGPT plan Responses, DeepInfra chat completions) accept function names matching `^[a-zA-Z0-9_-]{1,64}$`. Where is the name mapped?
+- Why non-blocking: offline tests and the fake model use qualified names; run events must keep the qualified name, so the mapping belongs to the model boundary.
+- Current assumption: M11 adapters pass `ToolSpec.name` unchanged (a live tool call with a dotted name would be rejected by the provider).
+- Options: per-request reversible alias in the adapters (`.`→`__`, collision suffix, mapped back on `ToolCallRequested` and in replayed assistant `tool_calls`); change the contract to underscores (breaks events/approvals); alias in the router (leaks into events).
+- Recommendation: adapter-level alias in `app/modules/models/adapters/{responses,chat_completions}.py` by the MW2 integrator or an M11 follow-up.
+- Affects sessions: M11 follow-up, MW2 integrator (live gate), M22, M60.
+- Revisit trigger/by: before the MW2 gate with a live model.
+- Resolution:
+- Evidence: `app/modules/models/adapters/responses.py` (`"name": tool.name`), handoff M13.
+
+### OI-M13-002 — Vocabulary of `installations.grants` is undefined
+
+- Status: OPEN
+- Source session: M13
+- Component: Tool router policy / store consent
+- Question: which grant strings exist and which tool calls do they gate?
+- Why non-blocking: consent is pinned by version + `tools_digest`; the router enforces installation status, digest, manifest tool set, `permissions.network` hosts, profile and app scopes.
+- Current assumption: grants are informational (M10 tests use `state.read`, `state.write`, `tools.use`).
+- Options: per-risk grants (`tools.write`, `tools.external`); per-tool revocation (`tool.deny:<name>`); derive grants from manifest `permissions` only.
+- Recommendation: M15 defines the consent vocabulary with the consent screen; the router adds the check in one place (`McpToolRouter._plugin_entries`).
+- Affects sessions: M15, M30, M40+.
+- Revisit trigger/by: M15.
+- Resolution:
+- Evidence: `app/modules/tools/router.py`, `app/modules/workspace/catalog.py`.
+
+### OI-M13-003 — Voice discovery: «`voice: true` и `read`» vs. manifest examples
+
+- Status: OPEN
+- Source session: M13
+- Component: Tool discovery
+- Question: the M13 card says voice gets «только `voice: true` и `read`»; the contract example `timer.mia.json` marks `start`/`cancel` (`write_reversible`) as `voice: true` and Review §5.3 allows `write_external` in voice with an on-screen approval.
+- Why non-blocking: either reading keeps voice short; approvals still guard external writes.
+- Current assumption: voice exposes exactly the tools marked `voice: true` (any risk); `write_external` still needs an approval on an unlocked screen or the web.
+- Options: keep the flag as the only filter; additionally require `risk == read` (breaks «поставь таймер» by voice).
+- Recommendation: keep the flag; manifest review (M15) checks that voice tools are fast.
+- Affects sessions: M14, M22, M60.
+- Revisit trigger/by: M22 voice acceptance.
+- Resolution:
+- Evidence: `tests/tools/test_router.py::test_voice_profile_sees_only_voice_tools`.
+
+### OI-M13-004 — Catalog `tools_digest` must use `compute_tools_digest`
+
+- Status: OPEN
+- Source session: M13
+- Component: Plugin catalog / consent
+- Question: who computes the digest pinned in `installations.tools_digest`, and over what?
+- Why non-blocking: M13 defines the canonical form; catalogs are built in M14/M15.
+- Current assumption: `sha256:` over canonical JSON of `[{name, description, input_schema}]` of all tools from the server's `tools/list`, sorted by name (`app.modules.tools.digest.compute_tools_digest`); any change blocks the plugin with `tool_consent_required`.
+- Options: as implemented; digest only manifest-listed tools (tolerates extra server tools); include `outputSchema`/annotations.
+- Recommendation: as implemented; M14/M15 compute catalog digests with the same function at publish/packaging time.
+- Affects sessions: M14, M15, MW2 integrator.
+- Revisit trigger/by: MW2 integration (a wrong digest makes builtins invisible).
+- Resolution:
+- Evidence: `tests/tools/test_registry.py::test_digest_is_canonical_and_sensitive`, `test_substituted_tool_description_blocks_until_consent`.
+
+### OI-M13-005 — Skills of remote plugins (Skills over MCP) are not loaded
+
+- Status: OPEN
+- Source session: M13
+- Component: Discovery / skills
+- Question: should the router fetch `SKILL.md` from remote servers (Skills over MCP with SHA-256 digest) or from the store package?
+- Why non-blocking: builtin packages ship `SKILL.md` in `plugin_dir`; remote plugins work without skills.
+- Current assumption: only packaged skills (`ManifestSource` with a `plugin_dir`) are offered through `skills.load`.
+- Options: store keeps skill files per version (M15) and the source returns a dir; fetch over MCP and pin the skill digest at consent.
+- Recommendation: store-packaged skills in M15; Skills over MCP after the SDK stabilises.
+- Affects sessions: M15, M40, M51.
+- Revisit trigger/by: first remote plugin with a skill (M40 Linear).
+- Resolution:
+- Evidence: `app/modules/plugins/registry/installed.py`.
+
+### OI-M13-006 — Approvals retention and pending approvals of finished runs
+
+- Status: OPEN
+- Source session: M13
+- Component: Approvals
+- Question: how long are `tool_approvals` rows (exact arguments) kept, and should pending approvals be cancelled when their run ends?
+- Why non-blocking: approvals expire after `TOOLS_APPROVAL_TTL_SECONDS` (120 s) and are single-use; a late decision is never executed because the run no longer consumes it.
+- Current assumption: rows kept indefinitely (user delete cascades); pending approvals of a cancelled run stay `pending` until expiry.
+- Options: TTL job with OI-M12-001; cancel pending approvals on run termination (engine hook → `cancelled`).
+- Recommendation: decide together with OI-M12-001 (M17 privacy work); add the cancel hook when M30 shows approval lists.
+- Affects sessions: M17, M30, M62.
+- Revisit trigger/by: M30 approvals UI or retention decision.
+- Resolution:
+- Evidence: `migrations/versions/20261009_m13_tools.py`, `app/modules/tools/approvals.py`.
 
 ## M14 inbox
 
