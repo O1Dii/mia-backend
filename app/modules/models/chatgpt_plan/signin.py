@@ -52,6 +52,7 @@ class SignInAttempt:
     error_code: str | None = None
     connection_id: uuid.UUID | None = None
     task: asyncio.Task[None] | None = field(default=None, repr=False)
+    server: oauth.CallbackServer | None = field(default=None, repr=False)
 
 
 class SignInCoordinator:
@@ -80,8 +81,8 @@ class SignInCoordinator:
 
     async def start(self, user_id: uuid.UUID) -> SignInAttempt:
         previous = self._by_user.get(user_id)
-        if previous and (old := self._attempts.get(previous)) and old.task is not None:
-            old.task.cancel()
+        if previous and (old := self._attempts.get(previous)) is not None:
+            await self._cancel(old, "superseded")
         host_id = await ensure_host_id(self._sessions)
         client_id = await self._store.saved_client_id(user_id)
         verifier, challenge = oauth.pkce_pair()
@@ -102,6 +103,7 @@ class SignInCoordinator:
             authorize_url=url,
             expires_at=self._clock() + self._timeout,
         )
+        attempt.server = server
         attempt.task = asyncio.create_task(
             self._complete(attempt, server, verifier, state, nonce), name="chatgpt-plan-sign-in"
         )
@@ -163,18 +165,27 @@ class SignInCoordinator:
         except _Failed as failure:
             attempt.status, attempt.error_code = "failed", failure.code
         except asyncio.CancelledError:
-            attempt.status, attempt.error_code = "failed", "superseded"
+            if attempt.status == "pending":
+                attempt.status, attempt.error_code = "failed", "cancelled"
             raise
         except Exception:  # noqa: BLE001 - never leak provider detail; surface a stable code
             attempt.status, attempt.error_code = "failed", "internal_error"
 
-    async def aclose(self) -> None:
-        tasks = [a.task for a in self._attempts.values() if a.task and not a.task.done()]
-        for task in tasks:
-            task.cancel()
-        for task in tasks:
+    @staticmethod
+    async def _cancel(attempt: SignInAttempt, code: str) -> None:
+        """Stop a pending attempt: mark it, cancel the waiter and free the loopback port."""
+        if attempt.status == "pending":
+            attempt.status, attempt.error_code = "failed", code
+        if attempt.task is not None and not attempt.task.done():
+            attempt.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await task
+                await attempt.task
+        if attempt.server is not None:
+            await attempt.server.stop()
+
+    async def aclose(self) -> None:
+        for attempt in list(self._attempts.values()):
+            await self._cancel(attempt, "shutdown")
 
 
 class _Failed(Exception):

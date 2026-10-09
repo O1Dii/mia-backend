@@ -1,0 +1,46 @@
+{
+ "name": "plan_bad_arguments",
+ "note": "Malformed tool arguments.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": "response.output_item.done",
+      "data": {
+       "type": "response.output_item.done",
+       "item": {
+        "type": "function_call",
+        "call_id": "c",
+        "name": "t",
+        "arguments": "{not json"
+       }
+      }
+     },
+     {
+      "event": "response.completed",
+      "data": {
+       "type": "response.completed",
+       "response": {
+        "usage": {}
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

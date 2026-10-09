@@ -1,0 +1,46 @@
+{
+ "name": "plan_401_always",
+ "note": "Credentials rejected even after refresh.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 401,
+    "headers": {},
+    "json": {
+     "detail": "bad"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 401,
+    "headers": {},
+    "json": {
+     "detail": "bad"
+    }
+   }
+  }
+ ]
+}

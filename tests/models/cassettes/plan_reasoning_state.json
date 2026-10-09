@@ -1,0 +1,171 @@
+{
+ "name": "plan_reasoning_state",
+ "note": "Reasoning item with encrypted_content must survive in provider_state; one without it is dropped.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": "response.created",
+      "data": {
+       "type": "response.created",
+       "response": {
+        "status": "in_progress"
+       }
+      }
+     },
+     {
+      "event": "response.output_item.done",
+      "data": {
+       "type": "response.output_item.done",
+       "item": {
+        "type": "reasoning",
+        "id": "rs_2",
+        "summary": []
+       }
+      }
+     },
+     {
+      "event": "response.output_item.done",
+      "data": {
+       "type": "response.output_item.done",
+       "item": {
+        "type": "reasoning",
+        "id": "rs_1",
+        "summary": [],
+        "encrypted_content": "ENC-BLOB-1"
+       }
+      }
+     },
+     {
+      "event": "response.output_item.added",
+      "data": {
+       "type": "response.output_item.added",
+       "item": {
+        "type": "function_call",
+        "id": "fc_call_r1",
+        "call_id": "call_r1",
+        "name": "get_time",
+        "arguments": "",
+        "status": "completed"
+       }
+      }
+     },
+     {
+      "event": "response.function_call_arguments.delta",
+      "data": {
+       "type": "response.function_call_arguments.delta",
+       "delta": "{\"time"
+      }
+     },
+     {
+      "event": "response.function_call_arguments.delta",
+      "data": {
+       "type": "response.function_call_arguments.delta",
+       "delta": "zone\": \"UTC\"}"
+      }
+     },
+     {
+      "event": "response.output_item.done",
+      "data": {
+       "type": "response.output_item.done",
+       "item": {
+        "type": "function_call",
+        "id": "fc_call_r1",
+        "call_id": "call_r1",
+        "name": "get_time",
+        "arguments": "{\"timezone\": \"UTC\"}",
+        "status": "completed"
+       }
+      }
+     },
+     {
+      "event": "response.completed",
+      "data": {
+       "type": "response.completed",
+       "response": {
+        "status": "completed",
+        "usage": {
+         "input_tokens": 30,
+         "output_tokens": 15
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": "response.created",
+      "data": {
+       "type": "response.created",
+       "response": {
+        "status": "in_progress"
+       }
+      }
+     },
+     {
+      "event": "response.output_item.added",
+      "data": {
+       "type": "response.output_item.added",
+       "item": {
+        "type": "message",
+        "role": "assistant"
+       }
+      }
+     },
+     {
+      "event": "response.output_text.delta",
+      "data": {
+       "type": "response.output_text.delta",
+       "delta": "ok"
+      }
+     },
+     {
+      "event": "response.completed",
+      "data": {
+       "type": "response.completed",
+       "response": {
+        "status": "completed",
+        "usage": {
+         "input_tokens": 12,
+         "output_tokens": 7,
+         "total_tokens": 19
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

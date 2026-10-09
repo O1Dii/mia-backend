@@ -1,0 +1,66 @@
+{
+ "name": "plan_503_always",
+ "note": "503 on every attempt.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 503,
+    "headers": {},
+    "json": {
+     "detail": "unavailable"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 503,
+    "headers": {},
+    "json": {
+     "detail": "unavailable"
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 503,
+    "headers": {},
+    "json": {
+     "detail": "unavailable"
+    }
+   }
+  }
+ ]
+}

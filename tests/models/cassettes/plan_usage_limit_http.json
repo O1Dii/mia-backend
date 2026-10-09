@@ -1,0 +1,31 @@
+{
+ "name": "plan_usage_limit_http",
+ "note": "429 before the stream; pause + fallback.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 429,
+    "headers": {
+     "retry-after": "120"
+    },
+    "json": {
+     "error": {
+      "code": "subscription_sharing_usage_limit_exceeded",
+      "message": "UPSTREAM-LIMIT-TEXT"
+     }
+    }
+   }
+  }
+ ]
+}

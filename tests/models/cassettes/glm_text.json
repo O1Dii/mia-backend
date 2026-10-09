@@ -1,0 +1,103 @@
+{
+ "name": "glm_text",
+ "note": "Plain answer with reasoning and usage.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.deepinfra.com/v1/openai/chat/completions",
+    "forbid_body_keys": []
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "role": "assistant",
+          "reasoning_content": "short thought"
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "content": "Hello, "
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "content": "world!"
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {},
+         "finish_reason": "stop"
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [],
+       "usage": {
+        "prompt_tokens": 120,
+        "completion_tokens": 9
+       }
+      }
+     },
+     {
+      "event": null,
+      "data": "[DONE]"
+     }
+    ]
+   }
+  }
+ ]
+}

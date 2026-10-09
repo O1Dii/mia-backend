@@ -1,0 +1,45 @@
+{
+ "name": "glm_midstream_error",
+ "note": "Error chunk after content.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.deepinfra.com/v1/openai/chat/completions",
+    "forbid_body_keys": []
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "content": "hi"
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "error": {
+        "message": "overloaded",
+        "code": "server_error"
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

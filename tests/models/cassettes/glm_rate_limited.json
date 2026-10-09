@@ -1,0 +1,25 @@
+{
+ "name": "glm_rate_limited",
+ "note": "Plain 429.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.deepinfra.com/v1/openai/chat/completions",
+    "forbid_body_keys": []
+   },
+   "response": {
+    "status": 429,
+    "headers": {
+     "retry-after": "7"
+    },
+    "json": {
+     "error": {
+      "message": "slow down",
+      "type": "rate_limit"
+     }
+    }
+   }
+  }
+ ]
+}

@@ -20,7 +20,7 @@ from app.modules.models.connections import PURPOSE_PLAN_TOKENS
 from app.modules.models.errors import ProviderError
 from app.modules.models.models import ModelConnection
 from app.modules.models.vault import KeyVault
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
@@ -102,7 +102,15 @@ class PlanCredentialStore:
                         ModelConnection.user_id == user_id, ModelConnection.is_primary.is_(True)
                     )
                 )
-                row.is_primary = has_primary is None
+                # The plan is the product's primary model (ADR-0014): it takes over the primary
+                # slot on first sign-in; the user can still pick another one explicitly.
+                if has_primary is not None:
+                    await session.execute(
+                        update(ModelConnection)
+                        .where(ModelConnection.user_id == user_id)
+                        .values(is_primary=False)
+                    )
+                row.is_primary = True
                 await session.flush()
             await self._seal(session, row, tokens)
             row.status, row.paused_until, row.pause_reason = "active", None, None

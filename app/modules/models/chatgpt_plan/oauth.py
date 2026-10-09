@@ -271,6 +271,7 @@ class CallbackServer:
         self._httpd.daemon_threads = True
         self.port: int = self._httpd.server_address[1]
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
+        self._stopped = False
 
     @property
     def redirect_uri(self) -> str:
@@ -288,6 +289,9 @@ class CallbackServer:
         return self.params
 
     async def stop(self) -> None:
+        if self._stopped:
+            return
+        self._stopped = True
         # shutdown() waits for serve_forever to leave; never block the event loop on it.
         closer = threading.Thread(target=self._httpd.shutdown, daemon=True)
         closer.start()
