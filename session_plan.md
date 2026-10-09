@@ -50,6 +50,26 @@ Codex получает этот workflow через `AGENTS.md`, а Claude Code 
 - Прогон на физическом устройстве: [docs/implementation/DEVICE_GATE.md](docs/implementation/DEVICE_GATE.md)
 - Handoffs: [docs/implementation/handoffs](docs/implementation/handoffs)
 
+## MVP: M-сессии и волны (актуальный план с 2026-10-09)
+
+Текущий план реализации — [docs/implementation/MVP_SESSION_PLAN.md](docs/implementation/MVP_SESSION_PLAN.md).
+Архитектура: [docs/Mia_Architecture_Review.md](docs/Mia_Architecture_Review.md);
+хвосты вне MVP: [docs/Mia_Backlog.md](docs/Mia_Backlog.md).
+
+Сессии `Mxx`, волны `MW0…MW7`. Команды те же:
+
+~~~text
+Выполни M00.
+Выполни все готовые сессии wave MW1 параллельно.
+Интегрируй завершённые сессии wave MW1.
+~~~
+
+Общий контракт сессии (вход, handoff, OPEN_ISSUES, git, repair) берётся из
+`SESSION_EXECUTION_PLAN.md` §3–6, §12–14. Модели, ownership, граф и карточки —
+из `MVP_SESSION_PLAN.md`. Для M-сессий используются Claude Opus 5.5 / Sonnet 5.5 /
+Haiku 5.5 по таблице §3 этого плана. Старые S28, S31-R1 и S33 заменены
+M-сессиями (ADR-0015).
+
 ## Новое направление: web-платформа
 
 2026-10-05 пользователь расширил продукт до платформы приложений вокруг локальных

@@ -961,3 +961,112 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Problem: Google return to `/mia/?signin=google` was rejected as cross-site with 403; callback is already configured on the shared server.
 - Resolution: allow only top-level GET/HEAD static entry navigation; retain origin/metadata checks on API, mutations, iframe and fetch requests. Regression FAIL before / PASS after; 71 backend tests PASS. Published 2026-10-06; real Chromium cross-site 303 return now 200/UI loaded; API cross-site 403 and anonymous workspace 401 remain. Container healthy, existing apps/cards/uptimes preserved.
 - Evidence: `tests/web_poc/test_accounts.py`, `web/scripts/verify-hosted-auth-return.mjs`, `docs/implementation/handoffs/WEB-P1-R3.md`.
+
+
+## MVP M-plan inboxes
+
+Каждая M-сессия пишет только в свой блок (ID `OI-Mxx-NNN`). Карта закрытия существующих вопросов — `MVP_SESSION_PLAN.md` §8.
+
+## M00 inbox
+
+- Нет записей.
+
+## M01 inbox
+
+- Нет записей.
+
+## M10 inbox
+
+- Нет записей.
+
+## M11 inbox
+
+- Нет записей.
+
+## M12 inbox
+
+- Нет записей.
+
+## M20 inbox
+
+- Нет записей.
+
+## M21 inbox
+
+- Нет записей.
+
+## M13 inbox
+
+- Нет записей.
+
+## M14 inbox
+
+- Нет записей.
+
+## M22 inbox
+
+- Нет записей.
+
+## M15 inbox
+
+- Нет записей.
+
+## M16 inbox
+
+- Нет записей.
+
+## M17 inbox
+
+- Нет записей.
+
+## M23 inbox
+
+- Нет записей.
+
+## M30 inbox
+
+- Нет записей.
+
+## M40 inbox
+
+- Нет записей.
+
+## M41 inbox
+
+- Нет записей.
+
+## M42 inbox
+
+- Нет записей.
+
+## M50 inbox
+
+- Нет записей.
+
+## M24 inbox
+
+- Нет записей.
+
+## M31 inbox
+
+- Нет записей.
+
+## M43 inbox
+
+- Нет записей.
+
+## M51 inbox
+
+- Нет записей.
+
+## M60 inbox
+
+- Нет записей.
+
+## M61 inbox
+
+- Нет записей.
+
+## M62 inbox
+
+- Нет записей.

@@ -29,8 +29,10 @@ Resolved bases:
 
 Read in this order:
 1. session_plan.md and AGENTS.md.
-2. SESSION_EXECUTION_PLAN.md sections 3–9 and 11–14.
-3. The requested <SESSION_ID> card only.
+2. SESSION_EXECUTION_PLAN.md sections 3–6 and 12–14 (common contract).
+   - `Mxx` sessions: MVP_SESSION_PLAN.md §1–5 and §7 (repos, models, ownership, graph, gates).
+   - legacy `Sxx` sessions: SESSION_EXECUTION_PLAN.md §7–9 and §11.
+3. The requested <SESSION_ID> card only (`Mxx` in MVP_SESSION_PLAN.md §6, `Sxx` in SESSION_EXECUTION_PLAN.md §10).
 4. Handoffs of direct dependencies only.
 5. Relevant OPEN_ISSUES entries by affected session/component.
 6. Architecture sections and source files named by the card.

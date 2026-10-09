@@ -4,6 +4,42 @@
 
 Допустимые состояния: PENDING, READY, IN_PROGRESS, COMPLETED, PARTIAL, BLOCKED, FAILED, SUPERSEDED.
 
+## MVP M-plan — 2026-10-09
+
+Текущий план: [MVP_SESSION_PLAN.md](MVP_SESSION_PLAN.md); архитектура —
+[Mia_Architecture_Review.md](../Mia_Architecture_Review.md). Старые S28, S31-R1 и
+S33 заменены (SUPERSEDED) сессиями M20, M22 и M60; S27 остаётся DEFERRED.
+Готовы к старту: M00 и M01 (волна MW0, параллельно).
+
+| ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| M00 | MW0 | READY | — | Opus 5.5 high | — | — | ADR и контракты MVP |
+| M01 | MW0 | READY | — | Sonnet 5.5 high | — | — | spike основной модели; нужен интерактивный вход пользователя своим Plus |
+| M10 | MW1 | PENDING | M00 | Opus 5.5 high | — | — | единые аккаунты/workspace |
+| M11 | MW1 | PENDING | M00,M01 | Sonnet 5.5 high | — | — | Model Gateway + подключения |
+| M12 | MW1 | PENDING | M00 | Opus 5.5 high | — | — | run engine |
+| M20 | MW1 | PENDING | M00 | Sonnet 5.5 high | — | — | Android VIS; заменяет S28 |
+| M21 | MW1 | PENDING | M00 | Opus 5.5 high | — | — | Android STT GigaAM |
+| M13 | MW2 | PENDING | M10,M12 | Opus 5.5 high | — | — | Tool Router/policy/MCP/approvals |
+| M14 | MW2 | PENDING | M00,M10 | Sonnet 5.5 high | — | — | builtin + declarative плагины |
+| M22 | MW2 | PENDING | M12,M20,M21 | Opus 5.5 high | — | — | каскадный голос; заменяет S31-R1 |
+| M15 | MW3 | PENDING | M13,M14 | Sonnet 5.5 high | — | — | магазин и подключения |
+| M16 | MW3 | PENDING | M12,M13 | Opus 5.5 high | — | — | jobs/расписания/уведомления |
+| M17 | MW3 | PENDING | M10,M11,M12,M13 | Opus 5.5 high | — | — | Memory Ledger |
+| M23 | MW3 | PENDING | M13,M22 | Sonnet 5.5 high | — | — | Android device tools |
+| M30 | MW4 | PENDING | M15 | Sonnet 5.5 high | — | — | web: чат/подтверждения/магазин |
+| M40 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Linear |
+| M41 | MW4 | PENDING | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
+| M42 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
+| M50 | MW4 | PENDING | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
+| M24 | MW5 | PENDING | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
+| M31 | MW5 | PENDING | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
+| M43 | MW5 | PENDING | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
+| M51 | MW5 | PENDING | M15,M50 | Sonnet 5.5 high | — | — | MindWeaver ↔ Mia; preflight git |
+| M60 | MW6 | PENDING | M24,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; заменяет S33 |
+| M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
+| M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
+
 ## New web platform direction — 2026-10-05
 
 По прямому запросу пользователя реализованы WEB-P1 + WEB-P1-R1 и код
@@ -70,12 +106,12 @@ S31-R1/S33 не изменены.
 | S18 | W5 | COMPLETED | S12,S14,S16,S17 | Sol high | [S18](handoffs/S18.md) | adccdfc | hardening/deploy gate re-verified by integrator |
 | S23 | W5 | COMPLETED | S14,S20,S22 | Terra high | [S23](handoffs/S23.md) | adccdfc | Android main 3b6f7b1; chat wired into navigation |
 | S27 | W5 | PARTIAL | S24,S26 | Sol xhigh | [S27](handoffs/S27.md) | adccdfc | DEFERRED out of PoC scope (ADR-009); merged, disabled by default |
-| S28 | W6 | PENDING | S27 | Sol xhigh | — | — | DEFERRED out of PoC scope (ADR-009); not started |
+| S28 | W6 | SUPERSEDED | S27 | Sol xhigh | — | — | DEFERRED out of PoC scope (ADR-009); not started; SUPERSEDED by M20 (MVP plan) |
 | S30 | W6 | COMPLETED | S12,S14,S21,S23 | Sol high | [S30](handoffs/S30.md) | d8db5ce | real sign-in → Gemini text → restart → retry PASS on SM-S938B |
 | S31 | W6 | PARTIAL | S16,S25,S26 | Fable 5.1 xhigh | [S31](handoffs/S31.md) | d8db5ce / Android ed8e05f | voice made reachable; one real round trip; soak/barge-in/latency NOT measured |
 | S32 | W6 | PARTIAL | S17,S23,S25 | Sol high | [S32](handoffs/S32.md) | 5b05d0f | text modality closed on device against real Gemini; voice modality waits on S31 |
-| S31-R1 | W6 | READY | S31,S16-R2,S25-R3 | Fable 5.1 xhigh | — | — | acoustic closeout: soak, barge-in, latency, voice tool smoke |
-| S33 | W7 | PENDING | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; blocked on S31-R1 |
+| S31-R1 | W6 | SUPERSEDED | S31,S16-R2,S25-R3 | Fable 5.1 xhigh | — | — | acoustic closeout: soak, barge-in, latency, voice tool smoke; SUPERSEDED by M22/M60 (MVP plan) |
+| S33 | W7 | SUPERSEDED | S18,S30,S31,S32 | Fable 5.1 xhigh | — | — | release gate; blocked on S31-R1; SUPERSEDED by M60 (MVP plan) |
 | S17-R1 | W6 | COMPLETED | S17 | Opus 5 high | [S17-R1](handoffs/S17-R1.md) | d8db5ce | Gemini tool schema translation |
 | S16-R1 | W6 | COMPLETED | S16 | Opus 5 high | [S16-R1](handoffs/S16-R1.md) | d8db5ce | Live input transcript continuation |
 | S25-R1 | W6 | COMPLETED | S25 | Opus 5 high | [S25-R1](handoffs/S25-R1.md) | Android ed8e05f | playback backpressure |
