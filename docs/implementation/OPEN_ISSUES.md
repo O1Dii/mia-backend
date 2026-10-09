@@ -82,7 +82,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M14-005 | OPEN | Plugins / LLM | Бюджет `HostLlm` и плановые дайджесты | `GatewayHostLlm` без бюджета (profile `job`) | M16 / M17 |
 | OI-M14-006 | RESOLVED | MCP Apps | Bridge проверен только на фейковом хосте | настоящий хост web (M31) | resolved in MW5 integration |
 | OI-M14-007 | RESOLVED | Dependencies | `mcp` тянет `httpx2` | одна копия правок тестов | resolved in MW2 integration |
-| OI-M22-001 | ESCALATED | Android voice | Эхо TTS и barge-in без AEC | живая проверка 2026-10-10: FAIL, голос перебивает сам себя | M22-R1 (blocker голосового режима) |
+| OI-M22-001 | RESOLVED | Android voice | Эхо TTS и barge-in без AEC | M22-R1: 0 ложных barge-in; double talk — OI-M22-R1-001 | resolved in integration 2026-10-10 |
 | OI-M22-002 | RESOLVED | Runs / voice | `speech.ack` во время ожидания подтверждения | движок не шлёт ack после `approval.requested` | resolved in MW2 integration |
 | OI-M22-003 | OPEN | Android voice | Endpointing 480 мс — самое долгое звено | 480 мс | M60 |
 | OI-M22-004 | OPEN | Android voice | Модель STT остаётся в памяти процесса | держится | M60 |
@@ -126,7 +126,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M30-002 | OPEN | Connections / security | Привязка OAuth-подключения к браузеру только для web | Android-поток без привязки | M24 |
 | OI-M30-003 | OPEN | Approvals | `summary` подтверждения технический | текст ядра | M31 / M60 |
 | OI-M30-004 | OPEN | Feed / speech | То же, что OI-M25-003, на web | полный текст | вместе с OI-M25-003 |
-| OI-M30-005 | OPEN | Web | Нет экрана SDK-приложений и входа ChatGPT по подписке | список приложений на `/data` (M31); вход ChatGPT на хосте | M60 |
+| OI-M30-005 | RESOLVED | Web | Нет экрана SDK-приложений и входа ChatGPT по подписке | вход ChatGPT в «Модели» (M62-T1), приложения на `/data` (M31) | resolved in integration 2026-10-10 |
 | OI-M40-001 | OPEN | Plugins / Linear | Набор tools официального сервера Linear не проверен вживую | 14 имён по памяти; расхождение = `tools_mismatch` | UC-M40-1 |
 | OI-M40-002 | OPEN | MCP Apps | Отдаёт ли реальный Linear `structuredContent` для `list_issues` | плитка читает только `structuredContent` | UC-M40-1 |
 | OI-M41-001 | OPEN | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
@@ -139,7 +139,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M50-002 | OPEN | OAuth scopes | `jobs`, `notify`, `mia.install` пока ничего не открывают | scopes выдаются, API нет | M51 / M60 |
 | OI-M50-003 | OPEN | OAuth / API | Токены приложений на `/v1/runs` и `/v1/memory/context` | только completions/responses и `/mcp` | M51 |
 | OI-M50-004 | OPEN | Apps budget | Оценка расходов и перерасход при параллельных запросах | оценка по токенам, возможен небольшой перерасход | M61 |
-| OI-M50-005 | OPEN | Deploy / OAuth | Issuer с path-префиксом, rate limits на `/oauth/*` | корневой issuer, без лимитов | M62 |
+| OI-M50-005 | OPEN | Deploy / OAuth | Issuer с path-префиксом — решено (M62-T1, well-known в корне); rate limits на `/oauth/*` | без лимитов | M62 |
 | OI-M50-006 | OPEN | Memory / apps | Модель может пересказать внедрённую память приложению | `memory.context` без сырых фактов; пересказ возможен | M60 |
 | OI-M24-001 | OPEN | Connections / Android | OAuth-подключение плагина из WebView приложения не завершается | binding-cookie только в WebView; см. OI-M30-002 | UC-M24-3 / M60 |
 | OI-M24-002 | OPEN | Push | Живая доставка FCM не проверена | push включается четырьмя `miaFcm*` Gradle-свойствами | UC-M24-1 |
@@ -147,7 +147,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M24-004 | OPEN | Auth | Выход из приложения не отзывает серверные web-сессии | не отзывать | security review / M60 |
 | OI-M31-001 | OPEN | MCP Apps | Изоляция плиток без отдельного origin, без `_meta.ui.csp` и `ui/message` | opaque origin `srcdoc`; внешние домены запрещены | первый плагин с внешними ресурсами |
 | OI-M31-002 | OPEN | MCP Apps | Плитка не запускает `write_external` | 403 `tool_permission_denied` | плагин с кнопкой внешнего действия |
-| OI-M31-003 | OPEN | Deploy | `Dockerfile.web`, `deploy/*`, `design/scripts/capture_screenshots.mjs` ссылаются на удалённый `app.web_poc` | пересборка образа POC сломается; текущий деплой работает | M62 (до пересборки) |
+| OI-M31-003 | RESOLVED | Deploy | Деплой ссылался на удалённый `app.web_poc` | MVP-стек на mindmapgen.xyz/mia (M62-T1); скрипт скриншотов дизайна — остаток | resolved in integration 2026-10-10 |
 | OI-M31-004 | OPEN | Web styles | ~3,5 тыс. строк прототипа в `web/src/styles.css` | не трогаем | M33 / M62 |
 | OI-M31-005 | OPEN | Web chat | Сообщение, отправленное до загрузки ленты, теряется | оставить | ближайшая правка `chat.tsx` / M60 |
 | OI-M31-006 | OPEN | Memory | Отклонённые предложения памяти остаются в журнале невидимыми | `rejected` скрыт | UC памяти / M17-R |
@@ -163,6 +163,18 @@ Integration session обновляет этот индекс после merge.
 | OI-M51-R1-002 | OPEN | Connections UX | Add-by-URL сервера, у которого AS — Mia: согласие показывает «Mia» | общий грант клиента подключений Mia | UC-M51R1-2 / M60 |
 | OI-M51-R1-003 | OPEN | OAuth storage | Строка `oauth_tokens` на каждый вызов `mia_token` | выпуск на каждый вызов | M62 (retention/кэш) |
 | OI-UX-001 | OPEN | Android / web IA | Где живут разделы в приложении: внутри «Дашборда» вся web-оболочка с вкладкой «Чат»; что уйти в настройки, что в верхние вкладки | пока как есть (не критично, решение пользователя 2026-10-10) | дизайн-решение до M60 / отдельная сессия |
+| OI-M22-R1-001 | OPEN | Android voice | Перебивание живым голосом поверх ответа (double talk) не проверено автоматически | AEC может глушить и пользователя; тогда перебить — между ответами или «Стоп» | UC-R-0110 |
+| OI-M22-R1-002 | OPEN | Android voice | Ответ в голосовом режиме идёт на громкости разговора (15/15 вместо медиа 5/15) | громкость звонка | UC-R-0110 |
+| OI-M22-R1-003 | OPEN | Android voice | Гарнитуры и Bluetooth не проверены | маршрут по умолчанию | M60 |
+| OI-M25R1-001 | OPEN | Android dictation | Пороги диктовки подобраны на синтетической речи | 1,4 с пауза, 3,5 с конец | UC-R-0110 |
+| OI-M25R1-002 | OPEN | Android STT | Первый `prepare()` заново хэширует модель 225 МБ при каждом старте | микрофон открывается раньше, хэш параллельно | `core/stt` follow-up |
+| OI-M25R1-003 | OPEN | Android / WebView | `adjustResize` уменьшает WebView при открытой клавиатуре | приемлемо | UC-R-0110 |
+| OI-M24-R1-001 | OPEN | Web layout | Вёрстка вне диалогов опирается на `vh`/`dvh` | WebView теперь MATCH_PARENT | вместе с OI-UX-001 |
+| OI-M24-R1-002 | OPEN | Web / WebView | Точка-индикатор под обложкой видна поверх диалога | косметика | по ёмкости |
+| OI-M24-R1-003 | OPEN | Web tests | Нестабильный Playwright «a server added by URL» в полном прогоне | отдельно 4/4 | по ёмкости |
+| OI-M62-T1-001 | OPEN | Android WebView | WebView считает весь origin mindmapgen.xyz своим (не только `/mia/`) | ссылки на другие приложения домена остаются в WebView | Android follow-up |
+| OI-M62-T1-002 | OPEN | Deploy | Данные и ключи тестового сервера только на VM | нет внешних бэкапов | M62 |
+| OI-M62-T1-003 | OPEN | Backend tests | `tests/jobs/test_process.py` чувствителен к времени (SIGTERM через 1,5 с) | flaky под нагрузкой | по ёмкости |
 
 ## Record template
 
@@ -1671,7 +1683,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M22-001 — Эхо TTS и barge-in без AEC
 
-- Status: ESCALATED
+- Status: RESOLVED
 - Source session: M22
 - Component: Android voice (cascade)
 - Question: не перебивает ли ответ сам себя через динамик, и слышен ли barge-in в шуме на реальном микрофоне?
@@ -1682,6 +1694,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Affected future sessions: M60, MW2 integrator.
 - Revisit trigger/deadline: user check 2 из handoff M22 / M60 device gate.
 - Escalation (2026-10-10): живая проверка UC-MW2-3 на стенде — FAIL: ассистент слышит свою озвучку и перебивает себя. Код: AEC/NS выключены (`core/audio/.../Pcm16Audio.kt:47-48`), захват `VOICE_RECOGNITION`, системный TTS `USAGE_ASSISTANT` вне communication-пути, после `Done` порог сразу падает до 0.025 без holdoff (`CascadeVoiceController.kt:422-424`). Blocker голосового режима → repair M22-R1 (STATUS).
+- Resolution: Integration 2026-10-10 (M22-R1/M24-R1/M25-R1/M62-T1): самоперебивание устранено M22-R1 (communication-путь + AEC, своя озвучка, holdoff 400/500 мс, адаптивный порог): 0 ложных barge-in на 6 ответах на SM-S938B; перебивание живым голосом поверх ответа — OI-M22-R1-001, UC-R-0110.
 
 ### OI-M22-002 — `speech.ack` во время ожидания подтверждения
 
@@ -2392,7 +2405,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M30-005 — Привязка SDK-приложений и вход ChatGPT по подписке не вынесены на web
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M30
 - Component: Web
 - Question: нужны ли на web экран «Приложения и доступ» (код привязки SDK-приложения, POC `LinkedApps`) и вход в модель через ChatGPT-подписку (`/v1/model-connections/chatgpt-plan/sign-in`)?
@@ -2402,6 +2415,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (b) в M31/M50, (c) по решению продукта.
 - Affected future sessions: M31, M50.
 - Revisit trigger/deadline: интеграция MW4.
+- Resolution: Integration 2026-10-10 (M22-R1/M24-R1/M25-R1/M62-T1): «Модели» → «ChatGPT (подписка)» со вставкой адреса возврата (M62-T1); список приложений — `/data` (M31).
 
 ## M40 inbox
 
@@ -2749,7 +2763,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M31-003 — Развёртывание и скрипты скриншотов ссылаются на удалённый `app.web_poc`
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M31
 - Component: Deploy / design tooling
 - Question: кто переводит `Dockerfile.web`, `deploy/*` и `design/scripts/capture_screenshots.mjs` на единое ядро?
@@ -2759,7 +2773,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) в M60; скрипт скриншотов M33 удалить или перевести на `screens.spec.ts`.
 - Affects sessions: M60, M33, M62.
 - Revisit trigger/by: подготовка пилотного деплоя.
-- Resolution:
+- Resolution: Integration 2026-10-10 (M22-R1/M24-R1/M25-R1/M62-T1): деплой переведён на MVP-стек (M62-T1, `Dockerfile`/`deploy/**`); остаток — `design/scripts/capture_screenshots.mjs` (дизайн-скрипт, не блокирует).
 - Evidence: `grep -rn web_poc Dockerfile.web design/scripts`.
 
 ### OI-M31-004 — `web/src/styles.css` хранит около 3,5 тыс. строк правил прототипа

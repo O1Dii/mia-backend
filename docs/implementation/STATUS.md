@@ -348,6 +348,25 @@ Repair (параллельно, write scopes не пересекаются):
   пользователя позже, не критично.
 Повторная проверка — UC-R-0110.
 
+**Repairs + тестовый деплой integrated 2026-10-10** (integrator: Opus 5.5 high). Backend main: M22-R1, M25-R1, M24-R1
+(coordination + web-правка диалогов), M62-T1 → `e4539f7`, без конфликтов. Android main: M22-R1, M25-R1, M24-R1 → `e4a728d`, без
+конфликтов. Проверки: ruff, format, mypy (453 файла), контракты (111 operations, 91 error codes) PASS; pytest 1347 passed /
+4 skipped / 0 failed; web `tsc`, build, Prettier PASS, Playwright 64 passed / 2 skipped; Android `lint test assembleDebug` PASS
+(474 unit-теста, 0 failed, 2 skipped).
+- **M22-R1:** голосовой режим в communication-пути (`MODE_IN_COMMUNICATION`, `VOICE_COMMUNICATION` + AEC), своя озвучка через
+  `AudioTrack`, holdoff 400/500 мс, адаптивный порог; на SM-S938B 0 ложных barge-in на 6 ответах (было 100 на 2), STT через динамик
+  WER 2,3 % (было 14 %); настоящий pre-roll VAD. OI-M22-001 RESOLVED; double talk живым голосом — OI-M22-R1-001 (UC-R-0110).
+- **M25-R1:** `adjustResize` + одна обработка insets (лента видна над клавиатурой); диктовка: пауза 1,4 с, автоконец 3,5 с, 400 мс
+  pre-roll, дочитывание хвоста, микрофон за 21 мс; на голосовом экране всегда «Чат» (из задачи ассистента — обычная задача
+  приложения, на заблокированном — PIN).
+- **M24-R1:** WebView был WRAP_CONTENT → `100dvh = 0`, окно согласия 49 px; теперь MATCH_PARENT, диалоги `max-height: 90%`,
+  согласие во весь экран телефона (695/727 px).
+- **M62-T1:** MVP заменил POC на https://mindmapgen.xyz/mia/ (API+web, worker, Postgres, Redis ≈330 МБ; свободно 808 → 750 МБ из
+  1967), cookie `Path=/mia/`, issuer `https://mindmapgen.xyz/mia` с well-known в корне, ключи в `/opt/mia/secrets` (600), POC SQLite
+  — резервная копия; ChatGPT по подписке из «Модели» (вставка адреса возврата; device code для этого клиента OpenAI нет);
+  `/mia/downloads/mia.apk` + «Скачать для Android». Runbook — `docs/DEPLOY_TEST.md`, откат — `publish-via-shared-server.sh --rollback`.
+- Выкладка integrator-а 2026-10-10: образ из `e4539f7`, APK `0.1.0 (e4a728d)` с адресом сервера — PASS: образ `sha256:205ea2fc…`, release-mia.sh (миграции, health, `nginx -t`) без отката; снаружи `/mia/health/ready` 200, `/mia/` 200, анонимный `/mia/v1/feed` 401, APK 41 996 279 байт; `/`, `/source-refiner/`, `/knowly/` — 200. Дальнейшие ручные проверки — на сервере (UC-R-0110, UC-M62T1-1…3).
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -377,10 +396,10 @@ Repair (параллельно, write scopes не пересекаются):
 | M43 | MW5 | COMPLETED | M15,M50 | Haiku 5.5 high | [M43](handoffs/M43.md) | `b623a41` | руководство, шаблон `plugins/_template` (публикация CLI в тесте), SDK quickstart |
 | M51 | MW5 | COMPLETED | M15,M50 | Sonnet 5.5 high | [M51](handoffs/M51.md) | `5d36258` / MM `7d84b6f` | DoD локально PASS; add-by-URL и публикация — после M51-R1 |
 | M51-R1 | MW5 | COMPLETED | M51 | Opus 5.5 high | [M51-R1](handoffs/M51-R1.md) | `823f33c` / MM `857cc5b` | plugin resources (RFC 8707), userinfo `aud`/`azp`, `mia_token`; E2E 7/7; web-дифф OI-M51-R1-001 применён integrator-ом |
-| M22-R1 | MW5 | READY | M22, UC-MW2-3 | Opus 5.5 high | — | — | repair: эхо TTS → самоперебивание (OI-M22-001 ESCALATED); scope `core/audio`, `core/tts`, `feature/voice` |
-| M25-R1 | MW5 | READY | M25, UC-M25-1/2 | Opus 5.5 high | — | — | repair: клавиатура перекрывает чат, диктовка обрывается, боковая кнопка не ведёт в чат; scope `feature/chat`, `app`, `feature/assistant` |
-| M24-R1 | MW5 | READY | M24, UC-M24-2 | Opus 5.5 high | — | — | repair: окно согласия в WebView высотой с input; scope `feature/web`, стили диалогов web |
-| M62-T1 | MW5 | IN_PROGRESS | M51-R1 (main) | Opus 5.5 high | — | — | тестовый деплой на mindmapgen.xyz/mia, APK для скачивания, вход ChatGPT из «Модели»; разрешение пользователя на выкладку 2026-10-10 |
+| M22-R1 | MW5 | COMPLETED | M22, UC-MW2-3 | Opus 5.5 high | [M22-R1](handoffs/M22-R1.md) | `e4539f7` / Android `e4a728d` | communication-путь + AEC, своя озвучка, holdoff; 0 ложных barge-in; double talk — UC-R-0110 |
+| M25-R1 | MW5 | COMPLETED | M25, UC-M25-1/2 | Opus 5.5 high | [M25-R1](handoffs/M25-R1.md) | `e4539f7` / Android `e4a728d` | adjustResize, диктовка с паузами, «Чат» из голосового экрана |
+| M24-R1 | MW5 | COMPLETED | M24, UC-M24-2 | Opus 5.5 high | [M24-R1](handoffs/M24-R1.md) | `e4539f7` / Android `e4a728d` | WebView MATCH_PARENT (dvh=0), окно согласия во весь экран |
+| M62-T1 | MW5 | COMPLETED | M51-R1 (main) | Opus 5.5 high | [M62-T1](handoffs/M62-T1.md) | `e4539f7` | MVP на mindmapgen.xyz/mia, APK для скачивания, ChatGPT из «Модели» |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт живые UC-M40-1 (M40) и UC-M41-1/2 (M41) |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
