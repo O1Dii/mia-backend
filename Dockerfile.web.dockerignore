@@ -5,11 +5,15 @@
 !README.md
 !app
 !app/**
+!migrations
+!migrations/**
+!alembic.ini
+!contracts
+!contracts/mvp
+!contracts/mvp/v1
+!contracts/mvp/v1/**
 !web
 !web/**
-!packages
-!packages/mia-sdk
-!packages/mia-sdk/**
 web/node_modules
 web/dist
 web/test-results
@@ -21,4 +25,7 @@ web/playwright-report
 **/.env.*
 **/*.key
 **/*.pem
+**/*.keystore
+**/*.jks
 **/server.env
+**/stand.env
