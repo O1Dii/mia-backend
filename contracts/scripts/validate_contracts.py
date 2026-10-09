@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -341,6 +342,47 @@ def validate_mvp_openapi() -> int:
     return check_openapi_rules(openapi)
 
 
+MVP_ERROR_CODE_KEYS = {"code", "http_status", "retryable", "public_message", "owner"}
+
+
+def validate_mvp_error_codes() -> int:
+    """mvp/v1 public error code registry (OI-M00-001): shape, pattern, uniqueness.
+
+    A code also registered in errors/v1 must keep the same ``retryable``."""
+    path = MVP / "error-codes.json"
+    entries = load_json(path)
+    if not isinstance(entries, list) or not entries:
+        raise AssertionError(f"{path}: registry must be a non-empty array")
+    legacy = {
+        entry["code"]: entry["retryable"]
+        for entry in load_json(CONTRACTS / "errors/v1/error-codes.json")
+    }
+    seen: set[str] = set()
+    for index, entry in enumerate(entries):
+        where = f"{path}[{index}]"
+        if not isinstance(entry, dict) or set(entry) != MVP_ERROR_CODE_KEYS:
+            raise AssertionError(f"{where}: keys must be {sorted(MVP_ERROR_CODE_KEYS)}")
+        code = entry["code"]
+        if not isinstance(code, str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", code):
+            raise AssertionError(f"{where}: invalid code {code!r}")
+        if code in seen:
+            raise AssertionError(f"{where}: duplicate code {code}")
+        if code in legacy and legacy[code] != entry["retryable"]:
+            raise AssertionError(f"{where}: {code} differs from errors/v1 in retryable")
+        seen.add(code)
+        status = entry["http_status"]
+        if status is not None and (not isinstance(status, int) or not 400 <= status <= 599):
+            raise AssertionError(f"{where}: http_status must be null or 400..599")
+        if not isinstance(entry["retryable"], bool):
+            raise AssertionError(f"{where}: retryable must be boolean")
+        message = entry["public_message"]
+        if not isinstance(message, str) or not 1 <= len(message) <= 160:
+            raise AssertionError(f"{where}: public_message must be 1..160 characters")
+        if not isinstance(entry["owner"], str) or not re.fullmatch(r"M\d{2}", entry["owner"]):
+            raise AssertionError(f"{where}: owner must be a session id like M12")
+    return len(entries)
+
+
 def validate_mvp() -> tuple[int, int, int]:
     schemas = mvp_schemas()
     registry = mvp_registry(schemas)
@@ -372,13 +414,14 @@ def main() -> None:
     )
 
     mvp_examples, mvp_events, mvp_operations = validate_mvp()
+    mvp_error_codes = validate_mvp_error_codes()
 
     print(
         "PASS: "
         f"{schema_count} JSON Schemas, {operation_count} OpenAPI operations, "
         f"{event_count} event fixtures, {error_count} public error codes; "
         f"mvp/v1: {mvp_examples} examples, {mvp_events} run events, "
-        f"{mvp_operations} OpenAPI operations"
+        f"{mvp_operations} OpenAPI operations, {mvp_error_codes} error codes"
     )
 
 

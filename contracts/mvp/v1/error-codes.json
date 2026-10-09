@@ -1,0 +1,128 @@
+[
+  {
+    "code": "run_internal_error",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The run failed unexpectedly.",
+    "owner": "M12"
+  },
+  {
+    "code": "run_interrupted",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The run was interrupted before it finished.",
+    "owner": "M12"
+  },
+  {
+    "code": "model_not_configured",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "No model is connected for this account.",
+    "owner": "M12"
+  },
+  {
+    "code": "invalid_request",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The model rejected the request.",
+    "owner": "M12"
+  },
+  {
+    "code": "provider_unavailable",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The model provider is unavailable.",
+    "owner": "M12"
+  },
+  {
+    "code": "provider_timeout",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The model provider did not answer in time.",
+    "owner": "M12"
+  },
+  {
+    "code": "rate_limited",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The model provider limit was reached.",
+    "owner": "M12"
+  },
+  {
+    "code": "context_too_long",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The conversation is too long for the model.",
+    "owner": "M12"
+  },
+  {
+    "code": "tool_not_found",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The requested tool is not available.",
+    "owner": "M12"
+  },
+  {
+    "code": "tool_budget_exceeded",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The tool call budget of this run is used up.",
+    "owner": "M12"
+  },
+  {
+    "code": "approval_unavailable",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "Approvals are not available for this run.",
+    "owner": "M12"
+  },
+  {
+    "code": "tool_error",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The tool call did not succeed.",
+    "owner": "M12"
+  },
+  {
+    "code": "approval_denied",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The action was not approved.",
+    "owner": "M12"
+  },
+  {
+    "code": "approval_expired",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The approval expired.",
+    "owner": "M12"
+  },
+  {
+    "code": "approval_cancelled",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The approval was cancelled.",
+    "owner": "M12"
+  },
+  {
+    "code": "run_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The run was not found.",
+    "owner": "M12"
+  },
+  {
+    "code": "invalid_cursor",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The event cursor is invalid.",
+    "owner": "M12"
+  },
+  {
+    "code": "voice_feed_only",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "Voice runs always use the main feed.",
+    "owner": "M12"
+  }
+]

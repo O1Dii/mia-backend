@@ -202,5 +202,17 @@
     "payload": {
       "reason": "user"
     }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000014",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 14,
+    "cursor": "c000014",
+    "type": "speech.ack",
+    "at": "2026-10-09T10:00:14Z",
+    "payload": {
+      "text": "Секунду.",
+      "after_ms": 1500
+    }
   }
 ]

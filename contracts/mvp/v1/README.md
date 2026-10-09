@@ -9,8 +9,9 @@ unchanged and keep serving the PoC until their consumers move.
 | File | What it defines | Implemented by |
 | --- | --- | --- |
 | `common.schema.json` | ids, timestamps, run profiles, risk, `args_hash`, `ui://` URIs, public error | — |
-| `run-events.schema.json` | SSE events of `GET /v1/runs/{id}/events`: `sequence`, `cursor`, 13 event types | M12 (server), M22/M30 (clients) |
+| `run-events.schema.json` | SSE events of `GET /v1/runs/{id}/events`: `sequence`, `cursor`, 14 event types (`speech.ack` added by M12) | M12 (server), M22/M30 (clients) |
 | `assistant-response.schema.json` | final answer `{speech, display, followups}` | M12 |
+| `error-codes.json` | public error codes introduced by MVP sessions (`code`, `http_status` or null for event-only codes, `retryable`, `public_message`, `owner`); checked by the validator; codes shared with `errors/v1` keep its `retryable` (OI-M00-001) | M12, then additively M13/M16/M17/M50 |
 | `plugin-manifest.schema.json` | `mia.json`: `builtin` / `remote` / `declarative` server, tools risk overlay, tiles, permissions | M14, M15 |
 | `approval.schema.json` | `Approval`, `ApprovalDecision`, `ApprovalDecisionRequest` bound to `args_hash` | M13 |
 | `device-tools.schema.json` | device tool registration, call, result, errors | M13 (core), M23 (Android) |
