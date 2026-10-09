@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import httpx
@@ -198,8 +198,8 @@ def create_session(client: TestClient, key: str) -> httpx.Response:
             "output_audio": OUTPUT_AUDIO_FORMAT.model_dump(mode="json"),
         },
     )
-    assert isinstance(response, httpx.Response)
-    return response
+    # With httpx2 installed (a dependency of mcp) TestClient returns httpx2 responses.
+    return cast(httpx.Response, response)
 
 
 def test_denied_live_session_is_released_and_reports_the_daily_reason() -> None:

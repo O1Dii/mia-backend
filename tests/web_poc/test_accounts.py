@@ -135,6 +135,7 @@ def test_google_nonce_is_cookie_bound_single_use_and_session_revocable(tmp_path:
             == 401
         )
         cookie = client.cookies.get(AUTH_COOKIE)
+        assert cookie is not None
         result = client.post("/api/web/auth/logout", headers=HEADERS, json={})
         assert result.status_code == 200
         assert client.get("/api/web/workspace").status_code == 401
@@ -188,6 +189,7 @@ def test_account_state_and_reviews_survive_restart_without_provider_credentials(
         assert review.status_code == 200
         assert "person@example.org" not in review.text
         cookie = client.cookies.get(AUTH_COOKIE)
+        assert cookie is not None
     # Read only the synthetic test DB via a new running application, never deployed data.
     with TestClient(
         create_web_app(settings=cfg, google_verifier=google), base_url=ORIGIN
@@ -233,6 +235,7 @@ def test_reviews_require_installation_and_cannot_be_deleted_by_another_user(tmp_
         # A separate cookie jar without nesting the same app lifespan.
         with httpx.Client():
             saved = owner.cookies.get(AUTH_COOKIE)
+            assert saved is not None
             owner.cookies.clear()
             google.subject = "another-google-person"
             other = sign_in(owner)
