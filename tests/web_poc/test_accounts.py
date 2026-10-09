@@ -138,6 +138,7 @@ def test_google_nonce_is_cookie_bound_single_use_and_session_revocable(tmp_path:
         result = client.post("/api/web/auth/logout", headers=HEADERS, json={})
         assert result.status_code == 200
         assert client.get("/api/web/workspace").status_code == 401
+        assert cookie is not None
         client.cookies.set(AUTH_COOKIE, cookie)
         assert client.get("/api/web/workspace").status_code == 401
         google.reject = True
@@ -192,6 +193,7 @@ def test_account_state_and_reviews_survive_restart_without_provider_credentials(
     with TestClient(
         create_web_app(settings=cfg, google_verifier=google), base_url=ORIGIN
     ) as client:
+        assert cookie is not None
         client.cookies.set(AUTH_COOKIE, cookie)
         state = client.get("/api/web/workspace").json()
         assert state["subject_id"] == user["id"]
@@ -241,6 +243,7 @@ def test_reviews_require_installation_and_cannot_be_deleted_by_another_user(tmp_
             reviews = owner.get("/api/web/plugins/mia.timer/reviews").json()
             assert reviews["count"] == 1 and not reviews["items"][0]["mine"]
             owner.cookies.clear()
+            assert saved is not None
             owner.cookies.set(AUTH_COOKIE, saved)
             assert owner.get("/api/web/auth/session").json()["user"]["id"] != other["id"]
 
