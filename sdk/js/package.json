@@ -1,0 +1,14 @@
+{
+  "name": "@mia/sdk",
+  "version": "0.1.0",
+  "description": "Sign in with Mia (OAuth PKCE), runs and OpenAI-compatible completions for apps",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": { "node": ">=22" },
+  "license": "UNLICENSED"
+}

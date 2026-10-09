@@ -13,9 +13,10 @@ import base64
 import hashlib
 import json
 import secrets
+import threading
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
@@ -23,6 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import httpx2
+import uvicorn
 from app.core.config import Settings
 from app.core.correlation import CorrelationMiddleware
 from app.core.ports.model_gateway import ModelEvent, ModelGatewayError
@@ -266,3 +268,44 @@ async def oauth_world(
         await task
     await runs.aclose()
     await factory.kw["bind"].dispose()
+
+
+@contextmanager
+def served_world(port: int) -> Iterator[tuple[OAuthWorld, str]]:
+    """The world under uvicorn on 127.0.0.1:<port> in its own thread and event loop.
+
+    Yields the world and an access token (``openid profile email llm.generate``).
+    """
+    ready = threading.Event()
+    holder: dict[str, Any] = {}
+
+    def run() -> None:
+        async def main() -> None:
+            async with oauth_world() as world:
+                async with world.http() as http:
+                    holder["token"] = (await world.login(http))["access_token"]
+                server = uvicorn.Server(
+                    uvicorn.Config(
+                        world.app, host="127.0.0.1", port=port, log_level="warning", lifespan="off"
+                    )
+                )
+                holder.update(world=world, server=server)
+                task = asyncio.create_task(server.serve())
+                while not server.started and not task.done():  # noqa: ASYNC110
+                    await asyncio.sleep(0.05)
+                ready.set()
+                await task
+
+        try:
+            asyncio.run(main())
+        finally:
+            ready.set()
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    assert ready.wait(60) and "server" in holder, "uvicorn did not start"
+    try:
+        yield holder["world"], holder["token"]
+    finally:
+        holder["server"].should_exit = True
+        thread.join(30)

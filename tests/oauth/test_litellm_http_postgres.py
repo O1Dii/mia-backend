@@ -6,16 +6,13 @@ own HTTP stack (no injected client).
 
 from __future__ import annotations
 
-import asyncio
 import os
-import threading
 from collections.abc import Iterator
 from typing import Any
 
 import pytest
-import uvicorn
 
-from tests.oauth.harness import OAuthWorld, oauth_world
+from tests.oauth.harness import OAuthWorld, served_world
 from tests.oauth.test_openai_compat_postgres import answer
 from tests.runs.conftest import requires_postgres
 
@@ -26,39 +23,8 @@ os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 @pytest.fixture
 def served() -> Iterator[tuple[OAuthWorld, str]]:
-    ready = threading.Event()
-    holder: dict[str, Any] = {}
-
-    def run() -> None:
-        async def main() -> None:
-            async with oauth_world() as world:
-                async with world.http() as http:
-                    holder["token"] = (await world.login(http))["access_token"]
-                server = uvicorn.Server(
-                    uvicorn.Config(
-                        world.app, host="127.0.0.1", port=PORT, log_level="warning", lifespan="off"
-                    )
-                )
-                holder.update(world=world, server=server)
-                task = asyncio.create_task(server.serve())
-                while not server.started and not task.done():  # noqa: ASYNC110
-                    await asyncio.sleep(0.05)
-                ready.set()
-                await task
-
-        try:
-            asyncio.run(main())
-        finally:
-            ready.set()
-
-    thread = threading.Thread(target=run, daemon=True)
-    thread.start()
-    assert ready.wait(60) and "server" in holder, "uvicorn did not start"
-    try:
-        yield holder["world"], holder["token"]
-    finally:
-        holder["server"].should_exit = True
-        thread.join(30)
+    with served_world(PORT) as world_and_token:
+        yield world_and_token
 
 
 def test_litellm_completion_and_stream_over_http(served: tuple[OAuthWorld, str]) -> None:
