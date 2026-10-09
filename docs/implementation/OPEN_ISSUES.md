@@ -2131,7 +2131,70 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M25 inbox
 
-- Нет записей.
+### OI-M25-001 — Баннер роли ассистента не в стиле M33
+
+- Status: OPEN
+- Source session: M25
+- Component: Android / feature:assistant
+- Question: перерисовать `AssistantHint`/`AssistantRoleBanner` (Material Card) на компонентах M33?
+- Why non-blocking: баннер показывается над чатом в цветах темы Mia (через MaterialTheme), читается, но не «стекло».
+- Current assumption: оставить как есть (модуль `feature/assistant` вне write scope M25).
+- Options: (a) оставить; (b) перерисовать в M24/repair-сессии вместе со страницей ассистента.
+- Recommendation: (b), мелкая правка.
+- Affected future sessions: M24.
+- Revisit trigger/deadline: UC-M25-1.
+
+### OI-M25-002 — Ссылки в Markdown ответа не нажимаются
+
+- Status: OPEN
+- Source session: M25
+- Component: Android chat
+- Question: нужны ли кликабельные `[текст](url)` в ответах?
+- Why non-blocking: ссылки подчёркнуты, URL виден; для `display.kind=link` есть кнопка «Открыть».
+- Current assumption: не кликабельны (без перехода по произвольным ссылкам модели без подтверждения).
+- Options: (a) оставить; (b) `LinkAnnotation` с подтверждением домена.
+- Recommendation: (b) после решения по безопасности ссылок (M50/M60).
+- Affected future sessions: M60.
+- Revisit trigger/deadline: ревью UC-M25-1.
+
+### OI-M25-003 — Элемент ленты не содержит `speech`
+
+- Status: OPEN
+- Source session: M25
+- Component: Backend M18 contract / Android chat
+- Question: добавить в `FeedItem` поле `speech`, чтобы «Озвучить» у старого ответа читало разговорную версию, а не Markdown карточки?
+- Why non-blocking: по карточке M25 «Озвучить» читает полный текст; Markdown очищается от разметки, длинная карточка читается долго.
+- Current assumption: читается `text` (Markdown без разметки), автоозвучка нового ответа использует `response.final.speech`.
+- Options: (a) оставить; (b) аддитивное поле `speech` в `FeedItem` (M18), клиент берёт его при наличии.
+- Recommendation: (a) до отзывов по UC-M25-2, затем (b).
+- Affected future sessions: M30, M60.
+- Revisit trigger/deadline: UC-M25-2.
+
+### OI-M25-004 — Устаревший стек разговоров на Android
+
+- Status: OPEN
+- Source session: M25
+- Component: Android core:network, core:database, feature:conversation-list
+- Question: удалить `CachedConversationRepository`, Room-кэш, `feature/conversation-list` и `/v1/conversations` клиент?
+- Why non-blocking: чат на них больше не опирается; их использует только скрытый Gemini Live (`LIVE_VOICE_ENABLED = false`).
+- Current assumption: остаются до решения по Gemini Live после MVP (`docs/Mia_Backlog.md`).
+- Options: (a) оставить; (b) удалить вместе с Live.
+- Recommendation: (b) после MVP.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: решение по Gemini Live.
+
+### OI-M25-005 — Подтверждения запусков, начатых не из этого чата
+
+- Status: OPEN
+- Source session: M25
+- Component: Android chat / push
+- Question: как показывать подтверждения, которые просит запуск job, веб или другое устройство, когда чат не следит за его потоком?
+- Why non-blocking: подтверждения запусков, начатых в чате и в голосовом режиме, работают; остальные приходят через push (M24) и экран подтверждения.
+- Current assumption: чат следит только за запуском, начатым им самим; `refresh()` подтягивает завершённые ходы.
+- Options: (a) оставить до M24; (b) подписка чата на approvals пользователя.
+- Recommendation: (a), в M24 открывать `ApprovalCard` из push.
+- Affected future sessions: M24, M16 consumers.
+- Revisit trigger/deadline: M24.
 
 ## M30 inbox
 
