@@ -173,3 +173,40 @@ def test_oauth_state_mismatch_is_rejected() -> None:
     with httpx.Client(transport=httpx.MockTransport(world.handler)) as client:
         with pytest.raises(RuntimeError, match="authorization failed"):
             rs.sign_in(client, evil_browser, 5.0, "urn:uuid:1", 0, {})
+
+
+def test_sign_in_does_not_hang_when_browser_leaves_an_idle_connection() -> None:
+    """Regression: browsers open extra idle (preconnect) sockets to the loopback listener.
+
+    A single-threaded server blocks reading such a socket, so shutdown() deadlocked after the
+    callback had already been received.
+    """
+    import socket
+    import threading
+    import time
+
+    world = fakes.FakeWorld()
+    idle: list[socket.socket] = []
+
+    def browser(url: str) -> None:
+        world.open_browser(url)  # real callback request, answered
+        port = int(
+            rs.parse_qs(rs.urlsplit(url).query)["redirect_uri"][0].split(":")[2].split("/")[0]
+        )
+        sock = socket.create_connection(("127.0.0.1", port))  # speculative connection, no bytes
+        idle.append(sock)
+        time.sleep(0.4)  # let the server pick the idle socket up
+
+    result: dict[str, object] = {}
+
+    def run() -> None:
+        with httpx.Client(transport=httpx.MockTransport(world.handler)) as client:
+            result["session"] = rs.sign_in(client, browser, 5.0, "urn:uuid:1", 0, {})
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(8.0)
+    for sock in idle:
+        sock.close()
+    assert not worker.is_alive(), "sign_in hung after the callback (server shutdown deadlock)"
+    assert "session" in result

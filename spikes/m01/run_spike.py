@@ -33,7 +33,7 @@ import webbrowser
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
@@ -62,6 +62,7 @@ TOOL_PROMPT = (
     "Finally confirm in one short sentence."
 )
 MAX_TURNS = 5
+STREAM_DEADLINE_S = 120.0  # hard cap per streamed request, on top of the 60s read timeout
 
 TOOL_SPECS: list[dict[str, Any]] = [
     {
@@ -97,6 +98,11 @@ SECRET_PATTERNS = [
     re.compile(r"\b[A-Za-z0-9_-]{40,}\b"),  # long opaque blobs
 ]
 SECRET_KEY_RE = re.compile(r"(token|secret|password|authorization|cookie|api_?key)", re.I)
+
+
+def say(message: str) -> None:
+    """One-line progress message. Callers must never pass secrets."""
+    print(f"[m01] {message}", flush=True)
 
 
 def redact_text(text: str) -> str:
@@ -337,6 +343,9 @@ def stream_request(
             return out
         for name, data in iter_sse(response.iter_lines()):
             feed(name, data, (time.perf_counter() - start) * 1000)
+            if time.perf_counter() - start > STREAM_DEADLINE_S:
+                out.http_error = {"status": 0, "code": "stream_deadline_exceeded", "type": None}
+                break
     return out
 
 
@@ -459,6 +468,7 @@ def responses_tool_loop(
             client, token, responses_body(model, items, True, mode == "encrypted"), rl
         )
         scenario.record_turn(out)
+        say(f"tool turn {len(scenario.turns)}: {[c['name'] for c in out.tool_calls] or 'text'}")
         if out.http_error or out.failed_code or not out.completed:
             scenario.error = out.http_error or {"status": out.status, "code": out.failed_code}
             return scenario
@@ -567,6 +577,8 @@ class CallbackServer:
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
+            timeout = 5  # idle/preconnect sockets must not pin a handler forever
+
             def do_GET(self) -> None:  # noqa: N802
                 parts = urlsplit(self.path)
                 ok = parts.path == "/auth/callback"
@@ -583,9 +595,10 @@ class CallbackServer:
                 return
 
         try:
-            self.httpd = HTTPServer(("127.0.0.1", preferred_port), Handler)
+            self.httpd = ThreadingHTTPServer(("127.0.0.1", preferred_port), Handler)
         except OSError:
-            self.httpd = HTTPServer(("127.0.0.1", 0), Handler)
+            self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.httpd.daemon_threads = True  # per-connection threads never block exit or close
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
 
@@ -602,7 +615,10 @@ class CallbackServer:
         return self.params
 
     def stop(self) -> None:
-        self.httpd.shutdown()
+        # shutdown() waits for serve_forever to leave; never let it block the run.
+        closer = threading.Thread(target=self.httpd.shutdown, daemon=True)
+        closer.start()
+        closer.join(2.0)
         self.httpd.server_close()
 
 
@@ -671,7 +687,9 @@ def sign_in(
         url = build_authorize_url(server.redirect_uri, state, nonce, challenge, host_id)
         print(f"Opening the browser for Sign in with ChatGPT. If nothing opens, visit:\n{url}\n")
         open_browser(url)
+        say(f"waiting for the browser callback (up to {int(timeout)}s)")
         params = server.wait(timeout)
+        say("callback received")
     finally:
         server.stop()
     checks["callback_state_ok"] = secrets.compare_digest(params.get("state", ""), state)
@@ -681,6 +699,7 @@ def sign_in(
     checks["issued_client_id_returned"] = client_id.startswith("oaiapp_")
     if not client_id or client_id == DYNAMIC_CLIENT:
         raise RuntimeError("callback did not return an issued client_id")
+    say("exchanging the code for tokens")
     payload = _token_post(
         client,
         {
@@ -707,6 +726,7 @@ def sign_in(
     checks["expires_in"] = payload.get("expires_in")
     checks["token_type"] = payload.get("token_type")
     checks["earliest_refresh_at_present"] = "earliest_refresh_at" in payload
+    say(f"token exchanged (direct scope granted: {checks['direct_scope_granted']})")
     return Session(
         access_token=str(payload["access_token"]),
         refresh_token=str(payload.get("refresh_token", "")),
@@ -732,6 +752,7 @@ def refresh_session(client: httpx.Client, session: Session, checks: dict[str, An
     checks["refresh_token_rotated"] = bool(new_refresh) and new_refresh != session.refresh_token
     checks["refresh_expires_in"] = payload.get("expires_in")
     checks["refresh_scopes_retained"] = DIRECT_SCOPE in str(payload.get("scope", ""))
+    say(f"token refreshed (rotated: {checks['refresh_token_rotated']})")
     return Session(
         access_token=str(payload["access_token"]),
         refresh_token=new_refresh or session.refresh_token,
@@ -826,11 +847,13 @@ def run_gpt_plan(
     token = session.access_token
 
     models = step(steps, "models", lambda: list_models(client, token, rl))
+    say(f"models listed: {len((models or {}).get('listed') or [])}")
     chosen = args.model or ((models or {}).get("listed") or [])[:1]
     result["models_tested"] = chosen
     for model in chosen:
         per_model: dict[str, Any] = {}
         steps[f"model:{model}"] = per_model
+        say(f"stream started: {model}, {args.runs} TTFT runs")
         step(per_model, "ttft", lambda m=model: responses_ttft(client, token, m, args.runs, rl))
 
         def tools(m: str = model) -> dict[str, Any]:
@@ -842,6 +865,7 @@ def run_gpt_plan(
                 return summary
             return first.finalize()
 
+        say(f"tool scenario: {model}")
         step(per_model, "tool_calling", tools)
     result["rate_limit_headers"] = rl
     if not args.no_revoke:
@@ -904,6 +928,7 @@ def run_glm(client: httpx.Client, args: argparse.Namespace, api_key: str) -> dic
         for _ in range(MAX_TURNS):
             out = call(messages, True)
             scenario.record_turn(out)
+            say(f"tool turn {len(scenario.turns)}: {[c['name'] for c in out.tool_calls] or 'text'}")
             if out.http_error or not out.completed:
                 scenario.error = out.http_error or {"status": out.status, "code": None}
                 return scenario.finalize()
@@ -920,8 +945,11 @@ def run_glm(client: httpx.Client, args: argparse.Namespace, api_key: str) -> dic
         return scenario.finalize()
 
     result["model"] = args.glm_model
+    say(f"glm: {args.glm_model}")
     step(result["steps"], "catalog", catalog)
+    say(f"glm: stream started, {args.runs} TTFT runs")
     step(result["steps"], "ttft", ttft)
+    say("glm: tool scenario")
     step(result["steps"], "tool_calling", tools)
     result["rate_limit_headers"] = rl
     return result
@@ -1011,6 +1039,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 result = run_gpt_plan(client, args, opener, live_secrets)
         path = write_result(result, args.out_dir, live_secrets)
+        say(f"{provider}: done")
         print(summarize(sanitize(result)))
         print(f"results: {path}\n")
         failed = failed or not any(
