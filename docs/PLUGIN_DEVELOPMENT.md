@@ -32,7 +32,7 @@ Mia — MCP-хост: каталог, установка и согласие, г
 | Свой MCP по URL без публикации | работает на API | [раздел «Свой MCP по URL»](#свой-mcp-по-url-без-публикации) |
 | Плитка из `bundled` HTML | работает: дашборд web отдаёт её через `GET /v1/installations/{id}/tiles/{tile}` с CSP и мостом (M31) | внешние домены (`_meta.ui.csp`) не разрешаются, OI-M31-001 |
 | `ui://` от сервера плагина | для плиток Mia читает ресурс сервера (`resources/read`), если `bundled` не задан (M31); сам iframe `resources/read` не вызывает | OI-M43-002 (частично решён) |
-| `auth: mia_token` | в схеме есть, токен не передаётся, подключения для него нет | не используйте (OI-M43-004) |
+| `auth: mia_token` (Mia — сервер авторизации плагина) | работает на API (M51-R1): нужен `server.clientId` | [раздел «Подключение»](#подключение-к-серверу-плагина); экран «Подключить» в web — по `409 connection_sign_in_required` |
 
 ## Виды сервера
 
@@ -102,7 +102,7 @@ plugins/<имя>/
 | `version` | semver `X.Y.Z`; релиз с тем же id и версией неизменяем |
 | `name` | 2–60 символов |
 | `listing` | `description` 10–240, `category`: work, productivity, communication, knowledge, home, utilities, fun |
-| `server` | `remote` (`url` https, `auth`: none, oauth, mia_token), `builtin`, `declarative` |
+| `server` | `remote` (`url` https, `auth`: none, oauth, mia_token; `clientId` — только и обязательно для mia_token), `builtin`, `declarative` |
 | `skills` | до 8 путей к `SKILL.md`; в системный промпт попадает только `description`, тело — когда плагин выбран |
 | `tools` | от 1 до 64 инструментов; ключ — `[a-z][a-z0-9_]*`; политика: `risk`, `voice`, `timeoutSeconds` (1–300), `task` |
 | `surfaces.tiles` | до 8 плиток; `sizes`: 1x1, 2x1, 2x2, 4x2, 4x4; `mobile`: card, tile, hidden |
@@ -252,7 +252,33 @@ description: Сколько заметок у пользователя и сох
 | --- | --- |
 | `none` | Mia не отправляет учётных данных; сервер должен быть доступен без входа |
 | `oauth` | пользователь входит у провайдера один раз; Mia хранит токены зашифрованными |
-| `mia_token` | в схеме есть, но токен не передаётся и подключения для него нет. Не используйте (OI-M43-004) |
+| `mia_token` | пользователь один раз входит в приложение плагина через «Войти через Mia»; на каждый вызов Mia выпускает свой токен на 5 минут |
+
+### `auth: mia_token`
+
+Для приложений, которые уже умеют «Войти через Mia» (ADR-0013, например MindWeaver). Mia — сервер
+авторизации сервера плагина, отдельного OAuth у плагина нет.
+
+1. В `mia.json` укажите `server.clientId` — `client_id` вашего приложения в Mia, то есть https-URL
+   его Client ID Metadata Document. Хост должен быть в `permissions.network`; без `clientId`
+   публикация `mia_token` не проходит (`http://localhost` — только при `OAUTH_ALLOW_LOOPBACK_CLIENTS`).
+2. Пользователь входит в ваше приложение через Mia (грант этого клиента со scope `openid`), затем
+   «Подключить» в Mia: `POST /v1/connections` отвечает `200 {status: "connected"}` без браузера
+   и включает установку. Без гранта — `409 connection_sign_in_required` (`details.client_id`).
+3. На каждый вызов инструмента Mia выпускает access-токен из гранта пользователя: 5 минут, без
+   refresh, scope `openid` (∩ грант), `resource` = `server.url`. `sub` попарный для хоста клиента —
+   тот же, что ваше приложение получило при входе.
+4. Сервер проверяет токен через `GET <Mia>/oauth/userinfo` и **обязан** сверить `aud` со своим URL
+   (`server.url`); `azp` — клиент, которому выдан токен. Токен без `aud` — API-токен приложения
+   `azp`: принимайте его, только если `azp` — ваш клиент. Mia отклоняет токены с чужим `aud` на
+   своих API и `/mcp`, так что токен плагина не годится для доступа к Mia.
+5. Отключение приложения в «Подключённые приложения» Mia сразу гасит выпущенные токены; вызовы
+   получают `connection_required`, пока пользователь снова не войдёт в приложение.
+   `DELETE /v1/connections/{id}` отключает плагин в Mia, грант приложения не трогает.
+
+Серверы плагинов из каталога и серверы, добавленные пользователем по URL, Mia принимает как
+RFC 8707 `resource` автоматически (свой клиент плагина или клиент подключений Mia); другие —
+`invalid_target`. `OAUTH_EXTRA_RESOURCES` — ручной список для разработки.
 
 Для `oauth` Mia выступает публичным OAuth-клиентом:
 
@@ -335,7 +361,8 @@ python -m cli.mia_plugin yank team.<имя> 0.1.0 --as-user <users.id>
 - Плитка не вызывает `write_external` (OI-M31-002) и не загружает внешние домены (OI-M31-001); iframe не
   вызывает `resources/read` напрямую (OI-M43-002).
 - Публикация только администратором через CLI; модерации отзывов нет (OI-M15-008).
-- `auth: mia_token` не работает (OI-M43-004).
+- `auth: mia_token`: экран «Подключить» в web не обрабатывает ответ `200 connected` и
+  `409 connection_sign_in_required` (до этого — только API); токен содержит только `openid`.
 
 ## Связанные документы
 
