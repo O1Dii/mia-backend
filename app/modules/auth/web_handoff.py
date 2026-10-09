@@ -31,7 +31,18 @@ CODE_TTL_SECONDS = 60
 DEFAULT_LANDING_PATH = "/chat"
 # First path segments of the web app the hand-off may land on (web/src/App.tsx and M31 pages).
 ALLOWED_LANDING_ROOTS = frozenset(
-    {"chat", "store", "installed", "models", "approvals", "dashboard", "memory", "inbox", "privacy"}
+    {
+        "chat",
+        "store",
+        "installed",
+        "models",
+        "approvals",
+        "dashboard",
+        "memory",
+        "inbox",
+        "data",
+        "more",
+    }
 )
 MAX_LANDING_LENGTH = 512
 _SAFE_PATH = re.compile(r"^/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*$")

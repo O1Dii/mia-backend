@@ -80,7 +80,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M14-003 | OPEN | Plugins | `mia.clock` и v2 id, начинающиеся с цифры | не перенесены | M15 |
 | OI-M14-004 | RESOLVED | Jobs | Контракт срабатывания дедлайнов timer/alarm/focus | `jobs/deadlines.py` сканирует `deadline_ms` (M16) | resolved in MW3 integration |
 | OI-M14-005 | OPEN | Plugins / LLM | Бюджет `HostLlm` и плановые дайджесты | `GatewayHostLlm` без бюджета (profile `job`) | M16 / M17 |
-| OI-M14-006 | OPEN | MCP Apps | Bridge проверен только на фейковом хосте | протокольные тесты под node | M31 |
+| OI-M14-006 | RESOLVED | MCP Apps | Bridge проверен только на фейковом хосте | настоящий хост web (M31) | resolved in MW5 integration |
 | OI-M14-007 | RESOLVED | Dependencies | `mcp` тянет `httpx2` | одна копия правок тестов | resolved in MW2 integration |
 | OI-M22-001 | OPEN | Android voice | Эхо TTS и barge-in без AEC | порог VAD во время TTS | user check MW2 / M60 |
 | OI-M22-002 | RESOLVED | Runs / voice | `speech.ack` во время ожидания подтверждения | движок не шлёт ack после `approval.requested` | resolved in MW2 integration |
@@ -96,7 +96,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M15-006 | OPEN | Accounts | Токены провайдеров не отзываются при удалении аккаунта | только при удалении установки | before beta |
 | OI-M15-007 | OPEN | Store | Нет rate limit на probe/connect | без лимитов | M62 |
 | OI-M15-008 | OPEN | Store | Отзывы без модерации | любой вошедший | открытая публикация |
-| OI-M15-009 | OPEN | Connections | `server.auth: mia_token` без источника токена | `connection_required` | M51 |
+| OI-M15-009 | DECIDED | Connections | `server.auth: mia_token` без источника токена | M51: Mia выпускает 5-мин. токен из гранта для клиента плагина (R3, OI-M51-001), код Mia не изменён | до M60 |
 | OI-M15-010 | RESOLVED | Tests | Часы теста approvals застыли на 12:00Z | часы от реального времени | resolved in M15 |
 | OI-M16-001 | OPEN | Jobs / voice | Сводка «пока вас не было» — в следующий интерактивный run | не строго голосовой | M60 |
 | OI-M16-002 | OPEN | Jobs | `max_steps`/`max_cost_usd` per job не применяются | лимиты профиля `job`; M50 сделал лимит только для приложений | M60 |
@@ -126,7 +126,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M30-002 | OPEN | Connections / security | Привязка OAuth-подключения к браузеру только для web | Android-поток без привязки | M24 |
 | OI-M30-003 | OPEN | Approvals | `summary` подтверждения технический | текст ядра | M31 / M60 |
 | OI-M30-004 | OPEN | Feed / speech | То же, что OI-M25-003, на web | полный текст | вместе с OI-M25-003 |
-| OI-M30-005 | OPEN | Web | Нет экрана SDK-приложений и входа ChatGPT по подписке | вход ChatGPT на хосте | M31 |
+| OI-M30-005 | OPEN | Web | Нет экрана SDK-приложений и входа ChatGPT по подписке | список приложений на `/data` (M31); вход ChatGPT на хосте | M60 |
 | OI-M40-001 | OPEN | Plugins / Linear | Набор tools официального сервера Linear не проверен вживую | 14 имён по памяти; расхождение = `tools_mismatch` | UC-M40-1 |
 | OI-M40-002 | OPEN | MCP Apps | Отдаёт ли реальный Linear `structuredContent` для `list_issues` | плитка читает только `structuredContent` | UC-M40-1 |
 | OI-M41-001 | OPEN | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
@@ -141,6 +141,24 @@ Integration session обновляет этот индекс после merge.
 | OI-M50-004 | OPEN | Apps budget | Оценка расходов и перерасход при параллельных запросах | оценка по токенам, возможен небольшой перерасход | M61 |
 | OI-M50-005 | OPEN | Deploy / OAuth | Issuer с path-префиксом, rate limits на `/oauth/*` | корневой issuer, без лимитов | M62 |
 | OI-M50-006 | OPEN | Memory / apps | Модель может пересказать внедрённую память приложению | `memory.context` без сырых фактов; пересказ возможен | M60 |
+| OI-M24-001 | OPEN | Connections / Android | OAuth-подключение плагина из WebView приложения не завершается | binding-cookie только в WebView; см. OI-M30-002 | UC-M24-3 / M60 |
+| OI-M24-002 | OPEN | Push | Живая доставка FCM не проверена | push включается четырьмя `miaFcm*` Gradle-свойствами | UC-M24-1 |
+| OI-M24-003 | RESOLVED | Android / web | Пути страниц M31 в приложении предполагались | совпадают с `App.tsx`; allow-list `data`, `more` | resolved in MW5 integration |
+| OI-M24-004 | OPEN | Auth | Выход из приложения не отзывает серверные web-сессии | не отзывать | security review / M60 |
+| OI-M31-001 | OPEN | MCP Apps | Изоляция плиток без отдельного origin, без `_meta.ui.csp` и `ui/message` | opaque origin `srcdoc`; внешние домены запрещены | первый плагин с внешними ресурсами |
+| OI-M31-002 | OPEN | MCP Apps | Плитка не запускает `write_external` | 403 `tool_permission_denied` | плагин с кнопкой внешнего действия |
+| OI-M31-003 | OPEN | Deploy | `Dockerfile.web`, `deploy/*`, `design/scripts/capture_screenshots.mjs` ссылаются на удалённый `app.web_poc` | пересборка образа POC сломается; текущий деплой работает | M62 (до пересборки) |
+| OI-M31-004 | OPEN | Web styles | ~3,5 тыс. строк прототипа в `web/src/styles.css` | не трогаем | M33 / M62 |
+| OI-M31-005 | OPEN | Web chat | Сообщение, отправленное до загрузки ленты, теряется | оставить | ближайшая правка `chat.tsx` / M60 |
+| OI-M31-006 | OPEN | Memory | Отклонённые предложения памяти остаются в журнале невидимыми | `rejected` скрыт | UC памяти / M17-R |
+| OI-M43-001 | RESOLVED | MCP Apps | Bundled HTML плиток не отдавался клиентам | отдаёт M31 | resolved in MW5 integration |
+| OI-M43-002 | OPEN | MCP Apps | `ui://` серверов плагинов не проксируется | для плиток решено M31; чат remote — открыт | M60 |
+| OI-M43-003 | OPEN | SDK | Распространение SDK: индекса пакетов нет | установка по пути/git | M62 |
+| OI-M43-004 | OPEN | Manifest | `auth: mia_token` не работает | то же, что OI-M15-009 / OI-M51-001 | вместе с OI-M51-001 |
+| OI-M51-001 | OPEN | OAuth / connections | В Mia нет resource indicators плагинов и источника `mia_token` (R1–R3) | add-by-URL MindWeaver не завершается; strict xfail | до M60 |
+| OI-M51-002 | OPEN | OAuth identity | Какому аккаунту MindWeaver принадлежит токен плагина от Mia | точный `sub` после R3; email — запасной | вместе с OI-M51-001 |
+| OI-M51-003 | OPEN | MindWeaver MCP | `/mcp` только `2026-07-28`, без rate limit; стоимость стрима теряется в LiteLLM | unpriced в журнале | до деплоя MindWeaver |
+| OI-M51-004 | OPEN | Deploy | Деплой и публикация MindWeaver в магазин | вне scope | M62 |
 
 ## Record template
 
@@ -1617,7 +1635,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M14-006 — MCP App bridge is verified at protocol level only
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M14
 - Component: Plugins / MCP Apps UI
 - Question: tiles and the `window.mia` bridge follow the MCP Apps JSON-RPC over `postMessage` (`ui/initialize`, `tools/call`, `ui/notifications/tool-result`), but no real MCP Apps host exists yet in this repository.
@@ -1627,7 +1645,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: M31 runs each tile in its iframe sandbox and adjusts `app/modules/plugins/builtin/bridge.py` if the protocol version or message names differ.
 - Affects sessions: M30, M31, M24.
 - Revisit trigger/by: M31.
-- Resolution:
+- Resolution: MW5 integration (2026-10-09): M31 подключил мост к настоящему хосту web (`app/api/v1/tiles.py`, `web/src/plugins/**`); Playwright `dashboard.spec.ts` — плитка таймера обновляется без LLM, негативные тесты изоляции.
 - Evidence: `tests/plugins/test_bridge_js.py`, `app/modules/plugins/builtin/bridge.py`.
 
 ### OI-M14-007 — `mcp` pulls `httpx2`, which changes Starlette's TestClient
@@ -2529,7 +2547,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M24-003 — Пути страниц M31 в приложении предполагаются
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M24
 - Component: Android feature/web `WebSurface`, backend `app/modules/auth/web_handoff.py`
 - Question: совпадают ли маршруты дашборда `/dashboard`, памяти `/memory` и входящих `/inbox` с тем, что сделает M31?
@@ -2539,7 +2557,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a)
 - Affects sessions: MW5 integrator, M60
 - Revisit trigger/by: слияние M31
-- Resolution:
+- Resolution: MW5 integration (2026-10-09): пути `WebSurface.kt` (`/store`, `/installed`, `/dashboard`, `/memory`, `/models`) — маршруты M31 в `web/src/App.tsx`. В allow-list hand-off `privacy` заменён на `data` (страница M31 — `/data`), добавлен `more`; стык закреплён `tests/integration/test_mw5_gate.py`.
 
 ### OI-M24-004 — Выход из приложения не отзывает серверные web-сессии
 
@@ -2668,7 +2686,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M43-001 — Bundled HTML плиток не отдаётся клиентам
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M43
 - Component: Plugins / каталог / плитки дашборда
 - Question: как клиент получает HTML плитки (`tiles[].bundled`) и кто добавляет CSP и мост `window.mia`?
@@ -2683,7 +2701,7 @@ from the old voice/session dependency graph. These issues do not change its gate
   Решение до приёмки дашборда.
 - Affected future sessions: M24, M31, M60.
 - Revisit trigger/by: до M60 (приёмка дашборда).
-- Resolution:
+- Resolution: MW5 integration (2026-10-09): M31 (параллельно с M43) отдаёт `bundled` HTML плитки с CSP и мостом через `GET /v1/installations/{id}/tiles/{tile}`; `docs/PLUGIN_DEVELOPMENT.md` исправлен integrator-ом.
 - Evidence: `app/modules/plugins/catalog/service.py` (`CatalogService.file`), `app/api/v1/plugins.py` (`get_release_file`), `app/modules/plugins/builtin/bridge.py` (`render_app_html`).
 
 ### OI-M43-002 — `ui://` ресурсы серверов плагинов не проксируются
@@ -2700,7 +2718,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (c) для MVP; (a) — при первом сценарии, где нужен `ui://` сервера (превью карты M51 или чат-приложение). Изменить ADR-0010 п. 5 при реализации.
 - Affected future sessions: M31, M51, M60.
 - Revisit trigger/by: M51 (MCP App превью карты MindWeaver).
-- Resolution:
+- Resolution: Частично (MW5 integration): для плиток дашборда без `bundled` M31 читает `resourceUri` у сервера плагина (`McpConnector.read_resource`); прямой `resources/read` из iframe отклоняется (-32601), `ui://` из ответов tools в чате для remote-серверов — по-прежнему открыт.
 - Evidence: `app/modules/tools/router.py` (`_ui_uri`), `app/modules/plugins/catalog/discovery.py` (`_read_tiles`, только in-process), `docs/PLUGIN_DEVELOPMENT.md` (раздел «Статус в MVP»).
 
 ### OI-M43-003 — Распространение SDK: индекса нет

@@ -248,6 +248,67 @@ Follow-ups MW4 (не блокируют MW5):
 **Gate MW4 — PASS** (2026-10-09). Готовы к старту (волна MW5): M31, M24, M43, M51 (M51 начинает с вопроса пользователю о `git init`
 MindWeaver).
 
+MW5 стартовала 2026-10-09: M31, M24, M43, M51 параллельно (worktrees `../mia-helper-wt/{M24,M31,M43,M51-coordination}`, Android
+`../mia-helper-android-wt/M24`, MindWeaver `../mind-map-generator-wt/M51`). Диспетчерские решения волны:
+- MindWeaver: `git init` и baseline `3683744` по разрешению пользователя; в `.gitignore` добавлены `deploy/*.env*`,
+  `.claude/settings.local.json`, IDE/кэши, `*.db-shm/-wal`; секретные файлы не открывались (проверка по именам и шаблонам ключей);
+- M24 сам добавляет backend-endpoint обмена bearer → web-сессия (карточка: «M10-R или M30 по запросу», M30 его не сделал) —
+  `app/api/v1/web_handoff.py`, строка регистрации в `composition.py`, аддитивно в контракты;
+- отдельные PostgreSQL/Redis у каждой сессии (M24 55424/56324, M31 55431/56331, M43 55443, M51 55451/56351); телефон — под
+  lock-каталогом, `adb reverse` на 8124.
+
+**MW5 integrated 2026-10-09** (integrator: Opus 5.5 high вместо Sonnet 5.5 high по правилу «более сильная модель»). Backend merge:
+M31 → `1c10c6c`, M24 → `39b317e`, M43 → `b623a41`, coordination M51 → `5d36258`, integration commit поверх. Android main: M24 →
+`c23e2e5`, без конфликтов. MindWeaver main: M51 → `7d84b6f`, без конфликтов. Конфликт только ожидаемый: импорты `app/composition.py`
+(`install_tiles` M31 + `install_web_handoff` M24); `openapi.yaml` и `tests/catalog/test_contract_routes.py` слились автоматически.
+Новых миграций нет (head `20261009_m50_oauth`).
+Integrator:
+- стык M24↔M31: allow-list страниц hand-off содержал `privacy`, а страница M31 — `/data`; заменено на `data`, добавлен `more`
+  (`app/modules/auth/web_handoff.py`, описание в `openapi.yaml`); пути `WebSurface.kt` совпадают с `App.tsx` → OI-M24-003 RESOLVED;
+- стык M31↔M43: M31 отдаёт HTML плиток (bundled и `ui://` сервера) — OI-M43-001 RESOLVED, OI-M43-002 частично; таблица статусов
+  и ограничения в `docs/PLUGIN_DEVELOPMENT.md` исправлены;
+- OI-M14-006 RESOLVED (мост на настоящем хосте); OI-M15-009 DECIDED (решение M51, код Mia не менялся); индекс OPEN_ISSUES дополнен
+  OI-M24/M31/M43/M51; скриншоты device gate M24 (`app/device-gate/results/*.png`) оставлены в Android-репозитории — только UI на
+  тестовых данных;
+- gate-тест `tests/integration/test_mw5_gate.py`: tile host и hand-off в продакшн-приложении; каждая страница hand-off — маршрут
+  web; каждая web-поверхность Android — разрешённая страница (`MIA_ANDROID_DIR`); исходников `web_poc` нет; шаблон M43 проходит
+  проверки публикации.
+
+Gate MW5:
+- дашборд MCP Apps: PASS (M31: хост MCP Apps — sandboxed `srcdoc` iframe с opaque origin, JSON-RPC мост, вызовы tools через router;
+  Playwright: плитка таймера обновляется без LLM; iframe не читает cookies/DOM/localStorage host; память — подтвердить, удалить,
+  экспорт). Отдельный origin для iframe не делался — отступление от карточки, OI-M31-001;
+- Android WebView и push: PASS (M24, device gate на SM-S938B: магазин в приложении без повторного входа, установка «Таймера»;
+  job → `PushChannel` → FCM-запрос `data.type=inbox_item` → уведомление → тап открывает карточку, в т.ч. с холодного старта).
+  Вход Google, значение FCM-токена и доставка самим Google подставлены; живой FCM — UC-M24-1;
+- MindWeaver через Mia: PASS локально (M51 E2E на интегрированном коде: 4 passed + 1 strict xfail — «Мия, сделай карту» → job →
+  `build_map` через hosted `/mcp` MindWeaver → карта моделью пользователя через `/v1/chat/completions` → карта, inbox; отзыв гранта →
+  `/mcp` 401 + `tool_unavailable`). Установка MindWeaver в Mia через add-by-URL и публикация не завершаются без правок Mia R1–R3
+  (OI-M51-001) — M51 PARTIAL;
+- `web_poc` удалён: PASS (`app/web_poc` и 58 тестов удалены; соответствие 71 прежнего теста — в handoff M31).
+
+Проверки integrator: ruff, `ruff format --check`, mypy (445 файлов), `validate_contracts.py` (mvp/v1: 110 operations, 88 error codes)
+PASS; pytest с PostgreSQL+Redis 1299 passed / 5 skipped / 0 failed (в первом прогоне — только известный flaky
+`tests/jobs/test_process.py`); gate MW5 + `tests/web_handoff` + contract routes 28 passed; alembic upgrade на чистой БД, `alembic check`
+без drift; web `npm run build`, Prettier PASS, Playwright 54 passed; Android main `lint test assembleDebug` PASS (422 теста, 0 failed,
+2 skipped — прежние); MindWeaver `unittest` 96 OK; E2E M51 4 passed + 1 xfail.
+
+User checks MW5 — UC-M24-1…3, UC-M31-1…3, UC-M43-1, UC-M51-1/2 в [USER_CHECKS.md](USER_CHECKS.md).
+
+Follow-ups MW5:
+- **правки Mia R1–R3 для M51** (OI-M51-001, OI-M15-009, OI-M43-004): resource indicators плагинов в AS, `/oauth/userinfo` для таких
+  токенов (`aud`/`azp`), источник `mia_token` (5-мин. токен из гранта, `remoteServer.clientId` в манифесте). Диффы — handoff M51.
+  Это identity/безопасность → repair-сессия M51-R1 (Opus 5.5 high), затем установка MindWeaver по URL;
+- OI-M31-003: `Dockerfile.web` (CMD `app.web_poc.main`), `deploy/*`, `design/scripts/capture_screenshots.mjs` ссылаются на удалённый
+  POC — **пересборка опубликованного POC сломается**; текущий деплой работает. Владелец — M62;
+- OI-M24-001 / OI-M30-002: OAuth-подключение плагина из Android не завершается;
+- OI-M31-005: web-чат теряет сообщение, отправленное до загрузки ленты (баг M30);
+- Codex cross-review M50 (с MW4) не выполнен.
+
+**Gate MW5 — PASS** с одним хвостом (M51 PARTIAL: установка по URL ждёт R1–R3). M60 зависит от M24, M25, M31, M40, M41, M51; из них
+M40, M41 (живые проверки UC-M40-1, UC-M41-1/2) и M51 (R1–R3) — PARTIAL, поэтому M60 остаётся PENDING. Следующий шаг — repair M51-R1
+и живые проверки M40/M41.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -272,11 +333,12 @@ MindWeaver).
 | M41 | MW4 | PARTIAL | M15,M16,M17,M23 | Sonnet 5.5 high | [M41](handoffs/M41.md) | `30ceac5` | `builtin.telegram` + бот; миграция `m41_telegram`; черновик/бот вживую — UC-M41-1/2 |
 | M42 | MW4 | PARTIAL | M15 | Sonnet 5.5 medium | [M42](handoffs/M42.md) | `cd6762f` | optional; пакет и тесты готовы; smoke ждёт OI-M42-001/002 |
 | M50 | MW4 | COMPLETED | M11,M12,M13,M17 | Opus 5.5 high | [M50](handoffs/M50.md) | `293fc8f` | OAuth 2.1 AS + CIMD, OpenAI-compat, `/mcp`, SDK; миграция `m50_oauth`; Codex review рекомендован |
-| M24 | MW5 | READY | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
-| M31 | MW5 | READY | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
-| M43 | MW5 | READY | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
-| M51 | MW5 | READY | M15,M50 | Sonnet 5.5 high | — | — | MindWeaver ↔ Mia; preflight git |
-| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; заменяет S33 |
+| M24 | MW5 | COMPLETED | M16,M22,M30 | Sonnet 5.5 high | [M24](handoffs/M24.md) | `39b317e` / Android `c23e2e5` | WebView + hand-off endpoint, FCM; device gate PASS; живой FCM — UC-M24-1 |
+| M31 | MW5 | COMPLETED | M16,M17,M30 | Sonnet 5.5 high | [M31](handoffs/M31.md) | `1c10c6c` | MCP Apps host, память, входящие, «Где данные»; `web_poc` удалён |
+| M43 | MW5 | COMPLETED | M15,M50 | Haiku 5.5 high | [M43](handoffs/M43.md) | `b623a41` | руководство, шаблон `plugins/_template` (публикация CLI в тесте), SDK quickstart |
+| M51 | MW5 | PARTIAL | M15,M50 | Sonnet 5.5 high | [M51](handoffs/M51.md) | `5d36258` / MM `7d84b6f` | DoD локально PASS; add-by-URL/публикация ждут Mia R1–R3 (OI-M51-001) |
+| M51-R1 | MW5 | READY | M51 | Opus 5.5 high | — | — | repair: Mia R1–R3 из handoff M51 (resource indicators плагинов, `/oauth/userinfo` `aud`/`azp`, источник `mia_token`); затем add-by-URL и публикация MindWeaver, strict xfail E2E → pass |
+| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт M51-R1 (R1–R3) и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 

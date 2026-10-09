@@ -290,7 +290,7 @@ paths:
                   description: >-
                     Same-origin landing path bound to the code, for example /store. The first
                     segment must be one of chat, store, installed, models, approvals, dashboard,
-                    memory, inbox, privacy; default /chat. Otherwise 400 web_handoff_path_invalid.
+                    memory, inbox, data, more; default /chat. Otherwise 400 web_handoff_path_invalid.
       responses:
         '201':
           description: >-
