@@ -4,7 +4,8 @@
 same schema the contract tests use). The cross-field rules mirror
 ``contracts/scripts/validate_contracts.py::check_manifest_semantics`` with the two
 follow-ups of MW2: a declarative plugin may also list the app-only ``get_state`` tool
-(OI-M14-001) and ``permissions.publicWeb`` is part of the schema (OI-M14-002).
+(OI-M14-001) and ``permissions.publicWeb`` is part of the schema (OI-M14-002). M51-R1 adds
+``server.clientId`` (required by, and only for, ``auth: mia_token``).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from app.modules.plugins.catalog.package import PluginPackage
 
 CONTRACTS_DIR: Final = Path(__file__).resolve().parents[4] / "contracts" / "mvp" / "v1"
 _ID_PREFIX: Final = "https://contracts.mia.local/mvp/v1/"
+LOOPBACK_HOSTS: Final = frozenset({"localhost", "127.0.0.1", "::1"})
 APP_ONLY_TOOL: Final = "get_state"
 """Hidden tool every declarative server adds for its tile (never offered to a model)."""
 
@@ -72,8 +74,60 @@ def schema_problems(manifest: dict[str, Any]) -> list[Problem]:
     ]
 
 
-def semantic_problems(manifest: dict[str, Any]) -> list[Problem]:
-    """Cross-field rules JSON Schema cannot express (manifest already schema-valid)."""
+def loopback_clients_allowed() -> bool:
+    """``OAUTH_ALLOW_LOOPBACK_CLIENTS`` of the running settings (dev only; False if unreadable)."""
+    from app.core.config import get_settings
+
+    try:
+        return bool(get_settings().oauth_allow_loopback_clients)
+    except Exception:
+        return False
+
+
+def client_id_problems(
+    server: dict[str, Any], network: set[str], *, allow_loopback: bool
+) -> list[Problem]:
+    """``server.clientId``: the app's CIMD URL at Mia; https on a declared host (M51-R1)."""
+    client_id = server.get("clientId")
+    if server.get("auth") != "mia_token":
+        if client_id is None:
+            return []
+        return [Problem("manifest_semantics", "server.clientId", "only for auth mia_token")]
+    if not isinstance(client_id, str):
+        return [
+            Problem(
+                "manifest_semantics",
+                "server.clientId",
+                "auth mia_token needs clientId: the https URL of the app's client metadata"
+                " document (its OAuth client_id at Mia)",
+            )
+        ]
+    parts = urlsplit(client_id)
+    host = (parts.hostname or "").lower()
+    if parts.username or parts.password or parts.fragment or parts.query:
+        return [Problem("manifest_semantics", "server.clientId", "must be a plain URL")]
+    if parts.scheme == "https" and host and host in network:
+        return []
+    if allow_loopback and parts.scheme == "http" and host in LOOPBACK_HOSTS:
+        return []
+    return [
+        Problem(
+            "manifest_semantics",
+            "server.clientId",
+            "must be an https URL on a host in permissions.network"
+            + (" (or http loopback)" if allow_loopback else ""),
+        )
+    ]
+
+
+def semantic_problems(
+    manifest: dict[str, Any], *, allow_loopback_client: bool | None = None
+) -> list[Problem]:
+    """Cross-field rules JSON Schema cannot express (manifest already schema-valid).
+
+    ``allow_loopback_client`` (``None`` = ``OAUTH_ALLOW_LOOPBACK_CLIENTS``) accepts an
+    ``http://localhost`` ``server.clientId`` for development.
+    """
     problems: list[Problem] = []
     tools = set(manifest["tools"])
     server = manifest["server"]
@@ -88,6 +142,17 @@ def semantic_problems(manifest: dict[str, Any]) -> list[Problem]:
                     f"host {host} must be in permissions.network",
                 )
             )
+        problems.extend(
+            client_id_problems(
+                server,
+                {str(item).lower() for item in network},
+                allow_loopback=(
+                    loopback_clients_allowed()
+                    if allow_loopback_client is None
+                    else allow_loopback_client
+                ),
+            )
+        )
     if server["kind"] == "declarative":
         actions = {action["name"] for action in server["actions"]}
         if not actions <= tools or not tools <= actions | {APP_ONLY_TOOL}:
@@ -200,13 +265,15 @@ def ui_html_problems(html: str, where: str, *, require_host_csp: bool = False) -
     return [Problem("ui_unsafe", where, issue) for issue in issues]
 
 
-def package_problems(package: PluginPackage) -> list[Problem]:
+def package_problems(
+    package: PluginPackage, *, allow_loopback_client: bool | None = None
+) -> list[Problem]:
     """Everything checkable without a running server; empty list means publishable."""
     manifest = package.manifest
     problems = schema_problems(manifest)
     if problems:
         return problems
-    problems.extend(semantic_problems(manifest))
+    problems.extend(semantic_problems(manifest, allow_loopback_client=allow_loopback_client))
     for where, path in referenced_files(manifest):
         if path not in package.files:
             problems.append(Problem("package_file_missing", where, f"{path} is not in the package"))

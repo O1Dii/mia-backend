@@ -2829,6 +2829,77 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Resolution:
 - Evidence: handoff M51 (Starting point), `README.md` (MindWeaver).
 
+## M51-R1 inbox
+
+### Resolution update → OI-M51-001 (plugin resource indicators and the `mia_token` source)
+
+- Proposed status: RESOLVED.
+- Resolution: R1–R3 сделаны. R1 — не только `OAUTH_EXTRA_RESOURCES`: AS принимает как RFC 8707 `resource` удалённые `server.url` релизов каталога (для `server.clientId` релиза и клиента подключений Mia) и `custom_url` установок «по URL» (только клиент подключений Mia); env-список — ручной override для разработки, для любого клиента; прочее — `invalid_target`. R2 — `/oauth/userinfo` принимает токены с любым выданным `resource` и отдаёт `aud` и `azp`; API Mia и `/mcp` такие токены отвергают. R3 — `ConnectionService.headers(auth="mia_token")` выпускает токен на ≤5 мин без refresh из активного гранта клиента плагина, `openid` ∩ грант, `resource` = `server.url`; нет гранта → `connection_required`.
+- Evidence: handoff M51-R1; `app/modules/connections/resources.py`, `app/modules/oauth/service.py` (`resource_allowed`, `mint_plugin_token`), `tests/oauth/test_plugin_tokens_postgres.py`, `tests/catalog/test_mia_token_postgres.py`, MindWeaver E2E без xfail (7 passed).
+
+### Resolution update → OI-M51-002 (which MindWeaver account a Mia-issued plugin token belongs to)
+
+- Proposed status: RESOLVED.
+- Resolution: токены `mia_token` всегда из гранта клиента самого плагина (`server.clientId`) → тот же попарный `sub`, что при входе; email не передаётся (scope только `openid`). «Добавить по URL» использует клиент подключений Mia (другой `sub`), MindWeaver связывает по verified email (scope `email` из его PRM). MindWeaver теперь отвергает токен без `aud`, если `azp` — чужое приложение.
+- Evidence: `tests/catalog/test_mia_token_postgres.py` (scopes `openid`), MindWeaver `mia_auth.verify_bearer` + `test_a_token_without_audience_must_be_our_own_apps`, E2E `test_add_by_url_of_mindweaver_completes_with_mia_as_the_authorization_server`.
+
+### Resolution update → OI-M15-009 (`server.auth: mia_token` has no token source)
+
+- Proposed status: RESOLVED.
+- Resolution: вариант (a) в уточнении M51: источник — грант клиента плагина (`remoteServer.clientId`, CIMD URL, аддитивно в схеме), подключение `POST /v1/connections` → `200 {status: connected}` либо `409 connection_sign_in_required`.
+- Evidence: `app/modules/connections/oauth/service.py` (`_connect_mia_token`, `_mia_token_headers`), `contracts/mvp/v1/{plugin-manifest.schema.json,openapi.yaml,error-codes.json}`.
+
+### Resolution update → OI-M43-004 (`auth: mia_token` не работает)
+
+- Proposed status: RESOLVED.
+- Resolution: вариант (b): scope-ограниченный токен (только `openid`, аудитория — сервер плагина), согласие — вход пользователя в приложение через Mia (грант) плюс «Подключить» в Mia; установка больше не застревает в `needs_connection`. `docs/PLUGIN_DEVELOPMENT.md` обновлён (статус, раздел `auth: mia_token`, ограничения). Остаток для web — OI-M51-R1-001.
+- Evidence: `docs/PLUGIN_DEVELOPMENT.md`, `tests/catalog/test_mia_token_postgres.py`.
+
+### OI-M51-R1-001 — Web «Подключить» не знает ответа `mia_token`
+
+- Status: OPEN
+- Source session: M51-R1
+- Component: Web store (M30/M31)
+- Question: как web показывает подключение `mia_token` (без браузерного OAuth)?
+- Why non-blocking: API готов и покрыт тестами; web пока вызывает `location.assign(started.authorization_url)` и для `mia_token` уйдёт на `/undefined`.
+- Current assumption: requested diff в `web/src/components/StoreShared.tsx::connectAccount`: `if (!started.authorization_url) { location.assign(returnTo + '?connection=ok'); return }`; тип `startConnection` в `web/src/lib/api.ts` → `{connection_id; authorization_url?: string; status?: 'connected'}`; `409 connection_sign_in_required` показать текстом «Сначала войдите в приложение через Mia» (`details.client_id` — адрес приложения).
+- Options: так; либо отдельная кнопка «Войти в приложение» со ссылкой на `client_uri` из CIMD.
+- Recommendation: diff выше в M60/следующей web-сессии.
+- Affects sessions: M60, M62.
+- Revisit trigger/by: до проверки установки MindWeaver из web.
+- Resolution:
+- Evidence: `web/src/components/StoreShared.tsx:52`, `contracts/mvp/v1/openapi.yaml` (`startConnection` 200).
+
+### OI-M51-R1-002 — «Добавить по URL» сервер, у которого AS — сама Mia
+
+- Status: OPEN
+- Source session: M51-R1
+- Component: Connections / OAuth AS
+- Question: показывать ли такой сервер как приложение «Mia» в «Подключённые приложения» и проходить ли согласие у самой себя?
+- Why non-blocking: поток работает (E2E): клиент подключений Mia получает грант `openid email` с `resource` сервера, сервер связывает пользователя по verified email.
+- Current assumption: обычный OAuth-путь; грант клиента подключений Mia общий для всех таких серверов пользователя (scopes заменяются при повторном согласии).
+- Options: (a) оставить; (b) при AS == своему issuer пропускать согласие и выпускать токен как для `mia_token` (нужен клиент — у URL-серверов его нет); (c) подписывать грант именем ресурса.
+- Recommendation: (a) для MVP; (c), если пользователи путаются.
+- Affects sessions: M60, M62.
+- Revisit trigger/by: дизайн-ревью «Подключённые приложения».
+- Resolution:
+- Evidence: E2E `test_add_by_url_of_mindweaver_completes_with_mia_as_the_authorization_server` (MindWeaver repo).
+
+### OI-M51-R1-003 — Строка в `oauth_tokens` на каждый вызов `mia_token`
+
+- Status: OPEN
+- Source session: M51-R1
+- Component: OAuth AS
+- Question: нужен ли кэш выпущенного токена (на пользователя × плагин), чтобы не писать строку на каждый вызов?
+- Why non-blocking: строки живут ≤5 мин, чистятся `purge_expired` через сутки; вызовов плагина немного (голос, плитка раз в 10 мин).
+- Current assumption: выпуск на каждый вызов (отзыв гранта действует сразу, кэш не нужен для безопасности).
+- Options: кэш в памяти процесса до истечения −60 с, ключ (grant, resource).
+- Recommendation: замерить в M62 (нагрузка), кэшировать только при росте таблицы.
+- Affects sessions: M62.
+- Revisit trigger/by: нагрузочный прогон.
+- Resolution:
+- Evidence: `AuthorizationService.mint_plugin_token`.
+
 ## M60 inbox
 
 - Нет записей.

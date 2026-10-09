@@ -24,7 +24,7 @@ from app.modules.oauth.errors import AppApiError
 from app.modules.oauth.idtoken import IdTokenSigner
 from app.modules.oauth.principal import AppAuthenticator
 from app.modules.oauth.router import FirstPartyAuthenticator, app_error_handler, build_oauth_router
-from app.modules.oauth.service import AuthorizationService, OAuthConfig
+from app.modules.oauth.service import AuthorizationService, OAuthConfig, ResourcePolicy
 from app.modules.oauth.usage import Pricing, UsageLedger
 from app.modules.runs.service import RunService
 
@@ -50,6 +50,8 @@ def oauth_config(settings: Settings) -> OAuthConfig:
         request_ttl_s=settings.oauth_request_ttl_seconds,
         default_monthly_limit_usd=Decimal(str(settings.apps_default_monthly_limit_usd)),
         max_monthly_limit_usd=Decimal(str(settings.apps_max_monthly_limit_usd)),
+        extra_resources=frozenset(settings.oauth_extra_resource_list),
+        plugin_token_ttl_s=settings.oauth_plugin_token_ttl_seconds,
     )
 
 
@@ -63,6 +65,7 @@ def build_oauth_stack(
     memory: MemoryService | None = None,
     clients: ClientMetadataResolver | None = None,
     config: OAuthConfig | None = None,
+    resources: ResourcePolicy | None = None,
 ) -> OAuthStack:
     secret = settings.auth_jwt_secret.get_secret_value().encode()
     service = AuthorizationService(
@@ -76,6 +79,7 @@ def build_oauth_stack(
         signer=IdTokenSigner(secret),
         config=config or oauth_config(settings),
         subject_key=hashlib.sha256(b"mia-oauth-pairwise-sub-v1\n" + secret).digest(),
+        resources=resources,
     )
     ledger = UsageLedger(
         sessions,
@@ -139,9 +143,20 @@ def install_oauth(
     router: ToolRouter | None = None,
     approvals: ApprovalService | None = None,
     memory: MemoryService | None = None,
+    resources: ResourcePolicy | None = None,
 ) -> OAuthStack:
-    """Mount the AS, ``/v1/chat/completions``, ``/v1/responses``, ``/v1/models`` and ``/mcp``."""
+    """Mount the AS, ``/v1/chat/completions``, ``/v1/responses``, ``/v1/models`` and ``/mcp``.
+
+    ``resources`` adds plugin servers as RFC 8707 resources (M51-R1, see
+    :class:`app.modules.connections.resources.PluginResources`).
+    """
     stack = build_oauth_stack(
-        settings, sessions, runs=runs, router=router, approvals=approvals, memory=memory
+        settings,
+        sessions,
+        runs=runs,
+        router=router,
+        approvals=approvals,
+        memory=memory,
+        resources=resources,
     )
     return mount_oauth(app, stack, first_party=first_party, memory=memory)

@@ -123,6 +123,14 @@ class Settings(BaseSettings):
     oauth_cimd_cache_seconds: int = Field(default=3600, ge=60, le=86400)
     oauth_allow_loopback_clients: bool = False
     """Dev only: accept ``http://localhost`` client_id documents (refused in staging/production)."""
+    oauth_extra_resources: str = Field(default="", max_length=8192)
+    """Comma list of extra RFC 8707 resources (plugin MCP URLs) any client may ask for (M51-R1).
+
+    Published plugin servers and the user's add-by-URL servers are allowed without it; this
+    is the dev/ops override (e.g. a plugin on ``http://localhost`` that is not published).
+    """
+    oauth_plugin_token_ttl_seconds: int = Field(default=300, ge=30, le=300)
+    """Lifetime of the access token Mia mints for a ``server.auth: mia_token`` plugin call."""
     apps_default_monthly_limit_usd: float = Field(default=5.0, ge=0, le=1000)
     apps_max_monthly_limit_usd: float = Field(default=100.0, ge=0, le=100000)
     apps_estimated_input_usd_per_mtok: float = Field(default=0.5, ge=0, le=1000)
@@ -178,7 +186,14 @@ class Settings(BaseSettings):
                 raise ValueError("CREDENTIALS_MASTER_KEYS is required outside local environments")
             if self.oauth_allow_loopback_clients:
                 raise ValueError("OAUTH_ALLOW_LOOPBACK_CLIENTS is for local development only")
+            if any(not item.startswith("https://") for item in self.oauth_extra_resource_list):
+                raise ValueError("OAUTH_EXTRA_RESOURCES must list https URLs outside local")
         return self
+
+    @property
+    def oauth_extra_resource_list(self) -> tuple[str, ...]:
+        """``OAUTH_EXTRA_RESOURCES`` split on commas, blanks dropped."""
+        return tuple(item.strip() for item in self.oauth_extra_resources.split(",") if item.strip())
 
     @property
     def has_gemini_api_key(self) -> bool:

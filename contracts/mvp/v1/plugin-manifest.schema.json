@@ -136,7 +136,14 @@
         "kind": { "const": "remote" },
         "url": { "$ref": "common.schema.json#/$defs/httpsUrl" },
         "auth": { "type": "string", "enum": ["none", "oauth", "mia_token"] },
-        "protocolVersion": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        "protocolVersion": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "clientId": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 255,
+          "pattern": "^https?://",
+          "description": "auth mia_token only (required there): the app's OAuth client_id at Mia, i.e. the https URL of its Client ID Metadata Document. Mia mints the plugin's tokens from the user's grant of this client (5 min, openid, audience = url). Publication requires https and a host in permissions.network (http loopback only with OAUTH_ALLOW_LOOPBACK_CLIENTS)"
+        }
       }
     },
     "declarativeServer": {

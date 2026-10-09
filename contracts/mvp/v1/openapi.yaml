@@ -714,6 +714,20 @@ paths:
                   pattern: '^/(?!/)'
                   description: Path on this origin to send the browser to after consent, with ?connection=ok|error
       responses:
+        '200':
+          description: >-
+            server.auth mia_token (M51-R1): no browser step. The user has signed in to the plugin's app with Mia (active
+            grant of manifest server.clientId with openid), so the installation is active and Mia mints a 5-minute
+            token per call. Without that grant: 409 connection_sign_in_required (details.client_id)
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connection_id, status]
+                properties:
+                  connection_id: {type: string, format: uuid}
+                  status: {type: string, enum: [connected]}
         '201':
           description: OAuth flow started; open authorization_url
           headers: *rid
@@ -2161,16 +2175,27 @@ paths:
     get:
       tags: [Apps]
       operationId: oauthUserinfo
-      summary: OIDC userinfo; sub is pairwise per client host
+      summary: >-
+        OIDC userinfo; sub is pairwise per client host. Also the way a resource server (plugin MCP server) checks a
+        Mia token: it accepts tokens bound to any resource Mia issued them for and reports that resource as aud
       security:
         - miaOAuth: [openid]
       responses:
         '200':
-          description: sub (+ name, picture, locale, zoneinfo with profile; email with email)
+          description: >-
+            sub (+ name, picture, locale, zoneinfo with profile; email with email); azp = client_id the token was
+            issued to; aud = RFC 8707 resource the token is bound to (absent for tokens without a resource). A
+            resource server must require aud == its own URL (M51-R1)
           headers: *rid
           content:
             application/json:
-              schema: {type: object, required: [sub], properties: {sub: {type: string}}}
+              schema:
+                type: object
+                required: [sub, azp]
+                properties:
+                  sub: {type: string}
+                  azp: {type: string}
+                  aud: {type: string}
         default: *error
   /oauth/jwks.json:
     get:
