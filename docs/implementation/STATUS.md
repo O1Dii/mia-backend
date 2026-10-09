@@ -17,20 +17,57 @@ spike tests 13 passed; mypy (136 files) и `mypy --strict` ports/fakes PASS; ruf
 Основная модель: **GPT на плане ChatGPT через Sign in with ChatGPT**; резерв — DeepInfra
 GLM-5.3-Flash. Применены shared-file запросы M00: `.python-version` = 3.13, `pyyaml`/`referencing`
 в dev-группе, `PyYAML` в `contracts/requirements.txt`.
-Готовы к старту: M10, M11, M12, M20, M21 (волна MW1, параллельно; не больше пяти активных, по умолчанию четыре).
+MW0: готовы были M10, M11, M12, M20, M21 (волна MW1, параллельно; не больше пяти активных, по умолчанию четыре).
+
+**MW1 integrated 2026-10-09** (integrator: Opus 5.5 high). Backend merge: M10 → `839200e`, M11 → `e12ce12`,
+M12 → `e4f0cc6` (конфликты `.env.example`/`config.py`/`migrations/env.py` — аддитивные блоки, обе стороны),
+coordination M20 → `6028f42`, M21 → `8c037e6`, integration commit поверх. Android main: M20 → `34e978b`,
+M21 → `522c517`, без конфликтов. Integrator: миграции в линейную цепочку
+`20260913_0003 → 20261009_m10_0001 → 20261009_m11_models → 20261009_m12_runs` (head); шлюз M11 передан в
+`install_runs(model_gateway=...)`; `model_failover` добавлен в `KNOWN_EVENTS` (запрос M11); тест
+`tests/integration/test_mw1_gate.py`.
+
+Gate MW1 — PASS, кроме живого вызова основной модели:
+- миграции M10–M12 в одной цепочке: PASS (upgrade → downgrade `20260913_0003` → upgrade, `alembic check` без drift);
+- один аккаунт на web и Android: PASS (M10: cookie и bearer → один `user_id` по Google `sub`);
+- run с основной моделью без tools отвечает через SSE: PASS офлайн (реальный `DefaultModelGateway`, `chatgpt-plan`,
+  записанный Responses-ответ → `run.started … response.final … run.completed`). **Живой прогон не выполнен**: нужен
+  интерактивный вход владельца, `uv run python -m app.modules.models.smoke --provider gpt-plan` (handoff M11);
+- Android запускается как ассистент: PASS (device gate M20 на SM-S938B, разблокированный и заблокированный экран);
+- STT измерен: PASS (M21, SM-S938B: p50 106 мс на 3–5 с речи, PSS 286 МБ, WER 6.9 % на синтезе).
+
+Проверки: ruff, `ruff format --check`, mypy (223 файла), `validate_contracts.py` (mvp/v1: 14 run events, 18 error codes)
+PASS; pytest с PostgreSQL+Redis 552 passed / 4 skipped (credential smokes), без БД 375 passed / 181 skipped.
+Android main (JDK 17): `lint test assembleDebug` + androidTest-сборки `:feature:assistant`, `:core:stt` — BUILD
+SUCCESSFUL, 150 unit-тестов, 0 failed.
+
+Follow-ups MW1 (не блокируют MW2):
+- `/v1/runs*` и `/v1/model-connections*` принимают только bearer; cookie-principal M10 (`request_authenticator`) нужен
+  до перевода web на новый API — M30 (или M13, если трогает composition).
+- Запрошенные аддитивные правки `contracts/mvp/v1/openapi.yaml` не применены: M10 (`cookieAuth`, пути workspace/
+  installations/dashboard, 409 `version_conflict`), M11 (`/v1/model-connections*`). Владелец — следующая сессия,
+  меняющая контракты (M13/M14), или отдельный follow-up.
+- Реестр `error-codes.json` пока без кодов M10 (`version_conflict`, `tools_digest_mismatch`, …) и API M11.
+- Android: два fixture-теста `:core:network` ищут `../mia-helper/contracts`; из sibling worktree нужен
+  `-PmiaContractsDir=<backend>/contracts/realtime/v1/fixtures`.
+- Ручные проверки M20 на телефоне: удержание боковой кнопки (цифровой помощник, не Bixby); баннер роли после
+  разблокировки; запрос разблокировки при уходе с голосового экрана на заблокированном телефоне.
+- Product decision до M22: политика загрузки модели STT ~225 МБ (OI-M21-002).
+
+Готовы к старту: M13, M14, M22 (волна MW2, параллельно).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
 | M01 | MW0 | COMPLETED | — | Sonnet 5.5 high | [M01](handoffs/M01.md) | `f52cc2a` | основная = GPT-plan (SIWC), резерв GLM-5.3-Flash |
-| M10 | MW1 | READY | M00 | Opus 5.5 high | — | — | единые аккаунты/workspace |
-| M11 | MW1 | READY | M00,M01 | Sonnet 5.5 high | — | — | Model Gateway + подключения |
-| M12 | MW1 | READY | M00 | Opus 5.5 high | — | — | run engine |
-| M20 | MW1 | READY | M00 | Sonnet 5.5 high | — | — | Android VIS; заменяет S28 |
-| M21 | MW1 | READY | M00 | Opus 5.5 high | — | — | Android STT GigaAM |
-| M13 | MW2 | PENDING | M10,M12 | Opus 5.5 high | — | — | Tool Router/policy/MCP/approvals |
-| M14 | MW2 | PENDING | M00,M10 | Sonnet 5.5 high | — | — | builtin + declarative плагины |
-| M22 | MW2 | PENDING | M12,M20,M21 | Opus 5.5 high | — | — | каскадный голос; заменяет S31-R1 |
+| M10 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M10](handoffs/M10.md) | `839200e` | cookie+bearer → один user; workspace/installations/dashboard; перенос SQLite |
+| M11 | MW1 | COMPLETED | M00,M01 | Sonnet 5.5 high | [M11](handoffs/M11.md) | `e12ce12` | gateway `chatgpt-plan`+GLM, envelope crypto; живой smoke не выполнен (нужен вход владельца) |
+| M12 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M12](handoffs/M12.md) | `e4f0cc6` | runs/events/SSE, профили, speech/display, `speech.ack`; реестр error-codes |
+| M20 | MW1 | COMPLETED | M00 | Sonnet 5.5 high | [M20](handoffs/M20.md) | `6028f42` / Android `34e978b` | VIS + lock screen; device gate PASS на SM-S938B |
+| M21 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M21](handoffs/M21.md) | `8c037e6` / Android `522c517` | GigaAM-v3 CTC, sherpa-onnx 1.13.8, загрузка модели при первом запуске |
+| M13 | MW2 | READY | M10,M12 | Opus 5.5 high | — | — | Tool Router/policy/MCP/approvals |
+| M14 | MW2 | READY | M00,M10 | Sonnet 5.5 high | — | — | builtin + declarative плагины |
+| M22 | MW2 | READY | M12,M20,M21 | Opus 5.5 high | — | — | каскадный голос; заменяет S31-R1 |
 | M15 | MW3 | PENDING | M13,M14 | Sonnet 5.5 high | — | — | магазин и подключения |
 | M16 | MW3 | PENDING | M12,M13 | Opus 5.5 high | — | — | jobs/расписания/уведомления |
 | M17 | MW3 | PENDING | M10,M11,M12,M13 | Opus 5.5 high | — | — | Memory Ledger |

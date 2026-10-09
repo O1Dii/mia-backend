@@ -1,7 +1,7 @@
 """Model gateway: user data keys, model connections, gateway settings.
 
 Revision ID: 20261009_m11_models
-Revises: 20260913_0003
+Revises: 20261009_m10_0001
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20261009_m11_models"
-down_revision: str | None = "20260913_0003"
+down_revision: str | None = "20261009_m10_0001"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

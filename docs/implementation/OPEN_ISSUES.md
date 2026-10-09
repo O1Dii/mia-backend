@@ -37,19 +37,38 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-010 | OPEN | Realtime gateway | Стоит ли гейтвею повторно отменять tool-задачи при закрытии? | отменяет; executor это терпит | S33 |
 | OI-W6-011 | OPEN | Tool cancellation | Должен ли клиент узнавать об отмене tool-вызова? | видит только `response.interrupted` | S33 |
 | OI-W6-012 | OPEN | Tool audit | Почему у отменённой записи `error_code = tool_execution_failed`? | статус и код расходятся | S33 |
-| OI-W6-013 | OPEN | Tool contract | Нужен ли непрозрачный provider-токен в ToolCallRequested/ToolFeedback? | нет; текст закреплён на Gemini 2.5 | next planning cycle |
+| OI-W6-013 | RESOLVED | Tool contract | Нужен ли непрозрачный provider-токен в ToolCallRequested/ToolFeedback? | `provider_state` в портах M00, адаптеры M11 | resolved in MW1 integration |
 | OI-W6-014 | RESOLVED | Credential smokes | Где запускать smoke-тесты, требующие ключа? | в `Dockerfile.test` через `ops/credential_smoke.sh` | resolved in S18-R1 |
 | OI-W6-015 | OPEN | Realtime runtime | Должно ли окно неактивности клиента настраиваться оператором? | константа 30 s в модуле | S33 |
 | OI-W6-016 | RESOLVED | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | OkHttp не отдавал onClosed без ответа на close-фрейм | resolved in S25-R2 |
 | OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
 | OI-W6-019 | RESOLVED | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | клиент сам закрывал сокет кодом 1013 | resolved in S25-R3 |
-| OI-M00-001 | OPEN | MVP contracts | Где реестр кодов ошибок mvp/v1? | коды в схемах, без общего реестра | M12/M13 |
+| OI-M00-001 | RESOLVED | MVP contracts | Где реестр кодов ошибок mvp/v1? | `contracts/mvp/v1/error-codes.json` (M12) | resolved in MW1 integration |
 | OI-M00-002 | OPEN | Memory contract | Категории памяти и `Fact.scope` окончательные? | предварительные | M17 |
 | OI-M00-003 | RESOLVED | Backend tooling | Какую версию Python закрепить для `uv sync`? | `.python-version` = 3.13 | resolved in MW0 integration |
-| OI-M01-001 | OPEN | Model gateway | Численные лимиты Plus для SIWC? | неизвестны; 429 → пауза и переключение на GLM | M11, M61 |
+| OI-M01-001 | OPEN | Model gateway | Численные лимиты Plus для SIWC? | неизвестны; 429 → пауза и переключение на GLM реализованы в M11 | M61 |
 | OI-M01-002 | OPEN | Model gateway / terms | Можно ли использовать план в многопользовательской MIA? | только локально/у владельца; нужна заявка OpenAI и ручное чтение terms | before hosted pilot (M62) |
 | OI-M01-003 | OPEN | Model gateway latency | Safety buffering и более быстрая модель (`gpt-6-luna`)? | не проверено | M11, M61 |
+| OI-WEB-001 | RESOLVED | Accounts / credentials | Постоянные web-идентичности и подключения моделей | M10 identity + M11 vault | resolved in MW1 integration |
+| OI-WEB-005 | OPEN | Workspace / app identity | Постоянное состояние установок и identity приложений | состояние — M10 (resolved); SDK grants — M50 | M50 |
+| OI-M10-001 | OPEN | Web data migration | Как перенести hub-аккаунты POC без Google `sub`? | скрипт пропускает их; нужна `--identity-map` | до M31/M62 |
+| OI-M10-002 | OPEN | Web cookie | Настраивать ли `Secure` и trusted origins cookie из Settings? | same-origin деплой | M30/M62 |
+| OI-M11-001 | OPEN | Model gateway | Принимает ли план structured output (`text.format`)? | нет; M12 делит ответ эвристикой | M61 |
+| OI-M11-002 | OPEN | Model gateway | Вход в ChatGPT, когда сервер удалённый? | вход только на хосте backend | M62 |
+| OI-M11-003 | OPEN | Credentials | Custody master key / KMS | ключи в секрет-менеджере деплоя → env | before public beta |
+| OI-M12-001 | OPEN | Runs | Retention `runs`/`run_events` | хранятся бессрочно | M17 |
+| OI-M12-002 | OPEN | Runs / web | Черновик текста в structured mode | без черновиков | M30 |
+| OI-M12-003 | OPEN | Runs runtime | Runs при нескольких backend-инстансах | один инстанс | with OI-S18-002 |
+| OI-M12-004 | OPEN | Voice | Язык и форма `speech.ack` | серверный текст «Секунду.» | M22 |
+| OI-M20-001 | RESOLVED | Android assistant | Отдельная activity для ассистента? | `MainActivity` в отдельной assistant-задаче | resolved in M20 device gate |
+| OI-M20-002 | OPEN | Android assistant | Заглушка RecognitionService в VIS | заглушка до M22 | M22 |
+| OI-M20-003 | RESOLVED | Android assistant | ROLE_ASSISTANT запрашивается диалогом? | нет в One UI; открываются Настройки | resolved in M20 |
+| OI-M21-001 | OPEN | Android STT | Калиброванная уверенность STT | эвристика | M22 |
+| OI-M21-002 | OPEN | Android STT | Политика загрузки модели ~225 МБ | явное действие, Wi-Fi по умолчанию | M22 / release (product decision) |
+| OI-M21-003 | OPEN | Android STT | Названия сервисов в смешанной речи RU/EN | как есть; словарь алиасов предложен | M22 |
+| OI-M21-004 | OPEN | Android STT | WER на живой речи | измерено только на синтезе | M22 device gate |
+| OI-M21-005 | OPEN | Android STT | Какие ABI упаковывать | только arm64-v8a | release AAB |
 
 ## Record template
 
@@ -640,7 +659,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-013 — Should the neutral tool contract carry a provider continuation token?
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S13-R1
 - Component: tool contract
 - Question: нужно ли `ToolCallRequested`/`ToolFeedback` нести непрозрачный
@@ -655,8 +674,8 @@ gates recorded in the S27 handoff, not open issues.
   провайдера живёт в провайдере.
 - Affects sessions: S33 и следующий цикл планирования.
 - Revisit trigger/by: когда потребуется модель 3.x.
-- Resolution: —
-- Evidence: [S13-R1](handoffs/S13-R1.md).
+- Resolution: MW1 integration (2026-10-09): вариант (a) в контракте M00 — `ModelToolCall.provider_state`/`ModelMessage.provider_state`; адаптеры M11 кладут туда reasoning items (Responses) и `reasoning_content` (GLM), run engine M12 возвращает их на следующем шаге. См. M11 inbox.
+- Evidence: [S13-R1](handoffs/S13-R1.md), [M11](handoffs/M11.md), `tests/models/test_gateway_postgres.py`.
 
 ### OI-W6-014 — Credential-gated smokes have nowhere to run
 
@@ -876,7 +895,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-WEB-001 — Persistent web identities and model credentials
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: WEB-P1
 - Component: Web auth and provider connections
 - Question: какой hosting/vault будет использоваться для постоянных BYOK-подключений?
@@ -886,8 +905,8 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: shared authenticated backend + managed vault, локальный inference через companion connector.
 - Affects sessions: WEB-P2, WEB-P6.
 - Revisit trigger/by: перед обещанием постоянного хранения API-ключей и публичной beta.
-- Resolution: —
-- Evidence: `app/web_poc/main.py`, `docs/WEB_PLATFORM_PLAN.md`.
+- Resolution: MW1 integration (2026-10-09), для MVP: identity — M10 (web cookie и Android bearer → один `users.id` по проверенному Google `sub`); подключения моделей — M11 (PostgreSQL, AES-256-GCM под per-user DEK, master key `CREDENTIALS_MASTER_KEYS`, ротация и crypto-shred). Custody master key — OI-M11-003; hub-аккаунты — OI-M10-001.
+- Evidence: [M10](handoffs/M10.md), [M11](handoffs/M11.md).
 
 ### OI-WEB-002 — Reminder execution outside an open browser
 
@@ -945,8 +964,8 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: продолжить WEB-P2: явная миграция локальных данных, PostgreSQL/vault и production PKCE/device grants. Не переносить временные bearer tokens автоматически.
 - Affects sessions: WEB-P2, WEB-P6.
 - Revisit trigger/by: до хранения важных пользовательских данных и подключения устройств.
-- Resolution: —
-- Evidence: `docs/implementation/handoffs/WEB-P1-R1.md`, `app/web_poc/runtime.py`, `app/web_poc/extensions.py`.
+- Resolution: MW1 integration (2026-10-09): часть «постоянное состояние» RESOLVED в M10 (installations, plugin state, раскладка с `expected_version`, отзывы в PostgreSQL, перенос из SQLite). Часть «app identity / SDK grants» остаётся OPEN для M50.
+- Evidence: [WEB-P1-R1](handoffs/WEB-P1-R1.md), [M10](handoffs/M10.md).
 
 ### OI-WEB-006 — Shared-server VPN/SSH access
 
@@ -977,7 +996,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M00-001 — Реестр кодов ошибок для mvp/v1
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M00
 - Component: Contracts / errors
 - Question: где регистрировать новые публичные коды ошибок MVP (`approval_args_mismatch`, `approval_expired`, `model_not_configured`, `unsupported_tool` и т. п.)?
@@ -987,8 +1006,8 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: M12 заводит `contracts/mvp/v1/error-codes.json` (аддитивно, с проверкой в валидаторе), M13/M50 дописывают свои коды.
 - Affects sessions: M12, M13, M16, M17, M50.
 - Revisit trigger/by: первая сессия MW1, отдающая ошибки через `/v1/*`.
-- Resolution:
-- Evidence:
+- Resolution: MW1 integration (2026-10-09): реестр `contracts/mvp/v1/error-codes.json` (M12) с проверкой `validate_mvp_error_codes`; каждая сессия дописывает свои коды. Коды M10 (`version_conflict`, `tools_digest_mismatch`, …) и API M11 ещё не внесены — follow-up в STATUS (MW1).
+- Evidence: [M12](handoffs/M12.md), `contracts/scripts/validate_contracts.py`.
 
 ### OI-M00-002 — Категории памяти и `scope` фактов предварительные
 

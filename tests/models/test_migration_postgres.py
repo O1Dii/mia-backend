@@ -29,10 +29,10 @@ def config() -> Config:
     return configuration
 
 
-def test_revision_is_chained_after_the_tool_executions_head() -> None:
+def test_revision_is_chained_after_the_m10_workspace_head() -> None:
     script = ScriptDirectory.from_config(config())
     revision = script.get_revision(REVISION)
-    assert revision is not None and revision.down_revision == "20260913_0003"
+    assert revision is not None and revision.down_revision == "20261009_m10_0001"
     assert model_tables.ModelConnection.__tablename__ in OWN_TABLES
 
 

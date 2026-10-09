@@ -27,6 +27,7 @@ KNOWN_EVENTS = frozenset(
         "provider_circuit_opened",
         "provider_circuit_recovered",
         "realtime_session_expired",
+        "model_failover",
     }
 )
 # Server-generated IDs and UUID-shaped client IDs are content-free and logged as-is.

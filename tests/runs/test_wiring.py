@@ -13,7 +13,7 @@ from app.core.runtime import Runtime
 from app.main import create_app
 from app.modules.runs import RunLimits, RunService
 from app.modules.runs.composition import install_runs
-from app.modules.runs.defaults import NoToolRouter, UnconfiguredModelGateway
+from app.modules.runs.defaults import NoToolRouter
 from app.modules.runs.errors import RUN_CODES, public_error, tool_error
 from fastapi import FastAPI
 
@@ -57,7 +57,7 @@ def test_error_codes_are_registered_in_the_contract() -> None:
     assert tool_error("denied", "approval_invalid")["code"] == "approval_invalid"
 
 
-def test_application_mounts_runs_with_placeholders() -> None:
+def test_application_mounts_runs_on_the_model_gateway() -> None:
     app = create_app(Settings(app_env="test"))
     paths = set(app.openapi()["paths"])
 
@@ -69,7 +69,7 @@ def test_application_mounts_runs_with_placeholders() -> None:
     } <= paths
     service = app.state.runs
     assert isinstance(service, RunService)
-    assert isinstance(service.engine.gateway, UnconfiguredModelGateway)
+    assert service.engine.gateway is app.state.model_gateway
     assert isinstance(service.engine.router, NoToolRouter)
 
 

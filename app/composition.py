@@ -119,13 +119,18 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     )
     install_workspace(app, database=runtime.database)
     authenticator = AuthServiceAuthenticator(auth_service)
-    install_models(app, settings, runtime, authenticator)
+    models_stack = install_models(app, settings, runtime, authenticator)
     text_provider = _text_provider(settings)
     registry = current_datetime_registry()
     tool_executor = ToolExecutor(runtime.database.session_factory, registry)
     budget = DailyBudget(runtime.redis)
-    # M12 run engine; MW1 integrator passes M11's gateway as model_gateway=...
-    install_runs(app, settings, runtime, authenticator=authenticator)
+    install_runs(
+        app,
+        settings,
+        runtime,
+        authenticator=authenticator,
+        model_gateway=models_stack.gateway,
+    )
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,

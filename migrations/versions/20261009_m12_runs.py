@@ -1,7 +1,7 @@
 """M12 run engine: runs, run_events, the primary user feed.
 
 Revision ID: 20261009_m12_runs
-Revises: 20260913_0003
+Revises: 20261009_m11_models
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20261009_m12_runs"
-down_revision: str | None = "20260913_0003"
+down_revision: str | None = "20261009_m11_models"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
