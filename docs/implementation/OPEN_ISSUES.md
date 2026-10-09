@@ -1241,7 +1241,50 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M20 inbox
 
-- Нет записей.
+### OI-M20-001 — Нужна ли отдельная activity для запуска ассистента
+
+- Status: RESOLVED
+- Source session: M20
+- Component: Android assistant
+- Question: жест запускает `MainActivity` через `startAssistantActivity`; на SM-S938B нужно подтвердить, что она открывается в отдельной assistant-задаче поверх экрана и поверх блокировки, а не смешивается с обычной задачей приложения.
+- Why non-blocking: поведение зависит от OEM/версии Android, физического устройства в сессии не было; логика запуска и lock-политика покрыты JVM-тестами.
+- Current assumption: достаточно `MainActivity` (CLEAR_TOP | SINGLE_TOP | NEW_TASK, `setShowWhenLocked` динамически, снимается в `onStop`).
+- Options: оставить `MainActivity`; завести `AssistantActivity` в `app` с `launchMode=singleInstance`, `showWhenLocked`, `excludeFromRecents`.
+- Recommendation: сначала прогнать device gate по handoff M20; отдельная activity — только если проявятся смешение задач или утечка истории на заблокированном экране.
+- Affects sessions: M22.
+- Revisit trigger/by: device gate M20 на SM-S938B (или раньше MW1 gate).
+- Resolution: `MainActivity` is enough: the assist launch opens it in its own `type=assistant` task, separate from the normal task, and it shows over a secure keyguard; back returns to the lock screen without exposing conversations.
+- Evidence: device gate on SM-S938B, handoff M20 (`dumpsys activity activities`, `dumpsys window`).
+
+### OI-M20-003 — Роль ассистента нельзя запросить диалогом, нужны Настройки
+
+- Status: RESOLVED
+- Source session: M20
+- Component: Android assistant
+- Question: `RoleManager.createRequestRoleIntent(ROLE_ASSISTANT)` работает?
+- Why non-blocking: найдено и исправлено в device gate.
+- Current assumption: нет; `RequestRoleActivity` завершается с «Role is not requestable».
+- Options: открывать `Settings.ACTION_VOICE_INPUT_SETTINGS`.
+- Recommendation: так и сделано (`59acb88`).
+- Affects sessions: M22 (UX онбординга).
+- Revisit trigger/by: —
+- Resolution: экран ассистента открывает системную страницу «Цифровой помощник»; на One UI Mia в списке «Другие приложения».
+- Evidence: logcat на SM-S938B, handoff M20.
+
+### OI-M20-002 — Заглушка RecognitionService в метаданных VIS
+
+- Status: OPEN
+- Source session: M20
+- Component: Android assistant / STT
+- Question: платформа требует `recognitionService` в `voice-interaction-service`; сейчас `MiaRecognitionService` всегда отвечает `ERROR_CLIENT`. Нужно ли связать его с on-device STT M21?
+- Why non-blocking: сервис без intent-filter, не предлагается системой как распознаватель; голос идёт по каскаду M22.
+- Current assumption: заглушка остаётся до решения M21/M22.
+- Options: оставить заглушку; реализовать поверх `SpeechRecognizer` из M21.
+- Recommendation: оставить заглушку в MVP.
+- Affects sessions: M21, M22.
+- Revisit trigger/by: когда M22 подключит `SpeechRecognizer`.
+- Resolution:
+- Evidence:
 
 ## M21 inbox
 
