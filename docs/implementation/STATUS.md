@@ -178,6 +178,23 @@ Follow-ups MW3 (не блокируют MW4):
 
 **Gate MW3 — PASS** (2026-10-09). Готовы к старту (волна MW4): M30, M25, M40, M41, M50, M42 (optional).
 
+MW4 стартовала 2026-10-09: M30, M25, M40, M41, M50 параллельно (пять слотов), M42 (optional) — в освободившийся слот
+(worktrees `../mia-helper-wt/<Mxx>`, coordination M25 — `../mia-helper-wt/M25-coordination`, Android
+`../mia-helper-android-wt/M25`). Диспетчерские правила волны:
+- миграции от `20261009_m17_memory` (M41, M50 — свои revision-файлы; integrator выстроит цепочку);
+- у каждой backend-сессии своя одноразовая PostgreSQL (`postgres:16-alpine`, порты M30 55430, M40 55440, M41 55441,
+  M42 55442, M50 55450) и свой номер БД Redis (`redis://localhost:6379/<N>`, N = 30/40/41/42/50); общая тестовая БД не
+  используется — фикстуры делают `TRUNCATE users CASCADE`;
+- `web/vite.config.ts`, `web/playwright.config.ts`, `web/package.json` — M30; M50 добавляет только свой entry
+  (`web/oauth.html` + один пункт `build.rollupOptions.input`) и тесты в `web/tests/oauth/**`;
+- встроенный серверный код Telegram — `app/plugins/builtin/telegram/**` (контракт M00: `server.module` под `app.`),
+  webhook бота — `app/api/v1/telegram.py`; регистрация в `app/composition.py` и `app/modules/notifications/` — только
+  добавление строк;
+- `contracts/mvp/v1/*` и `error-codes.json` — только аддитивно, с записью в handoff;
+- телефон SM-S938B (`R5CY12AMHLY`) — общий ресурс M25 и M41: device gate только под lock-каталогом
+  (`mkdir` атомарен), `adb reverse` — на свой порт (M25 8125, M41 8141), после прогона lock снимается;
+- реальные сообщения людям не отправляются; живые OAuth/голос/бот-токен — в handoff как кандидаты в `USER_CHECKS.md`.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -196,12 +213,12 @@ Follow-ups MW3 (не блокируют MW4):
 | M23 | MW3 | COMPLETED | M13,M22 | Sonnet 5.5 high | [M23](handoffs/M23.md) | `8cb886d` / Android `1450389`, gate `f4be59b` | 4 device tools + backend endpoints; device gate PASS на SM-S938B после интеграции (UC-MW3-2) |
 | M18 | MW3 | COMPLETED | M12 | Sonnet 5.5 high | [M18](handoffs/M18.md) | `9079c21` | `GET /v1/feed` (bearer+cookie, keyset); fix deadlock `open_turn` |
 | M33 | MW3 | COMPLETED | M00 | Sonnet 5.5 high | [M33](handoffs/M33.md) | `294b1d9` / Android `3565859` | токены W3C → web+Android, MiaTheme, style-страница; ревью UC-MW3-1 |
-| M30 | MW4 | READY | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
-| M25 | MW4 | READY | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
-| M40 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Linear |
-| M41 | MW4 | READY | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
+| M30 | MW4 | IN_PROGRESS | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
+| M25 | MW4 | IN_PROGRESS | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
+| M40 | MW4 | IN_PROGRESS | M15 | Sonnet 5.5 medium | — | — | Linear |
+| M41 | MW4 | IN_PROGRESS | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
 | M42 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
-| M50 | MW4 | READY | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
+| M50 | MW4 | IN_PROGRESS | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
 | M24 | MW5 | PENDING | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
 | M31 | MW5 | PENDING | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
 | M43 | MW5 | PENDING | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
