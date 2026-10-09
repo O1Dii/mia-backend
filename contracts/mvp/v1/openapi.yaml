@@ -970,6 +970,12 @@ paths:
                   attempt_id: {type: string}
                   authorize_url: {type: string}
                   expires_at: {type: string, format: date-time}
+                  listening:
+                    type: boolean
+                    description: >-
+                      M62-T1: a loopback listener on the backend waits for the redirect. When
+                      false (hosted backend) the client asks the user to paste the address the
+                      browser landed on (POST .../callback).
         default: *error
   /v1/model-connections/chatgpt-plan/sign-in/{attempt_id}:
     parameters:
@@ -983,6 +989,44 @@ paths:
       responses:
         '200':
           description: Attempt status
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt_id, status, error_code, connection_id]
+                properties:
+                  attempt_id: {type: string}
+                  status: {type: string, enum: [pending, completed, failed]}
+                  error_code: {type: [string, 'null']}
+                  connection_id: {type: [string, 'null'], format: uuid}
+        default: *error
+  /v1/model-connections/chatgpt-plan/sign-in/{attempt_id}/callback:
+    parameters:
+      - {name: attempt_id, in: path, required: true, schema: {type: string}}
+    post:
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      tags: [Plugins]
+      operationId: completeChatgptPlanSignIn
+      summary: >-
+        Complete Sign in with ChatGPT with the pasted loopback redirect address (M62-T1, hosted
+        backend). Errors sign_in_callback_invalid (422, attempt stays pending), sign_in_not_pending (409).
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [callback_url]
+              properties:
+                callback_url: {type: string, minLength: 1, maxLength: 4096}
+      responses:
+        '200':
+          description: Attempt status after the code exchange
           headers: *rid
           content:
             application/json:

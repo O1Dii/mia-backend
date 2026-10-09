@@ -79,7 +79,11 @@ def build_models_stack(
     plan_store = PlanCredentialStore(session_factory, vault, client)
     verifier = JwksVerifier(client, issuer=oauth.ISSUER)
     sign_in = SignInCoordinator(
-        session_factory=session_factory, store=plan_store, client=client, verifier=verifier
+        session_factory=session_factory,
+        store=plan_store,
+        client=client,
+        verifier=verifier,
+        listen=settings.chatgpt_plan_loopback_listener,
     )
     gateway = DefaultModelGateway(
         connections,

@@ -95,6 +95,8 @@ def build_plugins_router(
     authenticator: RequestAuthenticator,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1", tags=["Plugins"])
+    # The browser sees the proxy prefix (M62-T1): the binding cookie must name the full path.
+    callback_cookie_path = authenticator.policy.base_path + "/v1/connections/callback"
 
     async def workspace_context(request: Request) -> WorkspaceContext:
         principal = await authenticator.authenticate(request)
@@ -246,7 +248,7 @@ def build_plugins_router(
                 BINDING_COOKIE,
                 binding,
                 max_age=connections.flow_ttl_seconds,
-                path="/v1/connections/callback",
+                path=callback_cookie_path,
                 httponly=True,
                 samesite="lax",
                 secure=authenticator.policy.secure,
@@ -276,7 +278,9 @@ def build_plugins_router(
             )
             separator = "&" if "?" in outcome.return_to else "?"
             result = RedirectResponse(
-                outcome.return_to + separator + query, status_code=303, headers=headers
+                authenticator.policy.base_path + outcome.return_to + separator + query,
+                status_code=303,
+                headers=headers,
             )
         else:
             title = "Аккаунт подключён" if outcome.ok else "Не удалось подключить аккаунт"
@@ -291,7 +295,7 @@ def build_plugins_router(
                 status_code=200 if outcome.ok else 400,
                 headers=headers,
             )
-        result.delete_cookie(BINDING_COOKIE, path="/v1/connections/callback")
+        result.delete_cookie(BINDING_COOKIE, path=callback_cookie_path)
         return result
 
     @router.get("/connections/client-metadata.json", include_in_schema=False)

@@ -1,26 +1,37 @@
+# Release image of the hosted Mia (M62-T1): API and worker code, migrations, plugin contracts and
+# the built web app (served by the API process from WEB_DIST_DIR). One image runs `mia` (API),
+# `worker` (python -m app.worker) and the release step `alembic upgrade head`.
 FROM node:22-bookworm-slim AS web
 WORKDIR /build/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web ./
-COPY packages /build/packages
+# The web lives under the proxy prefix and calls the API under it too (/mia/v1/...).
 ARG MIA_BASE_PATH=/mia
-ENV MIA_BASE_PATH=$MIA_BASE_PATH
+# Public by design: it names the app to Google Identity Services.
+ARG VITE_GOOGLE_CLIENT_ID=
+ENV MIA_BASE_PATH=$MIA_BASE_PATH VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 FROM python:3.13-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy PATH="/app/.venv/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 RUN pip install --no-cache-dir uv==0.12.12 && uv sync --frozen --no-dev
 COPY app ./app
-COPY packages/mia-sdk ./packages/mia-sdk
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
+# Plugin manifests are validated against these schemas at run time.
+COPY contracts/mvp/v1 ./contracts/mvp/v1
 COPY --from=web /build/web/dist ./web/dist
-RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin mia \
-    && mkdir /data && chown 10001:10001 /data
-ENV MIA_STATIC_DIR=/app/web/dist MIA_DATABASE_PATH=/data/mia.sqlite3
+RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin mia
+ENV WEB_DIST_DIR=/app/web/dist
 USER 10001
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
- CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/web/health', timeout=3)"]
-CMD ["uvicorn", "app.web_poc.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--no-proxy-headers"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+# FORWARDED_ALLOW_IPS must name the proxies (compose), otherwise per-IP limits see one client.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--proxy-headers"]

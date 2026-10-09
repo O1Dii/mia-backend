@@ -25,6 +25,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO))
@@ -89,12 +90,23 @@ from tests.catalog.remote_world import (  # noqa: E402
     running,
     transport_factory,
 )
+from tests.models.auth_world import CLIENT_ID as CHATGPT_CLIENT_ID  # noqa: E402
+from tests.models.auth_world import AuthWorld  # noqa: E402
 from tests.workspace.harness import CLIENT_ID, TokenGoogleVerifier, migrate_to_head  # noqa: E402
 
 ADMIN_SUB = "e2e-store-admin"
 TRACKER_ID = "team.tracker"
 UPDATER_ID = "team.updater"
 TILES_DIR = Path(__file__).resolve().parent / "tiles"
+
+
+def fake_apk() -> Path:
+    folder = Path(tempfile.mkdtemp(prefix="mia-e2e-apk-"))
+    apk = folder / "mia.apk"
+    apk.write_bytes(b"PK\x03\x04" + bytes(2 * 1024 * 1024))
+    info = {"version_name": "0.1.0-e2e", "version_code": 1}
+    (folder / "mia.apk.json").write_text(json.dumps(info))
+    return apk
 
 
 class RealClock:
@@ -312,6 +324,10 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         auth_nonce_rate_limit=1000,
         auth_exchange_rate_limit=1000,
         auth_authenticated_rate_limit=5000,
+        # Like the hosted server (M62-T1): ChatGPT sign-in completes by the pasted address, and
+        # a small stand-in APK is offered for download.
+        chatgpt_plan_loopback_listener=False,
+        android_apk_path=str(fake_apk()),
     )
     auth_composition.GoogleIdTokenVerifier = TokenGoogleVerifier  # type: ignore[misc,assignment]
     app = create_app(settings, install_modules=False)
@@ -322,7 +338,11 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
 
     original = models_composition.build_models_stack
 
+    # The fake auth.openai.com for «Войти в ChatGPT» (token endpoint, JWKS; M62-T1).
+    chatgpt = AuthWorld()
+
     def scripted_stack(*args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("transport", chatgpt.transport)
         stack = original(*args, **kwargs)
         stack.gateway = gateway
         return stack
@@ -449,6 +469,20 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         """What the browser does at the provider: consent at once and return the redirect."""
         url = f"https://auth.test.example/authorize?{request.url.query}"
         return JSONResponse({"location": await browser_authorize(world, url)})
+
+    @test_routes.get("/chatgpt-authorize")
+    async def chatgpt_authorize(request: Request) -> JSONResponse:
+        """ChatGPT consent at once: where the browser lands (the unreachable loopback address)."""
+        query = request.query_params
+        chatgpt.nonce = query["nonce"]
+        landed = (
+            query["redirect_uri"]
+            + "?"
+            + urlencode(
+                {"code": "e2e-code", "state": query["state"], "client_id": CHATGPT_CLIENT_ID}
+            )
+        )
+        return JSONResponse({"location": landed})
 
     @test_routes.get("/world")
     async def world_state() -> JSONResponse:

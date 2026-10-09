@@ -350,6 +350,20 @@
     "owner": "M11"
   },
   {
+    "code": "sign_in_callback_invalid",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The address is not the redirect of this sign-in.",
+    "owner": "M62"
+  },
+  {
+    "code": "sign_in_not_pending",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The sign-in attempt is already finished.",
+    "owner": "M62"
+  },
+  {
     "code": "release_exists",
     "http_status": 409,
     "retryable": false,

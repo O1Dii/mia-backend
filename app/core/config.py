@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -81,7 +82,18 @@ class Settings(BaseSettings):
     tools_mcp_host_allowlist: str | None = Field(default=None, max_length=8000)
     """Comma-separated hosts; when set, remote MCP hosts must also be listed here."""
     public_base_url: str = Field(default="http://localhost:8000", min_length=8, max_length=2048)
-    """Externally visible origin of this API; the OAuth callback of plugin connections (M15)."""
+    """Externally visible origin of this API; the OAuth callback of plugin connections (M15).
+
+    May carry a path when a proxy publishes Mia under a prefix (``https://host/mia``, M62-T1):
+    the path becomes the web cookie path and the prefix of browser redirects.
+    """
+    web_dist_dir: str | None = Field(default=None, min_length=1, max_length=1024)
+    """Built web app (``web/dist``) served by this process; unset = API only (M62-T1)."""
+    android_apk_path: str | None = Field(default=None, min_length=1, max_length=1024)
+    """APK offered at ``/downloads/mia.apk`` (a read-only volume, not the image); 404 if absent."""
+    chatgpt_plan_loopback_listener: bool = True
+    """Listen on ``127.0.0.1:1455`` for the ChatGPT sign-in redirect (backend on the user's own
+    machine). A hosted backend turns it off; the user pastes the redirect address instead."""
     store_admin_user_ids: str | None = Field(default=None, max_length=4000)
     """Comma-separated ``users.id`` allowed to publish plugin releases (M15)."""
     store_packages_dir: str | None = Field(default=None, max_length=1024)
@@ -189,6 +201,11 @@ class Settings(BaseSettings):
             if any(not item.startswith("https://") for item in self.oauth_extra_resource_list):
                 raise ValueError("OAUTH_EXTRA_RESOURCES must list https URLs outside local")
         return self
+
+    @property
+    def public_path_prefix(self) -> str:
+        """Path of ``PUBLIC_BASE_URL`` without the trailing slash: ``""`` or e.g. ``"/mia"``."""
+        return urlsplit(self.public_base_url).path.rstrip("/")
 
     @property
     def oauth_extra_resource_list(self) -> tuple[str, ...]:

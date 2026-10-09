@@ -144,6 +144,7 @@ async def build_store(
     access_ttl: int = 3600,
     supports_registration: bool = True,
     camel_case_tool: bool = True,
+    public_base_url: str = PUBLIC_BASE,
 ) -> AsyncIterator[Store]:
     await asyncio.to_thread(migrate_to_head)
     database = Database(database_url())
@@ -161,7 +162,7 @@ async def build_store(
     settings = Settings(
         app_env="test",
         tools_list_cache_seconds=0,
-        public_base_url=PUBLIC_BASE,
+        public_base_url=public_base_url,
         store_admin_user_ids=admin_id,
         auth_nonce_rate_limit=1000,
         auth_exchange_rate_limit=1000,
@@ -202,7 +203,7 @@ async def build_store(
         vault,
         oauth,
         workspace,
-        public_base_url=PUBLIC_BASE,
+        public_base_url=public_base_url,
         clock=lambda: datetime.fromtimestamp(clock.now, UTC),
     )
     workspace.uninstall_hooks.append(connections.revoke_installation)

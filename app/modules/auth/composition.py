@@ -35,7 +35,10 @@ def install_auth(
     The request authenticator (bearer or web cookie) is available afterwards via
     :func:`request_authenticator` for other modules' routers.
     """
-    policy = web_policy or WebCookiePolicy(secure=settings.app_env != "test")
+    # Under a proxy prefix (PUBLIC_BASE_URL=https://host/mia) the cookies are scoped to "/mia/".
+    policy = web_policy or WebCookiePolicy(
+        secure=settings.app_env != "test", path=settings.public_path_prefix + "/"
+    )
     auth_cache = cache or RedisAuthCache(redis)
     auth_service = service or AuthService(
         database.session_factory,

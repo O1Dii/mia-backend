@@ -1,8 +1,9 @@
 import { errorText } from './errors'
 
-// Same-origin by default; the dev server proxies /v1 to the backend. Set VITE_API_BASE only when
-// the API lives on another origin that allows credentialed requests.
-const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
+// Same origin and the same path prefix as the page (a build with MIA_BASE_PATH=/mia calls
+// /mia/v1/...; the dev server proxies /v1 to the backend). Set VITE_API_BASE only when the API
+// lives on another origin that allows credentialed requests.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? import.meta.env.BASE_URL).replace(/\/$/, '')
 
 export class ApiError extends Error {
   readonly status: number

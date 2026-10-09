@@ -185,6 +185,29 @@ export type ModelConnection = {
   created_at: string
 }
 
+export type ChatGptSignIn = {
+  attempt_id: string
+  authorize_url: string
+  expires_at: string
+  /** The backend listens on 127.0.0.1 itself (local install); otherwise the address is pasted. */
+  listening?: boolean
+}
+export type ChatGptSignInStatus = {
+  attempt_id: string
+  status: 'pending' | 'completed' | 'failed'
+  error_code: string | null
+  connection_id: string | null
+}
+
+/** `GET /downloads/mia.json` (M62-T1): the Android build this server offers. */
+export type AndroidApp = {
+  url: string
+  size_bytes: number
+  updated_at: string
+  version_name: string | null
+  version_code: number | null
+}
+
 // ------------------------------------------------------------------------------ dashboard
 export type TilePlacement = { size: TileSize; position: number }
 export type DashboardTile = {
@@ -427,6 +450,21 @@ export const api = {
     ),
   resumeModel: (id: string) =>
     http<ModelConnection>('POST', `/v1/model-connections/${enc(id)}/resume`),
+  chatgptSignIn: () => http<ChatGptSignIn>('POST', '/v1/model-connections/chatgpt-plan/sign-in'),
+  chatgptSignInStatus: (attemptId: string) =>
+    http<ChatGptSignInStatus>(
+      'GET',
+      `/v1/model-connections/chatgpt-plan/sign-in/${enc(attemptId)}`,
+    ),
+  chatgptSignInCallback: (attemptId: string, callbackUrl: string) =>
+    http<ChatGptSignInStatus>(
+      'POST',
+      `/v1/model-connections/chatgpt-plan/sign-in/${enc(attemptId)}/callback`,
+      { body: { callback_url: callbackUrl }, timeoutMs: 45000 },
+    ),
+
+  // ---- Android app download (public, no session)
+  androidApp: () => http<AndroidApp>('GET', '/downloads/mia.json', { quiet401: true }),
 
   // ---- dashboard (MCP Apps tiles)
   dashboard: () => http<Dashboard>('GET', '/v1/dashboard'),

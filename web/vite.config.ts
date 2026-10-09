@@ -6,7 +6,10 @@ import react from '@vitejs/plugin-react'
 const webPort = Number(process.env.MIA_WEB_PORT ?? 5173)
 const apiUrl = process.env.MIA_API_URL ?? 'http://127.0.0.1:8000'
 // changeOrigin stays off: the API compares the Origin of cookie-authenticated writes with Host.
-const proxy = { '/v1': { target: apiUrl, changeOrigin: false } }
+const proxy = {
+  '/v1': { target: apiUrl, changeOrigin: false },
+  '/downloads': { target: apiUrl, changeOrigin: false },
+}
 
 export default defineConfig({
   base: process.env.MIA_BASE_PATH ? `${process.env.MIA_BASE_PATH}/` : '/',

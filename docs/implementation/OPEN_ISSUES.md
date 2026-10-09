@@ -3061,7 +3061,61 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M62-T1 inbox
 
-- Нет записей.
+### Resolution update → OI-M31-003 (deploy references the deleted `app.web_poc`)
+
+- Proposed status: RESOLVED for `Dockerfile.web` and `deploy/*`; OPEN only for `design/scripts/capture_screenshots.mjs` (outside the M62-T1 write scope, owner M33/design).
+- Resolution: `Dockerfile.web` is now the MVP release image (API `app.main`, worker, migrations, `contracts/mvp/v1`, web built with `/mia`); `deploy/*` rewritten (compose with worker/PostgreSQL/Redis, nginx, `build-release.sh`, `release-mia.sh full|apk|rollback`). The POC was replaced on the server on 2026-10-10.
+- Evidence: handoff M62-T1; `docs/DEPLOY_TEST.md`; image `sha256:81395d0b0c1c…` live at https://mindmapgen.xyz/mia/.
+
+### Resolution update → OI-M50-005 (issuer with a path prefix; rate limits on `/oauth/*`)
+
+- Proposed status: RESOLVED for the path issuer; the rate-limit half stays OPEN for M62.
+- Resolution: issuer `https://mindmapgen.xyz/mia` (`PUBLIC_BASE_URL`); `deploy/mia.nginx.conf` adds exact root locations `/.well-known/oauth-authorization-server/mia`, `/.well-known/openid-configuration/mia`, `/.well-known/oauth-protected-resource/mia` and `…/mia/mcp` → the API; `<issuer>/.well-known/…` keeps working through `/mia/`. `/oauth/*` rate limits are not added: nginx `limit_req_zone` needs the shared `http {}` block owned by another project; do it in Redis in M62.
+- Evidence: public smoke 2026-10-10 (issuer and MCP resource metadata 200 at the root locations); local nginx run of the same file.
+
+### Resolution update → OI-M30-005 (SDK apps screen, ChatGPT plan sign-in on the web)
+
+- Proposed status: RESOLVED.
+- Resolution: option (c): «Модели» → «ChatGPT (подписка)» signs in from the web; «Войти снова» for a `needs_reauth` plan connection. The apps list was already on `/data` (M31). Device code is not available for OpenAI's agent sign-in (only the `127.0.0.1` redirect, checked against developers.openai.com/siwc 2026-10-10), so a hosted backend completes by the pasted redirect address (`POST /v1/model-connections/chatgpt-plan/sign-in/{id}/callback`, `state` checked, same PKCE verifier); a local backend keeps its listener (`CHATGPT_PLAN_LOOPBACK_LISTENER`, default on).
+- Evidence: `tests/models/test_plan_paste_postgres.py`, `web/tests/models.spec.ts` (paste flow against a fake auth.openai.com), contracts (`completeChatgptPlanSignIn`, `sign_in_callback_invalid`, `sign_in_not_pending`).
+
+### OI-M62-T1-001 — Android WebView treats the whole mindmapgen.xyz origin as Mia
+
+- Status: OPEN
+- Source session: M62-T1
+- Component: Android `feature/web` (`WebNavigationPolicy`)
+- Question: with `miaWebBaseUrl=https://mindmapgen.xyz/mia` the policy compares scheme/host/port only, so links to other hub apps (`/knowly/`, `/source-refiner/`) open inside Mia's WebView instead of the browser.
+- Why non-blocking: Mia's pages never link there; cookies are `Path=/mia/`, so other apps get no Mia session; hand-off works (backend returns `redeem_path` with the prefix).
+- Current assumption: leave as is for the test stand.
+- Options: (a) ALLOW only when `url.encodedPath` starts with `webBase.encodedPath` (normalized to end with `/`), else EXTERNAL; (b) keep.
+- Recommendation: (a) in the next Android repair touching `feature/web` (M24-R1 is in progress there; not edited by M62-T1).
+- Affected sessions: M24-R*, M60.
+- Revisit trigger/by: M60.
+
+### OI-M62-T1-002 — Test server data and secrets live only on the VM
+
+- Status: OPEN
+- Source session: M62-T1
+- Component: Deploy
+- Question: `/opt/mia/postgres` and `/opt/mia/secrets` (DB/Redis passwords, `AUTH_JWT_SECRET`, `CREDENTIALS_MASTER_KEYS`) have no off-VM backup; losing `secrets/` makes stored model keys unreadable.
+- Why non-blocking: test stand (card: "mindmapgen.xyz — не production"); M62 owns backups and restore.
+- Current assumption: no backups; the user re-enters keys after a loss.
+- Options: nightly `pg_dump` + encrypted copy of `secrets/` off the VM (M62).
+- Recommendation: M62.
+- Affected sessions: M62.
+- Revisit trigger/by: M62.
+
+### OI-M62-T1-003 — `tests/jobs/test_process.py` restart test is timing-sensitive
+
+- Status: OPEN
+- Source session: M62-T1
+- Component: Tests (M16)
+- Question: `test_schedule_missed_while_worker_was_down_runs_after_restart` sends SIGTERM 1.5 s after spawning `python -m app.worker`; the worker imports in ~1.2–1.3 s, so under load the signal can arrive before the handler is installed (exit -15). Failed in 2 of 5 runs here (one of them a full-suite run); the final full run passed.
+- Why non-blocking: product behaviour is correct; the race is in the test.
+- Options: wait for a readiness line on stderr (or a DB heartbeat) before SIGTERM.
+- Recommendation: next session touching `tests/jobs/**`.
+- Affected sessions: M16 owner / M60.
+- Revisit trigger/by: next flaky report.
 
 ## M60 inbox
 

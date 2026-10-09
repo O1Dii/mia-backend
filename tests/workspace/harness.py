@@ -100,7 +100,7 @@ class Harness:
 
 
 @asynccontextmanager
-async def build_harness() -> AsyncIterator[Harness]:
+async def build_harness(*, public_base_url: str | None = None) -> AsyncIterator[Harness]:
     await asyncio.to_thread(migrate_to_head)
     database = Database(database_url())
     async with database.session_factory() as session, session.begin():
@@ -110,6 +110,7 @@ async def build_harness() -> AsyncIterator[Harness]:
         auth_nonce_rate_limit=1000,
         auth_exchange_rate_limit=1000,
         auth_authenticated_rate_limit=5000,
+        public_base_url=public_base_url or Settings.model_fields["public_base_url"].default,
     )
     cache = RedisAuthCache(FakeRedis())
     service = AuthService(
