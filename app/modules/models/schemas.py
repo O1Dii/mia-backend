@@ -80,6 +80,15 @@ class SignInStartResponse(BaseModel):
     attempt_id: str
     authorize_url: str
     expires_at: datetime
+    listening: bool = False
+    """A loopback listener on the backend waits for the redirect; otherwise paste it (M62-T1)."""
+
+
+class SignInCallbackRequest(BaseModel):
+    """The address the browser landed on after ChatGPT sign-in (it carries the one-time code)."""
+
+    model_config = ConfigDict(extra="forbid")
+    callback_url: SecretStr = Field(min_length=1, max_length=4096)
 
 
 class SignInStatusResponse(BaseModel):

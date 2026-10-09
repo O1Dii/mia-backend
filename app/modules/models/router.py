@@ -16,7 +16,12 @@ from fastapi.routing import APIRoute
 from app.modules.auth.principal import AuthenticationFailure, RequestAuthenticator
 from app.modules.models.catalog import ConnectionValidationError
 from app.modules.models.chatgpt_plan.credentials import PlanCredentialStore
-from app.modules.models.chatgpt_plan.signin import SignInCoordinator
+from app.modules.models.chatgpt_plan.signin import (
+    AttemptNotPendingError,
+    CallbackRejectedError,
+    SignInAttempt,
+    SignInCoordinator,
+)
 from app.modules.models.connections import (
     ConnectionConflictError,
     ConnectionNotFoundError,
@@ -27,6 +32,7 @@ from app.modules.models.schemas import (
     ConnectionListResponse,
     ConnectionResponse,
     CreateConnectionRequest,
+    SignInCallbackRequest,
     SignInStartResponse,
     SignInStatusResponse,
     TestResultResponse,
@@ -192,6 +198,21 @@ def build_models_router(
             attempt_id=attempt.id,
             authorize_url=attempt.authorize_url,
             expires_at=datetime.fromtimestamp(attempt.expires_at, UTC),
+            listening=attempt.listening,
+        )
+
+    def find_attempt(request: Request, user_id: uuid.UUID, attempt_id: str) -> SignInAttempt:
+        attempt = sign_in.status(user_id, attempt_id) if sign_in is not None else None
+        if attempt is None:
+            raise _ApiError(_error(request, 404, "attempt_not_found", "The attempt was not found."))
+        return attempt
+
+    def attempt_view(attempt: SignInAttempt) -> SignInStatusResponse:
+        return SignInStatusResponse(
+            attempt_id=attempt.id,
+            status=attempt.status,
+            error_code=attempt.error_code,
+            connection_id=attempt.connection_id,
         )
 
     @router.get("/chatgpt-plan/sign-in/{attempt_id}", response_model=SignInStatusResponse)
@@ -199,15 +220,35 @@ def build_models_router(
         attempt_id: str, request: Request, authorization: Authorization = None
     ) -> Any:
         user_id = await current_user(request, authorization)
-        attempt = sign_in.status(user_id, attempt_id) if sign_in is not None else None
-        if attempt is None:
-            raise _ApiError(_error(request, 404, "attempt_not_found", "The attempt was not found."))
-        return SignInStatusResponse(
-            attempt_id=attempt.id,
-            status=attempt.status,
-            error_code=attempt.error_code,
-            connection_id=attempt.connection_id,
-        )
+        return attempt_view(find_attempt(request, user_id, attempt_id))
+
+    @router.post("/chatgpt-plan/sign-in/{attempt_id}/callback", response_model=SignInStatusResponse)
+    async def sign_in_callback(
+        attempt_id: str,
+        payload: SignInCallbackRequest,
+        request: Request,
+        authorization: Authorization = None,
+    ) -> Any:
+        """Hosted backend (M62-T1): the user pastes the loopback address the browser landed on."""
+        user_id = await current_user(request, authorization)
+        attempt = find_attempt(request, user_id, attempt_id)
+        assert sign_in is not None
+        try:
+            await sign_in.submit_callback(attempt, payload.callback_url.get_secret_value())
+        except AttemptNotPendingError:
+            raise _ApiError(
+                _error(request, 409, "sign_in_not_pending", "The sign-in attempt is finished.")
+            ) from None
+        except CallbackRejectedError:
+            raise _ApiError(
+                _error(
+                    request,
+                    422,
+                    "sign_in_callback_invalid",
+                    "The address is not the redirect of this sign-in.",
+                )
+            ) from None
+        return attempt_view(attempt)
 
     @router.get("/{connection_id}", response_model=ConnectionResponse)
     async def get_connection(

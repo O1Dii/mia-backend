@@ -33,6 +33,8 @@ SCOPES = "openid profile email offline_access resource.invoke chatgpt.tokens.use
 DIRECT_SCOPE = "chatgpt.tokens.use.direct"
 DEFAULT_PORT = 1455
 CALLBACK_PATH = "/auth/callback"
+FIXED_REDIRECT_URI = f"http://127.0.0.1:{DEFAULT_PORT}{CALLBACK_PATH}"
+"""Redirect URI when no listener runs here (hosted backend): the user pastes where it lands."""
 REFRESH_SKEW_SECONDS = 300
 
 _PERMANENT_REFRESH_ERRORS = frozenset(

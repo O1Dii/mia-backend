@@ -22,6 +22,7 @@ class AuthWorld:
         self.nonce = ""
         self.refresh_calls = 0
         self.code_calls = 0
+        self.last_code_form: dict[str, str] = {}
         self.revoked: list[str] = []
         self.current_refresh = ""
         self.counter = 0
@@ -57,6 +58,7 @@ class AuthWorld:
             await asyncio.sleep(self.delay)
         if form["grant_type"] == "authorization_code":
             self.code_calls += 1
+            self.last_code_form = form
             assert form["code_verifier"] and form["resource"] == "https://api.openai.com/v1"
             payload = self._issue()
             signer = self.id_token_signer or self.signer
