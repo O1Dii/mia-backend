@@ -380,6 +380,7 @@ Repair (параллельно, write scopes не пересекаются):
 | M22-R1 | MW5 | READY | M22, UC-MW2-3 | Opus 5.5 high | — | — | repair: эхо TTS → самоперебивание (OI-M22-001 ESCALATED); scope `core/audio`, `core/tts`, `feature/voice` |
 | M25-R1 | MW5 | READY | M25, UC-M25-1/2 | Opus 5.5 high | — | — | repair: клавиатура перекрывает чат, диктовка обрывается, боковая кнопка не ведёт в чат; scope `feature/chat`, `app`, `feature/assistant` |
 | M24-R1 | MW5 | READY | M24, UC-M24-2 | Opus 5.5 high | — | — | repair: окно согласия в WebView высотой с input; scope `feature/web`, стили диалогов web |
+| M62-T1 | MW5 | IN_PROGRESS | M51-R1 (main) | Opus 5.5 high | — | — | тестовый деплой на mindmapgen.xyz/mia, APK для скачивания, вход ChatGPT из «Модели»; разрешение пользователя на выкладку 2026-10-10 |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт живые UC-M40-1 (M40) и UC-M41-1/2 (M41) |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |

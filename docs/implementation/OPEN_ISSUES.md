@@ -2922,6 +2922,10 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Resolution:
 - Evidence: `feature/web/.../WebSurface.kt`, `web/src/App.tsx` (`tabs`).
 
+## M62-T1 inbox
+
+- Нет записей.
+
 ## M60 inbox
 
 - Нет записей.

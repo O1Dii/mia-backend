@@ -1259,6 +1259,34 @@ smoke чата.
 - smoke на сервере;
 - runbook.
 
+### M62-T1 — Тестовый деплой на mindmapgen.xyz/mia и APK для скачивания
+
+Добавлена 2026-10-10 по решению пользователя: тестовый деплой раньше M60, чтобы проверять без
+USB и с публичным https. mindmapgen.xyz — не production. Полный пилот (бэкапы вне VM, restore
+drill, метрики) остаётся в M62.
+
+**Objective:** текущий MVP (API, worker, Postgres, Redis, web) работает на
+`https://mindmapgen.xyz/mia/` вместо старого POC; на web есть «Скачать для Android»; модель
+ChatGPT по подписке подключается из интерфейса.
+
+**Write scope:** B: `deploy/**`, `Dockerfile*`, `docker-compose.yml`, `app/main.py` (раздача
+web), настройки пути cookie/issuer в `app/core/config.py` и `app/modules/auth/**` (только
+cookie path/trusted origins), `app/modules/models/chatgpt_plan/**` + `router.py` (вход по коду
+и вставка адреса), `web/src/components/Models.tsx`, `web/src/lib/{api,http}.ts`, место кнопки
+APK в web (`More`/`Privacy`), маршрут `/downloads/mia.apk`, тесты, `docs/DEPLOY_TEST.md`.
+A: только сборка APK с `-PmiaBackendBaseUrl=https://mindmapgen.xyz/mia` (без правок кода).
+
+**Решения пользователя:** выкладка на внешний сервер разрешена (замена POC на `/mia/`,
+nginx `/mia`, карточка хаба, перезапуск только сервиса mia; пароль сервера — из общего
+deploy-скрипта как переменная окружения, без вывода); данные POC не переносить (SQLite —
+резервная копия на сервере); APK — debug-вариант `by.mia.assistant.debug`, хранить на сервере
+в томе, не в образе; ChatGPT — вход из «Модели» (device code, запасной путь — вставка адреса).
+
+**DoD:** smoke на сервере (health, вход Google на web, run с моделью, SSE через nginx,
+worker); cookie ограничены `/mia/`; другие приложения сервера отвечают как до выкладки;
+APK скачивается и входит на телефоне без USB; rollback к прежнему образу проверен или
+описан; память сервера после выкладки записана.
+
 ## 7. Wave gates
 
 | Gate | Условия |
