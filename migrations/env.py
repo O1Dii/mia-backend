@@ -14,6 +14,7 @@ from app.modules.jobs import models as job_models  # noqa: F401
 from app.modules.memory import models as memory_models  # noqa: F401
 from app.modules.models import models as model_gateway_models  # noqa: F401
 from app.modules.notifications import models as notification_models  # noqa: F401
+from app.modules.oauth import models as oauth_models  # noqa: F401
 from app.modules.plugins.catalog import models as catalog_models  # noqa: F401
 from app.modules.runs import models as run_models  # noqa: F401
 from app.modules.tools import models as tool_models  # noqa: F401

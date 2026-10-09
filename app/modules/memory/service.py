@@ -309,8 +309,12 @@ class MemoryService:
         query: str,
         categories: Collection[MemoryCategory] | None = None,
         limit: int = 8,
+        actor: Actor = "run",
+        app_client_id: str | None = None,
     ) -> Sequence[FactRecord]:
-        """Pinned profile + top FTS facts + people named in the query, minimized."""
+        """Pinned profile + top FTS facts + people named in the query, minimized.
+
+        ``actor``/``app_client_id`` only label the access-log entry (M50: ``"app"``)."""
         user = _uuid(user_id)
         if user is None or limit <= 0:
             return ()
@@ -388,7 +392,14 @@ class MemoryService:
                     )
                 )
             if chosen:
-                await self._log(session, user, actor="run", action="context", count=len(chosen))
+                await self._log(
+                    session,
+                    user,
+                    actor=actor,
+                    action="context",
+                    count=len(chosen),
+                    app_client_id=app_client_id,
+                )
         return chosen
 
     def _active_facts(self, user: uuid.UUID) -> Select[tuple[MemoryFact]]:

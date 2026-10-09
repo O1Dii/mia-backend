@@ -87,6 +87,22 @@ class Settings(BaseSettings):
     """Where published packages (``SKILL.md``, ``ui/``) are materialized; temp dir if unset."""
     connections_oauth_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     connections_oauth_flow_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    oauth_issuer: str | None = Field(default=None, min_length=8, max_length=2048)
+    """Issuer of «Войти через Mia» (M50); defaults to ``PUBLIC_BASE_URL``."""
+    oauth_consent_url: str | None = Field(default=None, min_length=8, max_length=2048)
+    """Consent page (web ``oauth.html``); defaults to ``<PUBLIC_BASE_URL>/oauth.html``."""
+    oauth_access_token_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    oauth_refresh_token_ttl_days: int = Field(default=30, ge=1, le=180)
+    oauth_code_ttl_seconds: int = Field(default=60, ge=10, le=600)
+    oauth_request_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    oauth_cimd_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    oauth_cimd_cache_seconds: int = Field(default=3600, ge=60, le=86400)
+    oauth_allow_loopback_clients: bool = False
+    """Dev only: accept ``http://localhost`` client_id documents (refused in staging/production)."""
+    apps_default_monthly_limit_usd: float = Field(default=5.0, ge=0, le=1000)
+    apps_max_monthly_limit_usd: float = Field(default=100.0, ge=0, le=100000)
+    apps_estimated_input_usd_per_mtok: float = Field(default=0.5, ge=0, le=1000)
+    apps_estimated_output_usd_per_mtok: float = Field(default=2.0, ge=0, le=1000)
 
     @field_validator("log_level")
     @classmethod
@@ -136,6 +152,8 @@ class Settings(BaseSettings):
                 raise ValueError("AUTH_JWT_SECRET must be overridden outside local environments")
             if self.credentials_master_keys is None:
                 raise ValueError("CREDENTIALS_MASTER_KEYS is required outside local environments")
+            if self.oauth_allow_loopback_clients:
+                raise ValueError("OAUTH_ALLOW_LOOPBACK_CLIENTS is for local development only")
         return self
 
     @property
