@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>Задачи</title>
+    <!--mia:bridge-->
+    <style>
+      body {
+        font:
+          14px system-ui,
+          sans-serif;
+        margin: 8px;
+      }
+      li {
+        padding: 2px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <ul id="list"></ul>
+    <button id="reload">Загрузить задачи</button>
+    <script>
+      ;(function () {
+        var list = document.getElementById('list')
+        function show(data) {
+          list.textContent = ''
+          ;((data && data.issues) || []).forEach(function (issue) {
+            var li = document.createElement('li')
+            li.textContent = 'Задача ' + issue.id
+            list.appendChild(li)
+          })
+        }
+        window.mia.onData(show)
+        document.getElementById('reload').addEventListener('click', function () {
+          window.mia.call('list_issues').catch(function () {})
+        })
+      })()
+    </script>
+  </body>
+</html>

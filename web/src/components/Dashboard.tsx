@@ -1,235 +1,338 @@
-import { useState } from 'react'
-import {
-  ArrowDown,
-  ArrowUp,
-  GripVertical,
-  LayoutDashboard,
-  Maximize2,
-  Plus,
-  Settings2,
-  X,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { ArrowDown, ArrowUp, LayoutGrid, LoaderCircle, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type Connection, type WidgetLayout } from '../lib/legacyApi'
-import { useWorkspace } from '../lib/workspace'
-import type { Plugin } from '../plugins/catalog'
-import { Tool } from '../plugins/Tools'
+import {
+  api,
+  type CatalogDetail,
+  type Dashboard as DashboardData,
+  type DashboardTile,
+  type Installation,
+  type TileSize,
+} from '../lib/api'
+import { ApiError, messageOf } from '../lib/http'
+import { Link } from '../lib/router'
+import { TileFrame } from '../plugins/TileFrame'
+import { Dialog } from './Dialog'
 
-export function Dashboard({
-  plugins,
-  active,
-  now,
-  openModels,
-  openStore,
-}: {
-  plugins: Plugin[]
-  active?: Connection
-  now: number
-  openModels: () => void
-  openStore: () => void
-}) {
-  const { snapshot, accept, error } = useWorkspace()
+type TileMeta = { plugin: string; title: string; sizes: TileSize[]; hidden: boolean }
+type Option = {
+  installation: Installation
+  plugin: string
+  id: string
+  title: string
+  sizes: TileSize[]
+}
+
+const sizeLabel: Record<TileSize, string> = {
+  '1x1': 'Маленькая (1×1)',
+  '2x1': 'Узкая (2×1)',
+  '2x2': 'Средняя (2×2)',
+  '4x2': 'Широкая (4×2)',
+  '4x4': 'Большая (4×4)',
+}
+
+/** The dashboard: every tile is an MCP Apps document of an installed plugin. */
+export function Dashboard() {
+  const [dash, setDash] = useState<DashboardData | null>(null)
+  const [installs, setInstalls] = useState<Installation[]>([])
+  const [details, setDetails] = useState<Record<string, CatalogDetail | null>>({})
+  const [error, setError] = useState('')
   const [editing, setEditing] = useState(false)
-  const [dragging, setDragging] = useState<string | null>(null)
-  const widgets = snapshot?.layout ?? []
-  const available = plugins.filter(
-    (p) => snapshot?.installed.includes(p.id) && !widgets.some((w) => w.plugin_id === p.id),
-  )
-  async function save(next: WidgetLayout[]) {
+  const [adding, setAdding] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
     try {
-      accept(await api.layout(next))
+      const [layout, installations] = await Promise.all([api.dashboard(), api.installations()])
+      setDash(layout)
+      setInstalls(installations.items)
+      const ids = [...new Set(installations.items.map((i) => i.plugin_id))]
+      const entries = await Promise.all(
+        ids.map(async (id) => [id, await api.plugin(id).catch(() => null)] as const),
+      )
+      setDetails(Object.fromEntries(entries))
+      setError('')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Не удалось сохранить раскладку')
+      setError(messageOf(e, 'Не удалось загрузить дашборд.'))
+    }
+  }, [])
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const meta = useCallback(
+    (tile: DashboardTile): TileMeta => {
+      const installation = installs.find((i) => i.id === tile.installation_id)
+      const detail = installation ? details[installation.plugin_id] : null
+      const declared = detail?.manifest.surfaces?.tiles?.find((t) => t.id === tile.tile_id)
+      return {
+        plugin: detail?.name ?? installation?.plugin_id ?? 'Плагин',
+        title: declared?.title ?? detail?.name ?? tile.tile_id,
+        sizes: declared?.sizes ?? [tile.size],
+        hidden: declared?.mobile === 'hidden',
+      }
+    },
+    [installs, details],
+  )
+
+  const ordered = useMemo(
+    () => [...(dash?.tiles ?? [])].sort((a, b) => a.position - b.position),
+    [dash],
+  )
+
+  async function save(next: DashboardTile[]) {
+    if (!dash) return
+    setSaving(true)
+    const tiles = next.map((tile, index) => ({
+      id: tile.id,
+      installation_id: tile.installation_id,
+      tile_id: tile.tile_id,
+      settings: tile.settings,
+      size: tile.size,
+      position: index,
+      mobile: { size: tile.mobile?.size ?? tile.size, position: index },
+    }))
+    try {
+      setDash(await api.putDashboard({ expected_version: dash.expected_version, tiles }))
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'version_conflict') await load()
+      toast.error(messageOf(e, 'Не удалось сохранить расположение.'))
+    } finally {
+      setSaving(false)
     }
   }
-  function move(id: string, position: number) {
-    const next = [...widgets]
-    const index = next.findIndex((w) => w.id === id)
-    if (index < 0) return
-    const [widget] = next.splice(index, 1)
-    next.splice(Math.max(0, Math.min(position, next.length)), 0, widget)
-    void save(next)
+
+  function resize(tile: DashboardTile, size: TileSize) {
+    void save(
+      ordered.map((t) => (t.id === tile.id ? { ...t, size, mobile: { ...t.mobile, size } } : t)),
+    )
   }
+  function move(tile: DashboardTile, delta: -1 | 1) {
+    const list = [...ordered]
+    const index = list.findIndex((t) => t.id === tile.id)
+    const target = index + delta
+    if (target < 0 || target >= list.length) return
+    ;[list[index], list[target]] = [list[target]!, list[index]!]
+    void save(list)
+  }
+  function remove(tile: DashboardTile) {
+    void save(ordered.filter((t) => t.id !== tile.id))
+  }
+
+  const available = useMemo(() => {
+    const options: Option[] = []
+    for (const installation of installs) {
+      if (installation.status !== 'active') continue
+      const detail = details[installation.plugin_id]
+      for (const tile of detail?.manifest.surfaces?.tiles ?? []) {
+        if (ordered.some((t) => t.installation_id === installation.id && t.tile_id === tile.id))
+          continue
+        options.push({
+          installation,
+          plugin: detail?.name ?? installation.plugin_id,
+          id: tile.id,
+          title: tile.title ?? detail?.name ?? tile.id,
+          sizes: tile.sizes,
+        })
+      }
+    }
+    return options
+  }, [installs, details, ordered])
+
+  async function add(option: Option, size: TileSize) {
+    const tile: DashboardTile = {
+      id: crypto.randomUUID(),
+      installation_id: option.installation.id,
+      tile_id: option.id,
+      size,
+      position: ordered.length,
+      mobile: { size, position: ordered.length },
+      settings: {},
+      state_version: 0,
+    }
+    setAdding(false)
+    await save([...ordered, tile])
+  }
+
   return (
-    <div className="dashboard-page">
-      <div className="page-heading dashboard-heading">
+    <section className="mw-page" aria-labelledby="dash-title">
+      <header className="mw-page__head mw-dash__head">
         <div>
-          <span className="eyebrow">ОДНА МОДЕЛЬ. ВАШИ ПРИЛОЖЕНИЯ.</span>
-          <h1>
-            Ваш день.
-            <br />
-            <span>В одном пространстве.</span>
-          </h1>
-          <p>Скажите Мии, что сделать, — ваши виджеты подхватят.</p>
+          <h1 id="dash-title">Дашборд</h1>
+          <p>Плитки установленных плагинов. Они обновляются сами и работают без модели.</p>
         </div>
-        <button
-          className={`button ${editing ? 'primary' : 'secondary'}`}
-          onClick={() => setEditing(!editing)}
-        >
-          <Settings2 size={16} />
-          {editing ? 'Готово' : 'Настроить дашборд'}
-        </button>
-      </div>
-      <div className="dashboard-model-bar">
-        <span className={`model-dot ${active ? 'connected' : ''}`} />
-        <span>
-          {active
-            ? `${active.label} · ${active.model}`
-            : 'Подключите модель для управления через чат'}
-        </span>
-        <a href="#chat">Попросить Мию →</a>
-      </div>
+        <div className="mw-actions">
+          <button
+            className="mia-btn mia-btn--secondary"
+            onClick={() => setAdding(true)}
+            disabled={!dash}
+          >
+            <Plus size={16} aria-hidden="true" /> Добавить плитку
+          </button>
+          {ordered.length > 0 && (
+            <button
+              className={`mia-btn ${editing ? 'mia-btn--primary' : 'mia-btn--ghost'}`}
+              aria-pressed={editing}
+              onClick={() => setEditing((value) => !value)}
+            >
+              <Pencil size={16} aria-hidden="true" /> {editing ? 'Готово' : 'Изменить'}
+            </button>
+          )}
+        </div>
+      </header>
       {error && (
-        <p className="error-message" role="alert">
+        <p className="mw-error" role="alert">
           {error}
         </p>
       )}
-      {widgets.length === 0 ? (
-        <div className="empty-state">
-          <LayoutDashboard size={40} />
-          <h2>Первые плитки для вашего дня</h2>
+      {!dash && !error && (
+        <p className="mw-muted" role="status">
+          <LoaderCircle size={16} className="spin" /> Загружаем…
+        </p>
+      )}
+      {dash && ordered.length === 0 && (
+        <div className="mw-empty mia-glass">
+          <LayoutGrid size={28} aria-hidden="true" />
+          <h2>На дашборде пока пусто</h2>
           <p>
-            Установите таймер, новостную сводку или приложение автора.
-            <br />
-            Его view появится здесь и будет связан с вашей моделью.
+            {available.length > 0
+              ? 'Добавьте плитку установленного плагина, например таймер.'
+              : 'Установите плагин с плиткой в магазине, например таймер.'}
           </p>
-          <button className="button primary" onClick={openStore}>
-            <Plus size={16} /> Выбрать плагины
-          </button>
-        </div>
-      ) : (
-        <div className={`dashboard-grid ${editing ? 'is-editing' : ''}`}>
-          {widgets.map((widget, index) => {
-            const plugin = plugins.find((p) => p.id === widget.plugin_id)
-            if (!plugin) return null
-            return (
-              <section
-                className={`dashboard-tile tile-${widget.size}`}
-                data-plugin={plugin.id}
-                key={widget.id}
-                onDragOver={(e) => {
-                  if (editing) e.preventDefault()
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (dragging) move(dragging, index)
-                  setDragging(null)
-                }}
-              >
-                <div className="tile-heading">
-                  <div>
-                    <span className={`tile-color ${plugin.color}`} />
-                    <h2>{plugin.name}</h2>
-                  </div>
-                  {editing ? (
-                    <div className="tile-controls">
-                      <button
-                        className="icon-button drag-handle"
-                        draggable
-                        onDragStart={() => setDragging(widget.id)}
-                        aria-label={`Перетащить ${plugin.name}`}
-                      >
-                        <GripVertical size={16} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        disabled={index === 0}
-                        aria-label={`Поднять ${plugin.name}`}
-                        onClick={() => move(widget.id, index - 1)}
-                      >
-                        <ArrowUp size={15} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        disabled={index === widgets.length - 1}
-                        aria-label={`Опустить ${plugin.name}`}
-                        onClick={() => move(widget.id, index + 1)}
-                      >
-                        <ArrowDown size={15} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`Убрать виджет ${plugin.name}`}
-                        onClick={() => void save(widgets.filter((w) => w.id !== widget.id))}
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ) : (
-                    <Maximize2 size={14} className="muted" />
-                  )}
-                </div>
-                {editing && (
-                  <label className="widget-size">
-                    Размер плитки
-                    <select
-                      aria-label={`Размер ${plugin.name}`}
-                      value={widget.size}
-                      onChange={(e) =>
-                        void save(
-                          widgets.map((w) =>
-                            w.id === widget.id
-                              ? { ...w, size: e.target.value as WidgetLayout['size'] }
-                              : w,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="small">Компактный</option>
-                      <option value="medium">Обычный</option>
-                      <option value="wide">Широкий</option>
-                    </select>
-                  </label>
-                )}
-                <Tool plugin={plugin} now={now} active={active} openModels={openModels} compact />
-              </section>
-            )
-          })}
+          {available.length > 0 ? (
+            <button className="mia-btn mia-btn--primary" onClick={() => setAdding(true)}>
+              Добавить плитку
+            </button>
+          ) : (
+            <Link to="/store" className="mia-btn mia-btn--primary">
+              Открыть магазин
+            </Link>
+          )}
         </div>
       )}
-      {editing && (
-        <div className="dashboard-add">
-          <h3>Добавить плитку</h3>
-          {available.map((plugin) => (
-            <button
-              className="button secondary"
-              key={plugin.id}
-              onClick={() =>
-                void save([
-                  ...widgets,
-                  { id: crypto.randomUUID(), plugin_id: plugin.id, size: 'medium' },
-                ])
+      <ul className="mw-tiles" aria-label="Плитки">
+        {ordered.map((tile, index) => {
+          const info = meta(tile)
+          return (
+            <li
+              key={tile.id}
+              className={`mw-tile mia-glass${info.hidden ? ' mw-tile--no-mobile' : ''}`}
+              data-size={tile.size}
+              data-mobile-size={tile.mobile.size}
+              data-tile={tile.tile_id}
+              style={
+                {
+                  '--mw-pos': tile.position,
+                  '--mw-pos-mobile': tile.mobile.position,
+                } as CSSProperties
               }
             >
-              <Plus size={15} />
-              {plugin.name}
-            </button>
-          ))}
-          <button className="button secondary" onClick={openStore}>
-            <Plus size={15} /> Найти ещё в магазине
-          </button>
-        </div>
-      )}
-      {!!snapshot?.audit.length && (
-        <details className="activity-log">
-          <summary>Последние действия Мии и приложений</summary>
-          {[...snapshot.audit]
-            .reverse()
-            .slice(0, 8)
-            .map((item) => (
-              <div key={item.id}>
-                <span className={item.ok ? 'activity-ok' : 'activity-error'}>
-                  {item.ok ? '✓' : '!'}
-                </span>
-                <span>
-                  {plugins.find((p) => p.id === item.plugin_id)?.name ?? item.plugin_id} ·{' '}
-                  {item.name.split('__')[1]}
-                </span>
-                <small>{new Date(item.at).toLocaleTimeString('ru')}</small>
+              <header className="mw-tile__head">
+                <h2>{info.title}</h2>
+                <span className="mw-tile__plugin">{info.plugin}</span>
+              </header>
+              <div className="mw-tile__body">
+                <TileFrame
+                  installationId={tile.installation_id}
+                  tileId={tile.tile_id}
+                  title={info.title}
+                />
               </div>
-            ))}
-        </details>
+              {editing && (
+                <div
+                  className="mw-tile__edit"
+                  role="group"
+                  aria-label={`Настройки плитки ${info.title}`}
+                >
+                  <label className="mw-tile__size">
+                    <span className="mw-muted">Размер</span>
+                    <select
+                      value={tile.size}
+                      disabled={saving || info.sizes.length < 2}
+                      onChange={(event) => resize(tile, event.target.value as TileSize)}
+                    >
+                      {info.sizes.map((size) => (
+                        <option key={size} value={size}>
+                          {sizeLabel[size]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="mia-icon-btn"
+                    aria-label={`Сдвинуть «${info.title}» раньше`}
+                    disabled={saving || index === 0}
+                    onClick={() => move(tile, -1)}
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                  <button
+                    className="mia-icon-btn"
+                    aria-label={`Сдвинуть «${info.title}» позже`}
+                    disabled={saving || index === ordered.length - 1}
+                    onClick={() => move(tile, 1)}
+                  >
+                    <ArrowDown size={18} />
+                  </button>
+                  <button
+                    className="mia-icon-btn"
+                    aria-label={`Убрать плитку «${info.title}»`}
+                    disabled={saving}
+                    onClick={() => remove(tile)}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {adding && (
+        <Dialog
+          title="Добавить плитку"
+          description="Плитки есть у установленных плагинов."
+          onClose={() => setAdding(false)}
+        >
+          {available.length === 0 ? (
+            <div className="mw-stack">
+              <p className="mw-muted">
+                Нет плиток, которые можно добавить. Установите плагин с плиткой в магазине.
+              </p>
+              <Link
+                to="/store"
+                className="mia-btn mia-btn--primary"
+                onClick={() => setAdding(false)}
+              >
+                Открыть магазин
+              </Link>
+            </div>
+          ) : (
+            <ul className="mw-stack">
+              {available.map((option) => (
+                <li key={`${option.installation.id}/${option.id}`} className="mw-choice">
+                  <div>
+                    <strong>{option.title}</strong>
+                    <p className="mw-muted">{option.plugin}</p>
+                  </div>
+                  <div className="mw-actions">
+                    {option.sizes.map((size) => (
+                      <button
+                        key={size}
+                        className="mia-btn mia-btn--secondary"
+                        aria-label={`Добавить «${option.title}», ${sizeLabel[size]}`}
+                        onClick={() => void add(option, size)}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Dialog>
       )}
-    </div>
+    </section>
   )
 }

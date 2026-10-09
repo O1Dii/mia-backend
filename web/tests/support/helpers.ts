@@ -49,6 +49,7 @@ export type World = {
   calls: [string, Record<string, unknown>][]
   revocations: unknown[]
   registrations: number
+  model_calls: number
 }
 export async function world(page: Page): Promise<World> {
   return (await (await page.request.get('/__e2e/world')).json()) as World
@@ -163,4 +164,51 @@ export async function horizontalOverflow(page: Page): Promise<string[]> {
       .slice(0, 8)
       .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 60)}`)
   })
+}
+
+/** Install a builtin plugin (no account needed) through the store's consent dialog. */
+export async function installBuiltin(page: Page, pluginId: string) {
+  await page.goto(`/store/plugin/${pluginId}`)
+  await page.getByRole('button', { name: 'Установить', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Установить', exact: true }).click()
+  await expect(page.getByText(/^Установлено · /)).toBeVisible()
+}
+
+/** Add a tile of an installed plugin from the dashboard's dialog. */
+export async function addTile(page: Page, title: string, size: string) {
+  await page.goto('/dashboard')
+  await page.getByRole('button', { name: 'Добавить плитку' }).first().click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: new RegExp(`Добавить «${title}», .*`) })
+    .filter({ hasText: size })
+    .click()
+  await expect(page.getByRole('heading', { name: title, level: 2 })).toBeVisible()
+}
+
+export function tileFrame(page: Page, title: string) {
+  return page.frameLocator(`iframe[title="Плитка: ${title}"]`)
+}
+
+/** Call a tile's tool the way its iframe does (through the host endpoint), from the test. */
+export async function callTile(
+  page: Page,
+  installationId: string,
+  tileId: string,
+  name: string,
+  args: Record<string, unknown> = {},
+) {
+  const response = await page.request.post(
+    `/v1/installations/${installationId}/tiles/${tileId}/tool-calls`,
+    { headers: { 'Idempotency-Key': crypto.randomUUID() }, data: { name, arguments: args } },
+  )
+  return { status: response.status(), body: (await response.json()) as Record<string, any> }
+}
+
+export async function installationId(page: Page, pluginId: string): Promise<string> {
+  const response = await page.request.get('/v1/installations')
+  const items = ((await response.json()) as { items: { id: string; plugin_id: string }[] }).items
+  const found = items.find((i) => i.plugin_id === pluginId)
+  if (!found) throw new Error(`${pluginId} is not installed`)
+  return found.id
 }

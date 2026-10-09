@@ -49,6 +49,14 @@ const messages: Record<string, string> = {
   invalid_feed_cursor: 'Не удалось загрузить историю. Обновите страницу.',
   run_not_found: 'Ответ не найден.',
   network_error: 'Нет связи с сервером. Проверьте интернет.',
+  tile_unavailable: 'Плитка сейчас недоступна.',
+  memory_unavailable: 'Память сейчас недоступна. Попробуйте через минуту.',
+  memory_import_invalid: 'Не удалось разобрать файл. Проверьте формат.',
+  memory_import_too_large: 'Файл слишком большой для импорта.',
+  job_not_found: 'Задача не найдена.',
+  schedule_not_found: 'Расписание не найдено.',
+  inbox_item_not_found: 'Запись не найдена.',
+  job_limit_exceeded: 'Слишком много фоновых задач. Дождитесь завершения.',
 }
 
 export function errorText(code: string | undefined, fallback?: string): string {

@@ -60,10 +60,21 @@ export type Approval = {
 
 // ------------------------------------------------------------------------------- store
 export type Rating = { average: number | null; count: number }
+export type TileSize = '1x1' | '2x1' | '2x2' | '4x2' | '4x4'
+export type ManifestTile = {
+  id: string
+  title?: string
+  sizes: TileSize[]
+  mobile?: 'card' | 'tile' | 'hidden'
+}
 export type CatalogEntry = {
   plugin_id: string
   version: string
-  manifest: { server?: { kind?: string; auth?: string }; listing?: { author?: string } }
+  manifest: {
+    server?: { kind?: string; auth?: string }
+    listing?: { author?: string }
+    surfaces?: { tiles?: ManifestTile[] }
+  }
   name: string
   description: string
   category: string
@@ -173,6 +184,145 @@ export type ModelConnection = {
   created_at: string
 }
 
+// ------------------------------------------------------------------------------ dashboard
+export type TilePlacement = { size: TileSize; position: number }
+export type DashboardTile = {
+  id: string
+  installation_id: string
+  tile_id: string
+  size: TileSize
+  position: number
+  mobile: TilePlacement
+  settings: Record<string, unknown>
+  state_version: number
+}
+export type DashboardTileInput = Omit<DashboardTile, 'state_version'>
+export type Dashboard = { expected_version: number; tiles: DashboardTile[] }
+export type TileDocument = {
+  installation_id: string
+  plugin_id: string
+  tile_id: string
+  title: string | null
+  resource_uri: string
+  html: string
+  csp: string
+  sizes: TileSize[]
+  mobile: 'card' | 'tile' | 'hidden'
+  refresh: { tool: string; every_seconds: number } | null
+  tools: string[]
+}
+export type TileToolResult = {
+  status: string
+  is_error: boolean
+  content: string
+  structured_content: Record<string, unknown> | null
+  error_code: string | null
+}
+
+// --------------------------------------------------------------------------------- memory
+export type MemoryCategory =
+  'profile' | 'work' | 'home' | 'health' | 'finance' | 'interests' | 'other'
+export type RecordStatus = 'suggested' | 'active' | 'rejected'
+export type MemorySource = { type: string; ref?: string }
+export type Fact = {
+  kind: 'fact'
+  id: string
+  text: string
+  category: MemoryCategory
+  source: MemorySource
+  status: RecordStatus
+  sensitivity: 'normal' | 'sensitive'
+  scope: 'user' | 'automation'
+  created_at: string
+  updated_at: string
+  last_used_at: string | null
+}
+export type Person = {
+  kind: 'person'
+  id: string
+  display_name: string
+  aliases: string[]
+  relation?: string
+  identifiers: Record<string, string | number>
+  trusted?: boolean
+  source: MemorySource
+  status: RecordStatus
+  sensitivity: 'normal' | 'sensitive'
+  created_at: string
+  updated_at: string
+  last_used_at: string | null
+}
+export type Preference = {
+  kind: 'preference'
+  id: string
+  key: string
+  value: string | number | boolean
+  source: MemorySource
+  created_at: string
+  updated_at: string
+}
+export type Retention = '30d' | '1y' | 'forever' | 'none'
+export type MemorySettings = { autosave_categories: MemoryCategory[]; history_retention: Retention }
+export type MemoryAccess = {
+  at: string
+  actor: 'run' | 'user' | 'app' | 'system'
+  action: string
+  record_count: number
+  run_id?: string
+  app_client_id?: string
+}
+
+// --------------------------------------------------------------------- background and inbox
+export type JobStatus =
+  'queued' | 'running' | 'waiting_approval' | 'succeeded' | 'failed' | 'cancelled'
+export type Job = {
+  id: string
+  goal: string
+  status: JobStatus
+  origin: { type: 'run' | 'schedule' | 'app' | 'user'; id: string }
+  run_id?: string | null
+  attempt: number
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  result: AssistantResponse | null
+  error: { code: string; message: string } | null
+  kind?: 'run' | 'reminder'
+}
+export type Schedule = {
+  id: string
+  rule: string
+  timezone: string
+  goal: string
+  delivery: { channels: string[] }
+  misfire_policy: string
+  status: 'active' | 'paused'
+  next_run_at: string | null
+  last_run_at: string | null
+  created_at: string
+  kind?: 'run' | 'reminder'
+}
+export type InboxItem = {
+  id: string
+  source: { type: 'job' | 'schedule' | 'plugin' | 'system'; id: string }
+  title: string
+  response: AssistantResponse
+  created_at: string
+  read_at: string | null
+}
+export type ConnectedApp = {
+  id: string
+  client_id: string
+  client_name: string
+  client_uri?: string | null
+  scopes: string[]
+  memory_categories: string[]
+  monthly_limit_usd: string
+  month_spend_usd?: string
+  created_at: string
+  updated_at: string
+}
+
 const enc = encodeURIComponent
 
 export const api = {
@@ -272,4 +422,79 @@ export const api = {
     ),
   resumeModel: (id: string) =>
     http<ModelConnection>('POST', `/v1/model-connections/${enc(id)}/resume`),
+
+  // ---- dashboard (MCP Apps tiles)
+  dashboard: () => http<Dashboard>('GET', '/v1/dashboard'),
+  putDashboard: (dashboard: { expected_version: number; tiles: DashboardTileInput[] }) =>
+    http<Dashboard>('PUT', '/v1/dashboard', { body: dashboard }),
+  tileDocument: (installationId: string, tileId: string) =>
+    http<TileDocument>('GET', `/v1/installations/${enc(installationId)}/tiles/${enc(tileId)}`),
+  tileCall: (installationId: string, tileId: string, name: string, args: Record<string, unknown>) =>
+    http<TileToolResult>(
+      'POST',
+      `/v1/installations/${enc(installationId)}/tiles/${enc(tileId)}/tool-calls`,
+      { body: { name, arguments: args }, timeoutMs: 70000 },
+    ),
+
+  // ---- memory
+  facts: (status: RecordStatus, cursor?: string) =>
+    http<{ items: Fact[]; next_cursor: string | null }>('GET', '/v1/memory/facts', {
+      query: { status, cursor, limit: 100 },
+    }),
+  createFact: (text: string, category: MemoryCategory) =>
+    http<Fact>('POST', '/v1/memory/facts', { body: { text, category } }),
+  patchFact: (
+    id: string,
+    patch: Partial<Pick<Fact, 'text' | 'category'>> & { status?: 'active' | 'rejected' },
+  ) => http<Fact>('PATCH', `/v1/memory/facts/${enc(id)}`, { body: patch }),
+  deleteFact: (id: string) => http<void>('DELETE', `/v1/memory/facts/${enc(id)}`),
+  people: (status: RecordStatus) =>
+    http<{ items: Person[] }>('GET', '/v1/memory/people', { query: { status } }),
+  createPerson: (input: { display_name: string; relation?: string; aliases?: string[] }) =>
+    http<Person>('POST', '/v1/memory/people', { body: input }),
+  patchPerson: (
+    id: string,
+    patch: {
+      display_name?: string
+      relation?: string
+      aliases?: string[]
+      trusted?: boolean
+      status?: 'active' | 'rejected'
+    },
+  ) => http<Person>('PATCH', `/v1/memory/people/${enc(id)}`, { body: patch }),
+  deletePerson: (id: string) => http<void>('DELETE', `/v1/memory/people/${enc(id)}`),
+  preferences: () => http<{ items: Preference[] }>('GET', '/v1/memory/preferences'),
+  putPreference: (key: string, value: string | number | boolean) =>
+    http<Preference>('PUT', `/v1/memory/preferences/${enc(key)}`, { body: { value } }),
+  memorySettings: () => http<MemorySettings>('GET', '/v1/memory/settings'),
+  putMemorySettings: (settings: Partial<MemorySettings>) =>
+    http<MemorySettings>('PUT', '/v1/memory/settings', { body: settings }),
+  memoryAccess: (limit = 30) =>
+    http<{ items: MemoryAccess[] }>('GET', '/v1/memory/access-log', { query: { limit } }),
+  importMemory: (format: 'markdown' | 'text' | 'json', source: string, content: string) =>
+    http<{ batch_id: string; facts: number; people: number }>('POST', '/v1/memory/import', {
+      body: { format, source, content },
+    }),
+  forgetMemory: () => http<void>('DELETE', '/v1/memory'),
+
+  // ---- background tasks and inbox
+  jobs: () =>
+    http<{ items: Job[]; next_cursor: string | null }>('GET', '/v1/jobs', { query: { limit: 50 } }),
+  createJob: (goal: string) =>
+    http<Job>('POST', '/v1/jobs', { body: { goal, delivery: { channels: ['inbox'] } } }),
+  cancelJob: (id: string) => http<Job>('POST', `/v1/jobs/${enc(id)}/cancel`),
+  schedules: () => http<{ items: Schedule[] }>('GET', '/v1/schedules'),
+  patchSchedule: (id: string, patch: { status?: 'active' | 'paused' }) =>
+    http<Schedule>('PATCH', `/v1/schedules/${enc(id)}`, { body: patch }),
+  runSchedule: (id: string) => http<Job>('POST', `/v1/schedules/${enc(id)}/run`),
+  deleteSchedule: (id: string) => http<void>('DELETE', `/v1/schedules/${enc(id)}`),
+  inbox: (unread?: boolean, cursor?: string) =>
+    http<{ items: InboxItem[]; next_cursor: string | null }>('GET', '/v1/inbox', {
+      query: { unread: unread ? 'true' : undefined, cursor, limit: 50 },
+    }),
+  markRead: (id: string) => http<void>('POST', `/v1/inbox/${enc(id)}/read`),
+
+  // ---- connected apps (M50)
+  apps: () => http<{ items: ConnectedApp[] }>('GET', '/v1/apps'),
+  revokeApp: (grantId: string) => http<void>('DELETE', `/v1/apps/${enc(grantId)}`),
 }

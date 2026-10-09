@@ -57,7 +57,8 @@ test.describe('store journey: install, connect, call in chat, approve, result', 
     ).toBeVisible()
 
     // Installed list: account is shown; disconnect, then uninstall revokes the provider token.
-    await page.getByRole('link', { name: 'Мои плагины' }).click()
+    await page.getByRole('link', { name: 'Ещё', exact: true }).click()
+    await page.getByRole('link', { name: /Мои плагины/ }).click()
     const row = page.locator('[data-plugin="team.tracker"]')
     await expect(row.getByText('Работает')).toBeVisible()
     await expect(row.getByText(/аккаунт: auth\.test\.example/)).toBeVisible()
