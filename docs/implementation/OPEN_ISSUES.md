@@ -2143,7 +2143,57 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M41 inbox
 
-- Нет записей.
+### OI-M41-001 — Карточка подтверждения показывает ref вместо имени
+
+- Status: OPEN
+- Source session: M41
+- Component: Tool Router approvals (`approval_summary`) / `builtin.telegram`
+- Question: summary подтверждения строится из аргументов, поэтому при `to="contact:1"` или `person:<id>` пользователь видит ref, а не имя («Telegram: send_message — text=…, to="contact:1"»).
+- Why non-blocking: SKILL.md велит передавать в `to` имя кандидата (если оно однозначно); ref нужен только при совпадающих именах. Отправка всё равно идёт через черновик в Telegram, который пользователь видит и отправляет сам.
+- Current assumption: имя в `to`; ref допустим.
+- Options: (a) оставить; (b) router позволяет плагину/ядру подставить отображаемое имя в summary (разрешение ref до запроса подтверждения); (c) в схему добавить обязательное `recipient_name`, плагин сверяет его с найденным.
+- Recommendation: (b) в M13/M30 (карточка подтверждения в web/Android показывает `summary`).
+- Affected future sessions: M13 (repair), M25, M30, M60.
+- Revisit trigger/deadline: UC по голосовому «Напиши Яне…».
+
+### OI-M41-002 — Telegram не входит в каналы по умолчанию
+
+- Status: OPEN
+- Source session: M41
+- Component: `app/modules/notifications/inbox.py` (`DEFAULT_CHANNELS = ("inbox","push")`)
+- Question: должен ли результат фоновой задачи уходить в Telegram автоматически, если бот подключён?
+- Why non-blocking: доставка работает, когда задача/расписание просит `telegram` в `delivery.channels`; без привязки доставка получает `skipped/channel_not_connected`.
+- Current assumption: Telegram только по явному запросу канала.
+- Options: (a) оставить; (b) добавлять `telegram` к каналам по умолчанию для пользователей с привязкой; (c) настройка в профиле.
+- Recommendation: (c) в M31 (настройки уведомлений).
+- Affected future sessions: M16 (repair), M31.
+- Revisit trigger/deadline: M31.
+
+### OI-M41-003 — Handoff на заблокированном телефоне
+
+- Status: OPEN
+- Source session: M41
+- Component: Android `telegram.handoff` (M23), `requires_unlocked`
+- Question: на заблокированном SM-S938B `telegram.handoff` вернул `succeeded` и запустил задачу Telegram (она оказалась первой в Recents) за keyguard; подтвердить, что черновик виден после разблокировки и что `tg://resolve?phone=` заполняет поле (OI-M23-001), не удалось.
+- Why non-blocking: ничего не отправляется; проверка — UC (см. handoff M41).
+- Current assumption: пользователь разблокирует телефон и видит черновик.
+- Options: (a) принять; (b) Android возвращает `device_locked` для handoff при активном keyguard (запрос M23-R).
+- Recommendation: (b) если UC покажет путаницу.
+- Affected future sessions: M25, M60.
+- Revisit trigger/deadline: UC-M41-1.
+
+### OI-M41-004 — Webhook вне `/v1` и порядок регистрации
+
+- Status: OPEN
+- Source session: M41
+- Component: contracts (`/webhooks/telegram`), деплой
+- Question: `POST /webhooks/telegram` вынесен из `/v1`, потому что правило контракта требует Idempotency-Key для всех `/v1`-мутаций, а Telegram его не шлёт. Webhook регистрируется командой `python -m app.modules.notifications.telegram_webhook set` (нужны https `PUBLIC_BASE_URL`, токен и секрет); автоматической регистрации при старте нет.
+- Why non-blocking: пользовательская проверка с реальным ботом ещё впереди.
+- Current assumption: ручная регистрация оператором (M62 включает в runbook).
+- Options: (a) оставить; (b) регистрировать на старте.
+- Recommendation: (a).
+- Affected future sessions: M62.
+- Revisit trigger/deadline: M62.
 
 ## M42 inbox
 
