@@ -22,6 +22,7 @@ from app.modules.realtime import (
 )
 from app.modules.realtime.provider import RealtimeProviderFactory, RealtimeProviderSession
 from app.modules.tools import ToolExecutor, ToolRegistry, current_datetime_registry
+from app.modules.workspace.composition import install_workspace
 from app.providers.ai.base import TextAIProvider
 from app.providers.ai.fake import FakeAIProvider
 from app.providers.ai.gemini_live import GeminiLiveAdapterFactory, GeminiLiveConfig
@@ -114,6 +115,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         database=runtime.database,
         redis=runtime.redis,
     )
+    install_workspace(app, database=runtime.database)
     authenticator = AuthServiceAuthenticator(auth_service)
     text_provider = _text_provider(settings)
     registry = current_datetime_registry()
