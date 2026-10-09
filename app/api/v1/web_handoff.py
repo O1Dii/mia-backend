@@ -53,6 +53,7 @@ def build_web_handoff_router(
     redeem_limit: int,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/auth/web/handoff", tags=["Auth"])
+    base_path = cookie_path.rstrip("/")
 
     async def enforce(scope: str, identity: str, limit: int) -> None:
         digest = hashlib.sha256(identity.encode()).hexdigest()
@@ -95,7 +96,8 @@ def build_web_handoff_router(
         body: dict[str, Any] = {
             "code": issued.code,
             "expires_at": issued.expires_at.isoformat().replace("+00:00", "Z"),
-            "redeem_path": f"{REDEEM_PATH}?code={quote(issued.code, safe='')}",
+            # Absolute path on the web origin, prefix included (M62-T1: ``/mia/v1/...``).
+            "redeem_path": f"{base_path}{REDEEM_PATH}?code={quote(issued.code, safe='')}",
         }
         return JSONResponse(status_code=201, content=body, headers=_no_store())
 
@@ -113,7 +115,7 @@ def build_web_handoff_router(
                 401, "web_handoff_invalid", "The sign-in code is invalid or has expired."
             )
         signed_in, landing = redeemed
-        response = RedirectResponse(landing, status_code=303, headers=_no_store())
+        response = RedirectResponse(base_path + landing, status_code=303, headers=_no_store())
         response.set_cookie(
             session_cookie,
             signed_in.session_token,

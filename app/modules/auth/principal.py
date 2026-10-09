@@ -44,6 +44,14 @@ class WebCookiePolicy:
     trusted_origins: frozenset[str] = field(default_factory=frozenset)
     """Extra origins (``https://host``) allowed to send cookie-authenticated mutations."""
 
+    @property
+    def base_path(self) -> str:
+        """Web path prefix the cookies are scoped to (``""`` or e.g. ``"/mia"``, M62-T1).
+
+        Browser redirects to web pages (hand-off landing, OAuth return) are prefixed with it.
+        """
+        return self.path.rstrip("/")
+
 
 @dataclass(frozen=True, slots=True)
 class RequestPrincipal:
