@@ -1,7 +1,7 @@
 """M41 Telegram bot: link tokens and the linked chat of a user.
 
 Revision ID: 20261009_m41_telegram
-Revises: 20261009_m17_memory
+Revises: 20261009_m30_connection_binding
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20261009_m41_telegram"
-down_revision: str | None = "20261009_m17_memory"
+down_revision: str | None = "20261009_m30_connection_binding"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

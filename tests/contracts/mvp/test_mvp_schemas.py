@@ -204,4 +204,5 @@ def test_openapi_only_exempts_openai_compatible_endpoint(contracts: ModuleType) 
         if isinstance(operation, dict) and operation.get("x-mia-idempotency") == "exempt"
     ]
 
-    assert exempt == [("/v1/chat/completions", "post")]
+    # Both OpenAI-compatible endpoints (ADR-0013; /v1/responses added by M50): SDKs send no key.
+    assert exempt == [("/v1/chat/completions", "post"), ("/v1/responses", "post")]

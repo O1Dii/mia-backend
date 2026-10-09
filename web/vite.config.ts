@@ -15,6 +15,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('index.html', import.meta.url)),
+        oauth: fileURLToPath(new URL('oauth.html', import.meta.url)),
       },
       output: {
         manualChunks(id) {

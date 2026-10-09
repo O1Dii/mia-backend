@@ -1,0 +1,124 @@
+/* Consent page of «Войти через Мию» (M50). Uses M33 tokens and components only. */
+:root {
+  font-family: var(--mia-font-sans);
+  color: var(--mia-color-text);
+  background: var(--mia-color-bg);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input {
+  font: inherit;
+}
+.oauth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--mia-space-5) var(--mia-space-4);
+}
+.oauth-card {
+  width: min(520px, 100%);
+  gap: var(--mia-space-4);
+}
+.oauth-client {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-4);
+}
+.oauth-client__logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--mia-radius-md);
+  object-fit: cover;
+  flex: none;
+}
+.oauth-client__logo--letter {
+  display: grid;
+  place-items: center;
+  background: var(--mia-color-accent-soft);
+  color: var(--mia-color-accent-text);
+  font-weight: var(--mia-weight-bold);
+  font-size: var(--mia-type-title-size);
+}
+.oauth-client__host {
+  margin: var(--mia-space-1) 0 0;
+  font-size: var(--mia-type-caption-size);
+  color: var(--mia-color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.oauth-scopes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mia-space-2);
+}
+.oauth-scope label {
+  display: flex;
+  gap: var(--mia-space-3);
+  align-items: flex-start;
+  padding: var(--mia-space-3);
+  border-radius: var(--mia-radius-md);
+  border: 1px solid var(--mia-color-border);
+  background: var(--mia-color-surface-1);
+  cursor: pointer;
+}
+.oauth-scope input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--mia-color-accent);
+  flex: none;
+}
+.oauth-scope__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mia-space-2);
+  align-items: center;
+  font-weight: var(--mia-weight-semibold);
+}
+.oauth-scope__text,
+.oauth-hint {
+  display: block;
+  margin-top: var(--mia-space-1);
+  font-size: var(--mia-type-label-size);
+  color: var(--mia-color-text-secondary);
+  line-height: var(--mia-type-label-line);
+}
+.oauth-group {
+  display: grid;
+  gap: var(--mia-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.oauth-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mia-space-2);
+}
+.oauth-chips .mia-chip {
+  min-height: var(--mia-size-touch-web);
+  cursor: pointer;
+}
+.oauth-limit__input {
+  min-height: var(--mia-size-touch-web);
+  max-width: 160px;
+  padding: 0 var(--mia-space-3);
+  border-radius: var(--mia-radius-md);
+  border: 1px solid var(--mia-color-border);
+  background: var(--mia-color-surface-1);
+  color: var(--mia-color-text);
+}
+.oauth-failure {
+  margin: 0;
+  color: var(--mia-color-danger);
+}
+.oauth-actions {
+  justify-content: flex-end;
+}

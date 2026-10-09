@@ -18,6 +18,7 @@ from app.modules.conversations.streaming import TextSSEService
 from app.modules.jobs.composition import install_jobs
 from app.modules.memory import install_memory
 from app.modules.models import install_models
+from app.modules.oauth.composition import install_oauth
 from app.modules.plugins.composition import build_builtin_plugins
 from app.modules.plugins.install.composition import (
     build_catalog_stack,
@@ -185,6 +186,16 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         channel=tools.device_channel,
         runs=runs,
         authenticator=request_authenticator(app),
+    )
+    install_oauth(
+        app,
+        settings,
+        runtime.database.session_factory,
+        runs=runs,
+        first_party=request_authenticator(app),
+        router=tools.router,
+        approvals=tools.approvals,
+        memory=memory.service,
     )
     app.include_router(
         build_conversation_router(
