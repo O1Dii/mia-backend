@@ -1083,7 +1083,35 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M20 inbox
 
-- Нет записей.
+### OI-M20-001 — Нужна ли отдельная activity для запуска ассистента
+
+- Status: OPEN
+- Source session: M20
+- Component: Android assistant
+- Question: жест запускает `MainActivity` через `startAssistantActivity`; на SM-S938B нужно подтвердить, что она открывается в отдельной assistant-задаче поверх экрана и поверх блокировки, а не смешивается с обычной задачей приложения.
+- Why non-blocking: поведение зависит от OEM/версии Android, физического устройства в сессии не было; логика запуска и lock-политика покрыты JVM-тестами.
+- Current assumption: достаточно `MainActivity` (CLEAR_TOP | SINGLE_TOP | NEW_TASK, `setShowWhenLocked` динамически, снимается в `onStop`).
+- Options: оставить `MainActivity`; завести `AssistantActivity` в `app` с `launchMode=singleInstance`, `showWhenLocked`, `excludeFromRecents`.
+- Recommendation: сначала прогнать device gate по handoff M20; отдельная activity — только если проявятся смешение задач или утечка истории на заблокированном экране.
+- Affects sessions: M22.
+- Revisit trigger/by: device gate M20 на SM-S938B (или раньше MW1 gate).
+- Resolution:
+- Evidence:
+
+### OI-M20-002 — Заглушка RecognitionService в метаданных VIS
+
+- Status: OPEN
+- Source session: M20
+- Component: Android assistant / STT
+- Question: платформа требует `recognitionService` в `voice-interaction-service`; сейчас `MiaRecognitionService` всегда отвечает `ERROR_CLIENT`. Нужно ли связать его с on-device STT M21?
+- Why non-blocking: сервис без intent-filter, не предлагается системой как распознаватель; голос идёт по каскаду M22.
+- Current assumption: заглушка остаётся до решения M21/M22.
+- Options: оставить заглушку; реализовать поверх `SpeechRecognizer` из M21.
+- Recommendation: оставить заглушку в MVP.
+- Affects sessions: M21, M22.
+- Revisit trigger/by: когда M22 подключит `SpeechRecognizer`.
+- Resolution:
+- Evidence:
 
 ## M21 inbox
 
