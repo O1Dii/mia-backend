@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     run_app_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
     run_context_recent_entries: int = Field(default=20, ge=2, le=200)
     run_feed_summary_batch: int = Field(default=20, ge=1, le=500)
+    tools_call_timeout_seconds: float = Field(default=20.0, gt=0, le=300)
+    tools_list_timeout_seconds: float = Field(default=8.0, gt=0, le=60)
+    tools_list_cache_seconds: float = Field(default=60.0, ge=0, le=3600)
+    tools_approval_ttl_seconds: int = Field(default=120, ge=10, le=3600)
+    tools_max_result_chars: int = Field(default=8000, ge=256, le=64000)
+    tools_mcp_host_allowlist: str | None = Field(default=None, max_length=8000)
+    """Comma-separated hosts; when set, remote MCP hosts must also be listed here."""
 
     @field_validator("log_level")
     @classmethod
