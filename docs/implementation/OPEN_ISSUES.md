@@ -1684,7 +1684,162 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M15 inbox
 
-- Нет записей.
+### OI-M15-001 — The router does not enforce `installations.grants`
+
+- Status: OPEN
+- Source session: M15
+- Component: Tool router / store consent
+- Question: когда роутер начнёт требовать `required_grants(manifest) <= installation.grants`?
+- Why non-blocking: словарь определён, согласие проверяется при установке и обновлении (`consent_required`), digest и сеть роутер уже проверяет
+- Current assumption: grants фиксируются при согласии, но роутер их не сверяет; у старых установок (`legacy_web`, M10 digest-install до M15) grants пусты или в старом словаре (`state.read`)
+- Options: (a) проверка в `McpToolRouter._plugin_entries` после backfill `installations.grants` из `manifest`; (b) оставить информационными
+- Recommendation: (a): разовый backfill (`required_grants(row.manifest)` для строк с manifest), затем одна проверка в роутере; точный diff в handoff M15
+- Affects sessions: M13 follow-up, MW3 integrator, M30
+- Revisit trigger/by: до публичной беты или первого стороннего плагина (M40)
+- Resolution:
+- Evidence: `app/modules/plugins/install/grants.py`, `app/modules/tools/router.py`, `tests/catalog/test_install_postgres.py`
+
+### OI-M15-002 — Custom MCP by URL: every tool is `write_external`, odd names are skipped
+
+- Status: OPEN
+- Source session: M15
+- Component: Store / custom MCP
+- Question: как предлагать чтение (`readOnlyHint`) и tools с именами вне `[a-z][a-z0-9_]*` (`listIssues`, `list-issues`)?
+- Why non-blocking: сервер работает, просто каждое действие просит подтверждение, а часть tools недоступна
+- Current assumption: риск всех tools `write_external`; имена вне грамматики манифеста не попадают в overlay (`skipped_tools` в `discovery`), digest считается по всем
+- Options: (a) читать `annotations.readOnlyHint` и ставить `read`; (b) алиасы имён в роутере/манифесте; (c) пользователь выбирает риск на экране согласия
+- Recommendation: (a)+(b) после MW3: `ServerTool` получает `annotations`, роутер маппит имена как адаптеры M11 (`ToolNames`)
+- Affects sessions: M13 follow-up, M30, M40
+- Revisit trigger/by: до сценария «свой MCP» в M60
+- Resolution:
+- Evidence: 
+
+### OI-M15-003 — OAuth `state` is not bound to the initiating browser
+
+- Status: OPEN
+- Source session: M15
+- Component: Connections / OAuth
+- Question: как защититься от привязки чужого аккаунта провайдера к установке атакующего (login CSRF)?
+- Why non-blocking: state одноразовый, случайный, хранится хэшем, живёт 10 минут; атакующему нужно убедить жертву пройти его ссылку и он получит доступ к данным жертвы в своём Mia
+- Current assumption: привязки к браузеру нет: колбэк публичный, `SameSite=Strict` cookie сессии на редиректе провайдера не приходит
+- Options: (a) экран подтверждения «подключить аккаунт X?» на `return_to` (клиент показывает `account_label`); (b) короткоживущая Lax-cookie с nonce для веб-потока; (c) вернуть код в приложение и завершать авторизованным вызовом
+- Recommendation: (c) для Android и (a) для web в M30: колбэк только сохраняет код, `POST /v1/connections/{id}/complete` под сессией пользователя
+- Affects sessions: M30, M25, M24
+- Revisit trigger/by: до M30 (UI подключения)
+- Resolution:
+- Evidence: 
+
+### OI-M15-004 — No pre-registered OAuth clients; publication needs `contracts/`
+
+- Status: OPEN
+- Source session: M15
+- Component: Connections / store
+- Question: что делать с серверами без DCR и CIMD, и как публиковать из образа без `contracts/`?
+- Why non-blocking: Linear и большинство MCP-серверов поддерживают DCR; публикация идёт с хоста с репозиторием
+- Current assumption: сервер без `registration_endpoint` и CIMD → 422 `connection_oauth_unsupported`; CIMD используется только при https `PUBLIC_BASE_URL`; `Dockerfile` не копирует `contracts/`
+- Options: (a) поле `oauth.clientId` в манифесте и секрет в хранилище; (b) копировать `contracts/` в образ и добавить API публикации
+- Recommendation: (a) при первом сервере без DCR (M40+); (b) вместе с публикацией сторонних плагинов (M43)
+- Affects sessions: M40, M41, M43, M62
+- Revisit trigger/by: при первом таком сервере
+- Resolution:
+- Evidence: 
+
+### OI-M15-005 — Router offers a declared app-only `get_state` to the model
+
+- Status: OPEN
+- Source session: M15
+- Component: Tool router / declarative plugins
+- Question: должен ли роутер скрывать от модели tools с `_meta.ui.visibility: ["app"]`? Он не читает это поле, и если автор перечислит `get_state` в `tools` (теперь разрешено контрактом), модель его увидит
+- Why non-blocking: публикация показывает на экране согласия только tools из overlay; встроенные декларативные плагины `get_state` не перечисляют
+- Current assumption: автор декларативного плагина не объявляет `get_state`, плитка вызывает его неявно
+- Options: (a) роутер пропускает tools с `visibility: ["app"]` в дескрипторах модели; (b) запретить `get_state` в манифесте
+- Recommendation: (a): одно условие в `McpToolRouter._plugin_entries`
+- Affects sessions: M13 follow-up, M31
+- Revisit trigger/by: до M31 (плитки декларативных плагинов)
+- Resolution:
+- Evidence: 
+
+### OI-M15-006 — Provider tokens are not revoked when an account is deleted
+
+- Status: OPEN
+- Source session: M15
+- Component: Connections / privacy
+- Question: должно ли удаление аккаунта отзывать токены провайдеров?
+- Why non-blocking: при crypto-shred DEK токены в базе нечитаемы; на стороне провайдера они живут до истечения/ручного отзыва
+- Current assumption: `revoke_installation` вызывается при удалении установки, отключении и смене адреса сервера, но не при удалении пользователя
+- Options: (a) удаление аккаунта обходит `plugin_connections` и вызывает revoke до shred; (b) оставить
+- Recommendation: (a) в сессии удаления аккаунта (M62 / privacy)
+- Affects sessions: M10 follow-up, M62
+- Revisit trigger/by: до публичной беты
+- Resolution:
+- Evidence: 
+
+### OI-M15-007 — No rate limit on probe and connect endpoints
+
+- Status: OPEN
+- Source session: M15
+- Component: Store API
+- Question: нужен ли лимит на `GET /discovery`, `POST /connections`, колбэк?
+- Why non-blocking: исходящие запросы идут через SSRF-guard с таймаутом, размеры ответов ограничены, нужен вход пользователя (кроме колбэка)
+- Current assumption: лимитов нет, как и у остальных workspace-маршрутов
+- Options: (a) per-user лимит (Redis) на исходящие операции; (b) оставить до M62
+- Recommendation: (a) вместе с общим лимитером workspace API
+- Affects sessions: M62
+- Revisit trigger/by: до публичной беты
+- Resolution:
+- Evidence: 
+
+### OI-M15-008 — Store reviews are unmoderated and need no install
+
+- Status: OPEN
+- Source session: M15
+- Component: Store
+- Question: ограничить ли отзывы установившими пользователями и нужна ли модерация/жалобы?
+- Why non-blocking: магазин закрытый (публикует администратор), один отзыв на пользователя и плагин, автор показывается первым именем
+- Current assumption: любой вошедший пользователь может оставить отзыв опубликованному плагину
+- Options: (a) отзыв только при наличии установки; (b) жалобы и скрытие; (c) оставить
+- Recommendation: (c) до открытой публикации (OI-WEB-003)
+- Affects sessions: M30, бэклог
+- Revisit trigger/by: при открытой публикации
+- Resolution:
+- Evidence: 
+
+### OI-M15-009 — `server.auth: mia_token` has no token source
+
+- Status: OPEN
+- Source session: M15
+- Component: Connections / M50, M51
+- Question: кто выдаёт токены Mia для удалённых серверов с `auth: mia_token` (MindWeaver, свои приложения)?
+- Why non-blocking: ни один плагин MVP до M51 такого не использует
+- Current assumption: манифест принимается, `ConnectionService.headers` возвращает None для `mia_token` → `connection_required`
+- Options: (a) M50 выдаёт короткоживущий токен приложения под `tools.use:<plugin_id>`; (b) использовать OAuth Mia как AS
+- Recommendation: (a) в M50/M51
+- Affects sessions: M50, M51
+- Revisit trigger/by: при старте M51
+- Resolution:
+- Evidence: 
+
+### OI-M15-010 — Approval test clock was fixed to 2026-10-09T12:00Z
+
+- Status: RESOLVED
+- Source session: M15
+- Component: Tests (M13)
+- Question: почему `tests/tools/test_e2e_runs.py::test_approval_round_trip_through_the_engine[postgres]` падал?
+- Why non-blocking: тестовая проблема, не продуктовая
+- Current assumption: тест строил `Clock` на 12:00Z; Postgres-путь сравнивает с реальным временем и после 12:02Z одобрение истекало
+- Options: —
+- Recommendation: —
+- Affects sessions: —
+- Revisit trigger/by: —
+- Resolution: M15 (2026-10-09): `Clock` в `tests/tools/helpers.py` стартует с реального времени; 914 passed.
+- Evidence: `tests/tools/helpers.py`
+
+### Resolution updates (других сессий)
+
+- OI-M13-002 (словарь grants): словарь определён в M15 (`install/grants.py`: `tools.*` по риску, `network:<host>`, `network.public_web`, `llm.generate`, `memory.*`, `notify`, `schedules`), проверяется при установке и обновлении; проверка в роутере — OI-M15-001. Предлагаемый статус: RESOLVED (словарь), follow-up в OI-M15-001.
+- OI-M14-001 (`get_state`): валидатор и публикация допускают у декларативных `tools` только дополнительный `get_state`, публикация игнорирует его при сверке с `tools/list`; скрытие от модели в роутере — OI-M15-005. Предлагаемый статус: RESOLVED.
+- OI-M14-002 (`publicWeb`): `permissions.publicWeb` в схеме манифеста, grant `network.public_web`, `builtin.internet` его объявляет, экран согласия показывает `public_web`. Предлагаемый статус: RESOLVED.
+- Follow-ups MW2 (STATUS): `openapi.yaml` — пути M10/M11, `cookieAuth`, 409 `version_conflict`; `error-codes.json` — коды M10/M11 (add-only); применено в M15.
 
 ## M16 inbox
 
