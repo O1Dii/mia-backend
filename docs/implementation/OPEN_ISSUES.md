@@ -2173,7 +2173,31 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M42 inbox
 
-- Нет записей.
+### OI-M42-001 — Google OAuth cannot be connected: no DCR/CIMD, no pre-registered client
+
+- Status: OPEN
+- Source session: M42
+- Component: Connections / plugins
+- Question: Google's authorization server (`accounts.google.com`) offers neither dynamic client registration nor CIMD, so M15 `ConnectionService` cannot register Mia as a client; the plugin cannot go through «Подключить» on a real Google account.
+- Why non-blocking: contract tests and publication pass on recorded data; the plugin is optional (M60 does not wait for it).
+- Current assumption: the live smoke waits for pre-registered client support (OI-M15-004): a Google OAuth client (web type, testing mode, `calendar.events.readonly`) created by the user, with its id (and secret) given to Mia by configuration, plus the test user added in the consent screen.
+- Options: (a) pre-registered clients in M15 `connections/oauth/client_registration` (config per issuer); (b) the calendar MCP server fronts Google as its own authorization server with DCR (more code, one more token layer).
+- Recommendation: (a).
+- Affected future sessions: M15 follow-up or repair, M42 smoke.
+- Revisit trigger/deadline: before the first live Calendar smoke.
+
+### OI-M42-002 — The Calendar MCP server is not deployed; manifest URL is a placeholder
+
+- Status: OPEN
+- Source session: M42
+- Component: Deploy / plugins
+- Question: the declarative host (M14) cannot call REST (effects are only `state.patch` and `model.prompt`) and `app.` has no Calendar client, so the plugin is `server.kind: remote`; its server `plugins/google-calendar/server/calendar_mcp.py` must be hosted somewhere and `server.url` / `permissions.network` set to the real host (now `calendar-mcp.mia.example`).
+- Why non-blocking: nothing in Mia depends on it; publication is a CLI step after the host is known.
+- Current assumption: Streamable HTTP, protected resource metadata names Google as the authorization server and the Google access token is the MCP bearer (the server forwards it, stores nothing).
+- Options: (a) separate small service (Cloud Run or the Mia host); (b) a builtin module under `app.plugins.builtin` that reads the user's Google token from `plugin_connections` through a host service (core change, M13/M15 owners).
+- Recommendation: (a) for the testing-mode smoke, (b) if Calendar stays in the product.
+- Affected future sessions: M42 smoke, M60 only if Calendar is included.
+- Revisit trigger/deadline: decision to run the live smoke.
 
 ## M50 inbox
 
