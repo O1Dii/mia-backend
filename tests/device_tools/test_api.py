@@ -383,3 +383,23 @@ async def test_uncertain_write_result_is_delivered(harness: Harness) -> None:
     }
     assert (await harness.post(run_id, body)).status_code == 204
     assert (await asyncio.wait_for(task, 2)).status == "uncertain"
+
+
+async def test_android_client_registration_fixture_is_accepted(harness: Harness) -> None:
+    """``fixtures/android_registration.json`` is the body ``:core:devicetools`` really sends.
+
+    Regenerate with ``./gradlew :core:devicetools:testDebugUnitTest
+    -PmiaDeviceToolsDump=<this file>`` in the Android repo."""
+    body = json.loads(
+        Path("tests/device_tools/fixtures/android_registration.json").read_text("utf-8")
+    )
+    assert_mvp_valid(body, "device-tools")
+    device = uuid.UUID(body["device_id"])
+    assert (await harness.put(body, device=device)).status_code == 204
+    tools = await harness.channel.available_tools(user_id=str(OWNER), device_id=str(device))
+    assert {tool.name for tool in tools} == {
+        "device.contacts.search",
+        "device.alarm.set",
+        "device.app.open",
+        "telegram.handoff",
+    }
