@@ -509,5 +509,82 @@
     "retryable": false,
     "public_message": "No device tool call is waiting for this result.",
     "owner": "M23"
+  },
+  {
+    "code": "invalid_token",
+    "http_status": 401,
+    "retryable": false,
+    "public_message": "The access token is invalid, expired or revoked.",
+    "owner": "M50"
+  },
+  {
+    "code": "insufficient_scope",
+    "http_status": 403,
+    "retryable": false,
+    "public_message": "The access token lacks a required scope.",
+    "owner": "M50"
+  },
+  {
+    "code": "app_budget_exceeded",
+    "http_status": 429,
+    "retryable": false,
+    "public_message": "The monthly spending limit for this app is reached.",
+    "owner": "M50"
+  },
+  {
+    "code": "app_grant_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The connected app was not found.",
+    "owner": "M50"
+  },
+  {
+    "code": "oauth_request_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The authorization request was not found.",
+    "owner": "M50"
+  },
+  {
+    "code": "oauth_request_expired",
+    "http_status": 410,
+    "retryable": false,
+    "public_message": "The authorization request has expired.",
+    "owner": "M50"
+  },
+  {
+    "code": "oauth_request_decided",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The authorization request was already decided.",
+    "owner": "M50"
+  },
+  {
+    "code": "unsupported_model",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "Only the model mia:default is available.",
+    "owner": "M50"
+  },
+  {
+    "code": "unsupported_content",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "Only text content is supported.",
+    "owner": "M50"
+  },
+  {
+    "code": "app_run_timeout",
+    "http_status": 504,
+    "retryable": true,
+    "public_message": "The request did not finish in time.",
+    "owner": "M50"
+  },
+  {
+    "code": "app_run_cancelled",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The request was cancelled by the user.",
+    "owner": "M50"
   }
 ]

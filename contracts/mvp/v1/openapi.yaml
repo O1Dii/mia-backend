@@ -1582,7 +1582,9 @@ paths:
                 model: {type: string, examples: ['mia:default']}
                 messages: {type: array, minItems: 1, items: {type: object}}
                 stream: {type: boolean}
-                mia: {type: object}
+                stream_options: {type: object}
+                tools: {type: array, items: {type: object}}
+                mia: {$ref: '#/components/schemas/MiaExtensions'}
       responses:
         '200':
           description: OpenAI-compatible completion or SSE chunks
@@ -1658,6 +1660,7 @@ paths:
                   expires_in: {type: integer}
                   refresh_token: {type: string}
                   scope: {type: string}
+                  id_token: {type: string, description: ES256 OIDC ID token when openid was granted (M50)}
         '400':
           description: RFC 6749 error
           headers: *rid
@@ -1710,6 +1713,328 @@ paths:
             text/event-stream:
               schema: {type: string}
         default: *error
+  /v1/responses:
+    post:
+      tags: [Apps]
+      operationId: createResponse
+      summary: OpenAI-compatible Responses API; model "mia:default" (M50)
+      description: >-
+        Body and response follow the OpenAI Responses format (input string or items,
+        instructions, function tools, stream=true SSE with response.* events). Same Mia
+        extensions as chat completions in the mia field; runs as Run(app).
+      x-mia-idempotency: exempt
+      security:
+        - miaOAuth: [llm.generate]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, input]
+              properties:
+                model: {type: string, examples: ['mia:default']}
+                input: {oneOf: [{type: string}, {type: array, items: {type: object}}]}
+                instructions: {type: string}
+                tools: {type: array, items: {type: object}}
+                stream: {type: boolean}
+                max_output_tokens: {type: integer, minimum: 1}
+                mia: {$ref: '#/components/schemas/MiaExtensions'}
+      responses:
+        '200':
+          description: OpenAI-compatible response object (+ mia {run_id, cost_usd}) or SSE events
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object}
+            text/event-stream:
+              schema: {type: string}
+        default: *error
+  /v1/models:
+    get:
+      tags: [Apps]
+      operationId: listAppModels
+      summary: OpenAI-compatible model list; only mia:default (M50)
+      security:
+        - miaOAuth: [llm.generate]
+      responses:
+        '200':
+          description: Models
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object, data]
+                properties:
+                  object: {type: string, enum: [list]}
+                  data: {type: array, items: {type: object}}
+        default: *error
+  /v1/oauth/requests/{handle}:
+    get:
+      tags: [Apps]
+      operationId: getAuthorizationRequest
+      summary: Consent screen data; the first signed-in viewer owns the request (M50)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: handle, in: path, required: true, schema: {type: string, minLength: 8, maxLength: 80}}
+      responses:
+        '200':
+          description: Client, requested scopes with Russian texts, defaults for categories and limit
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthorizationRequestView'}
+        default: *error
+  /v1/oauth/requests/{handle}/decision:
+    post:
+      tags: [Apps]
+      operationId: decideAuthorizationRequest
+      summary: Approve or deny; returns where the browser goes next (code or error redirect)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: handle, in: path, required: true, schema: {type: string, minLength: 8, maxLength: 80}}
+        - *idem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              additionalProperties: false
+              properties:
+                decision: {type: string, enum: [approve, deny]}
+                scopes: {type: array, items: {type: string}, maxItems: 32, description: Subset of the requested scopes}
+                memory_categories:
+                  type: array
+                  items: {type: string, enum: [profile, work, home, interests, other]}
+                monthly_limit_usd: {type: number, minimum: 0}
+      responses:
+        '200':
+          description: Same Idempotency-Key replays the first answer
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [redirect_to]
+                properties:
+                  redirect_to: {type: string, format: uri}
+        default: *error
+  /v1/apps:
+    get:
+      tags: [Apps]
+      operationId: listConnectedApps
+      summary: «Подключённые приложения» with this month's spend (M50)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active grants
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/ConnectedApp'}}
+        default: *error
+  /v1/apps/{grant_id}:
+    get:
+      tags: [Apps]
+      operationId: getConnectedApp
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: grant_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: One grant
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectedApp'}
+        default: *error
+    patch:
+      tags: [Apps]
+      operationId: updateConnectedApp
+      summary: Change the monthly limit or memory categories, or drop scopes
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: grant_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - *idem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                monthly_limit_usd: {type: number, minimum: 0}
+                memory_categories: {type: array, items: {type: string}}
+                remove_scopes: {type: array, items: {type: string}, maxItems: 32}
+      responses:
+        '200':
+          description: Updated grant
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectedApp'}
+        default: *error
+    delete:
+      tags: [Apps]
+      operationId: revokeConnectedApp
+      summary: Disconnect the app; every token of the grant stops working at once
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: grant_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - *idem
+      responses:
+        '204':
+          description: Revoked (repeating is a no-op)
+          headers: *rid
+        default: *error
+  /v1/apps/{grant_id}/usage:
+    get:
+      tags: [Apps]
+      operationId: getConnectedAppUsage
+      summary: Spend journal (provider cost or a token-based estimate)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: grant_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Newest first
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [month_start, month_spend_usd, monthly_limit_usd, items]
+                properties:
+                  month_start: {type: string, format: date-time}
+                  month_spend_usd: {type: string}
+                  monthly_limit_usd: {type: string}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [at, surface, input_tokens, output_tokens, cost_usd, estimated]
+                      properties:
+                        at: {type: string, format: date-time}
+                        surface: {type: string, enum: [chat_completions, responses, mcp]}
+                        run_id: {type: [string, 'null'], format: uuid}
+                        input_tokens: {type: integer}
+                        output_tokens: {type: integer}
+                        cost_usd: {type: string}
+                        estimated: {type: boolean}
+        default: *error
+  /v1/apps/{grant_id}/access-log:
+    get:
+      tags: [Apps]
+      operationId: getConnectedAppAccessLog
+      summary: Memory access log entries of this app (actor app)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - {name: grant_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Newest first; same item shape as /v1/memory/access-log
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {type: object}}
+        default: *error
+  /oauth/userinfo:
+    get:
+      tags: [Apps]
+      operationId: oauthUserinfo
+      summary: OIDC userinfo; sub is pairwise per client host
+      security:
+        - miaOAuth: [openid]
+      responses:
+        '200':
+          description: sub (+ name, picture, locale, zoneinfo with profile; email with email)
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object, required: [sub], properties: {sub: {type: string}}}
+        default: *error
+  /oauth/jwks.json:
+    get:
+      tags: [Apps]
+      operationId: oauthJwks
+      summary: Public ES256 key of ID tokens
+      security: []
+      responses:
+        '200':
+          description: JWK Set
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object}
+  /.well-known/openid-configuration:
+    get:
+      tags: [Apps]
+      operationId: getOpenIdConfiguration
+      summary: Same document as /.well-known/oauth-authorization-server
+      security: []
+      responses:
+        '200':
+          description: OIDC discovery metadata
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object}
+  /.well-known/oauth-protected-resource:
+    get:
+      tags: [Apps]
+      operationId: getApiResourceMetadata
+      summary: RFC 9728 metadata of the API resource
+      security: []
+      responses:
+        '200':
+          description: resource = issuer
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object}
+  /.well-known/oauth-protected-resource/mcp:
+    get:
+      tags: [Apps]
+      operationId: getMcpResourceMetadata
+      summary: RFC 9728 metadata of /mcp (named in the 401 WWW-Authenticate challenge)
+      security: []
+      responses:
+        '200':
+          description: resource = <issuer>/mcp
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object}
 components:
   securitySchemes:
     bearerAuth:
@@ -1740,6 +2065,11 @@ components:
             memory.suggest: Suggest facts (land as suggested)
             memory.read:profile: Read raw profile facts (logged)
             memory.read:work: Read raw work facts (logged)
+            memory.read:home: Read raw home facts (logged)
+            memory.read:health: Read raw health facts (logged)
+            memory.read:finance: Read raw finance facts (logged)
+            memory.read:interests: Read raw interests facts (logged)
+            memory.read:other: Read raw other facts and people names (logged)
             tools.use: Use installed plugins; narrowed as tools.use:<plugin_id>
             jobs: Create background jobs
             notify: Notify the user
@@ -1818,6 +2148,65 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
   schemas:
+    MiaExtensions:
+      type: object
+      description: Mia extensions of the OpenAI-compatible endpoints (extra_body={"mia":{...}}), M50
+      additionalProperties: false
+      properties:
+        context: {type: boolean, default: true, description: Inject memory when the token has memory.context}
+        tools:
+          type: array
+          items: {type: string}
+          description: Plugin ids (or "*") Mia may use for this request; needs tools.use[:<plugin_id>]
+        budget:
+          type: object
+          additionalProperties: false
+          properties:
+            max_usd: {type: number, exclusiveMinimum: 0}
+    AuthorizationRequestView:
+      type: object
+      required: [client, scopes, memory_categories, monthly_limit_usd, max_monthly_limit_usd, existing_grant, expires_at]
+      properties:
+        client:
+          type: object
+          required: [client_id, name, redirect_host]
+          properties:
+            client_id: {type: string, format: uri}
+            name: {type: string}
+            client_uri: {type: [string, 'null']}
+            logo_uri: {type: [string, 'null']}
+            redirect_host: {type: string}
+        scopes:
+          type: array
+          items:
+            type: object
+            required: [scope, title, description, sensitive, available]
+            properties:
+              scope: {type: string}
+              title: {type: string}
+              description: {type: string}
+              sensitive: {type: boolean}
+              available: {type: boolean, description: false while no app-facing endpoint exists (jobs, notify, mia.install)}
+        memory_categories: {type: array, items: {type: string}}
+        monthly_limit_usd: {type: string}
+        max_monthly_limit_usd: {type: string}
+        existing_grant: {type: boolean}
+        expires_at: {type: string, format: date-time}
+    ConnectedApp:
+      type: object
+      required: [id, client_id, client_name, scopes, memory_categories, monthly_limit_usd, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        client_id: {type: string, format: uri}
+        client_name: {type: string}
+        client_uri: {type: [string, 'null']}
+        logo_uri: {type: [string, 'null']}
+        scopes: {type: array, items: {type: string}}
+        memory_categories: {type: array, items: {type: string}}
+        monthly_limit_usd: {type: string}
+        month_spend_usd: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
     ErrorEnvelope:
       type: object
       additionalProperties: false
