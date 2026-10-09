@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Select, select, text, update
+from sqlalchemy import Select, delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.models import AuthSession, Device
+from app.modules.auth.models import AuthSession, Device, WebSession
 from app.modules.auth.schemas import DeviceInput
 from app.modules.users.models import User
 
@@ -172,3 +172,50 @@ class AuthRepository:
     async def mark_reuse(self, session: AuthSession, *, now: datetime) -> None:
         session.reuse_detected_at = now
         await self._session.flush()
+
+    async def create_web_session(
+        self, *, user_id: UUID, token_hash: str, expires_at: datetime, now: datetime
+    ) -> WebSession:
+        session = WebSession(
+            user_id=user_id, token_hash=token_hash, expires_at=expires_at, created_at=now
+        )
+        self._session.add(session)
+        await self._session.flush()
+        return session
+
+    async def prune_web_sessions(self, *, user_id: UUID, keep: int, now: datetime) -> None:
+        """Drop expired/revoked browser sessions and all but the newest ``keep`` live ones."""
+        await self._session.execute(
+            delete(WebSession).where(
+                WebSession.user_id == user_id,
+                (WebSession.expires_at <= now) | WebSession.revoked_at.is_not(None),
+            )
+        )
+        newest = (
+            select(WebSession.id)
+            .where(WebSession.user_id == user_id)
+            .order_by(WebSession.created_at.desc(), WebSession.id.desc())
+            .limit(keep)
+        )
+        await self._session.execute(
+            delete(WebSession).where(
+                WebSession.user_id == user_id, WebSession.id.not_in(newest.scalar_subquery())
+            )
+        )
+
+    async def get_active_web_session(self, token_hash: str, *, now: datetime) -> WebSession | None:
+        session: WebSession | None = await self._session.scalar(
+            select(WebSession).where(
+                WebSession.token_hash == token_hash,
+                WebSession.revoked_at.is_(None),
+                WebSession.expires_at > now,
+            )
+        )
+        return session
+
+    async def revoke_web_session(self, token_hash: str, *, now: datetime) -> None:
+        await self._session.execute(
+            update(WebSession)
+            .where(WebSession.token_hash == token_hash, WebSession.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )

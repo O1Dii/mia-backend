@@ -70,3 +70,25 @@ class AuthSession(Base):
     replaced_by_session_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth_sessions.id", ondelete="SET NULL")
     )
+
+
+class WebSession(Base):
+    """A revocable browser session (HttpOnly cookie) for the same MIA user as Android.
+
+    Only an HMAC of the opaque cookie value is stored; the value itself never
+    reaches the database, logs or responses other than ``Set-Cookie``.
+    """
+
+    __tablename__ = "web_sessions"
+    __table_args__ = (Index("ix_web_sessions_user_expires", "user_id", "expires_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

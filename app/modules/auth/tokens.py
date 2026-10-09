@@ -128,3 +128,9 @@ class TokenManager:
 
     def hash_refresh_token(self, refresh_token: str) -> str:
         return hmac.new(self._secret, refresh_token.encode(), hashlib.sha256).hexdigest()
+
+    def hash_web_session_token(self, session_token: str) -> str:
+        """HMAC browser-session cookies in a separate domain from refresh tokens."""
+        return hmac.new(
+            self._secret, b"web-session:" + session_token.encode(), hashlib.sha256
+        ).hexdigest()

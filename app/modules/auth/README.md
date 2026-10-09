@@ -1,6 +1,6 @@
 # Authentication integration
 
-`install_auth` in `composition.py` mounts the five v1 auth/me endpoints and
+`install_auth` in `composition.py` mounts the v1 auth/me endpoints (eight with M10 web routes) and
 sanitized exception handlers. The application composition owner must call it
 once, before startup, with the application's existing database and Redis owners:
 
@@ -71,6 +71,30 @@ introduced in S12.
 Family-level PostgreSQL transaction locks serialize rotation, logout and replay
 across all generations. Old hashes are retained for reuse detection. S18 should
 define expired-family retention/cleanup and deployment secret rotation policy.
+
+## Web cookie sessions and the shared principal (M10)
+
+The web signs in with the same Google Web client ID (`GOOGLE_CLIENT_ID`) and the
+same `users` row as Android, keyed by the verified Google `sub` (never email):
+
+1. `POST /v1/auth/web/nonce` returns `{nonce, expires_at}` and sets the HttpOnly
+   `mia_web_nonce` cookie; pass the nonce to Google Identity Services.
+2. `POST /v1/auth/web/google` with `{"credential": "<ID token>"}` verifies the
+   token against the cookie-bound nonce (consumed once) and sets the HttpOnly,
+   `SameSite=Strict` `mia_session` cookie (`Secure` outside `APP_ENV=test`,
+   30 days, at most 32 live sessions per user). The body is `{user, expires_at}`;
+   the session value appears only in `Set-Cookie`, and only its HMAC is stored
+   (`web_sessions`).
+3. `POST /v1/auth/web/logout` revokes that browser session only.
+
+`RequestAuthenticator` (`principal.py`, available after `install_auth` via
+`request_authenticator(app)`) resolves `Authorization: Bearer` first, then the
+cookie, to a `RequestPrincipal(user_id: str, method, session_id, user)`.
+`GET /v1/me` accepts both. Cookie-authenticated non-GET requests are refused
+with 403 `permission_denied` when `Sec-Fetch-Site` is not same-origin or the
+`Origin` host differs from `Host` (extra origins: `WebCookiePolicy.trusted_origins`).
+The hosted web POC's hub login (`hub:<uuid>` subjects) is not ported: it carries
+no Google `sub`.
 
 ## Verification and sources
 
