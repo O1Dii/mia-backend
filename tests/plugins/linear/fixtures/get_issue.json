@@ -1,0 +1,5 @@
+{
+  "tool": "get_issue",
+  "arguments": {"id": "ENG-101"},
+  "structuredContent": {"id": "7c1f0b3e-0000-4000-8000-000000000001", "identifier": "ENG-101", "title": "Fix login redirect", "description": "Users land on /home after sign-in.", "status": "In Progress", "assignee": "Test User"}
+}

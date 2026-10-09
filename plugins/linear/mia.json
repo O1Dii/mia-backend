@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "team.linear",
+  "version": "0.1.0",
+  "name": "Linear",
+  "listing": {
+    "description": "Задачи Linear в чате, голосе и на дашборде: найти, создать, обновить, прокомментировать",
+    "category": "work",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "remote",
+    "url": "https://mcp.linear.app/mcp",
+    "auth": "oauth"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "list_issues": { "risk": "read", "voice": true },
+    "get_issue": { "risk": "read", "voice": true },
+    "list_comments": { "risk": "read" },
+    "list_issue_statuses": { "risk": "read" },
+    "list_issue_labels": { "risk": "read" },
+    "list_projects": { "risk": "read" },
+    "get_project": { "risk": "read" },
+    "list_teams": { "risk": "read" },
+    "list_users": { "risk": "read" },
+    "get_user": { "risk": "read" },
+    "list_cycles": { "risk": "read" },
+    "create_issue": { "risk": "write_reversible" },
+    "update_issue": { "risk": "write_reversible" },
+    "create_comment": { "risk": "write_external" }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "my-issues",
+        "title": "Мои задачи",
+        "resourceUri": "ui://team.linear/my-issues",
+        "bundled": "ui/my-issues.html",
+        "sizes": ["2x2", "4x2"],
+        "mobile": "card",
+        "refresh": { "tool": "list_issues", "everySeconds": 300 }
+      }
+    ]
+  },
+  "permissions": {
+    "network": ["mcp.linear.app"],
+    "llm": { "viaHost": false },
+    "memory": [],
+    "notify": false
+  }
+}

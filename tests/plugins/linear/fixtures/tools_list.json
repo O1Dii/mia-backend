@@ -1,0 +1,7 @@
+{
+  "tools": [
+    "list_issues", "get_issue", "list_comments", "list_issue_statuses", "list_issue_labels",
+    "list_projects", "get_project", "list_teams", "list_users", "get_user", "list_cycles",
+    "create_issue", "update_issue", "create_comment"
+  ]
+}

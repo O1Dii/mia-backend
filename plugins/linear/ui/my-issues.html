@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мои задачи</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #15171c; color: #e3e6ee; margin: 12px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .eyebrow { color: #8b93a7; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  button { padding: 4px 10px; border-radius: 8px; border: 0; background: #5e6ad2; color: #fff; cursor: pointer; font: inherit; }
+  button[disabled] { opacity: .5; cursor: default; }
+  ul { list-style: none; padding: 0; margin: 8px 0 0; }
+  li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #262a33; }
+  .id { color: #8b93a7; font-size: 12px; white-space: nowrap; }
+  .title { flex: 1; overflow-wrap: anywhere; }
+  .state { color: #aab2c5; font-size: 12px; white-space: nowrap; }
+  .empty { color: #8b93a7; margin-top: 8px; } .error { color: #f28b82; margin: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow" id="meta">Назначено мне</div>
+  <button id="reload" type="button">Обновить</button>
+</header>
+<p class="error" id="error" role="alert"></p>
+<ul id="list"></ul>
+<div class="empty" id="empty">Загрузка…</div>
+<script>
+(function () {
+  var list = document.getElementById('list'), empty = document.getElementById('empty');
+  var errorBox = document.getElementById('error'), meta = document.getElementById('meta');
+  var reload = document.getElementById('reload');
+  // Linear returns the issues under `issues` (structured result); `nodes` and a bare array are accepted too.
+  function issuesOf(data) {
+    if (!data) return null;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.issues)) return data.issues;
+    if (Array.isArray(data.nodes)) return data.nodes;
+    return null;
+  }
+  function text(value) {
+    if (value && typeof value === 'object') return String(value.name || value.title || '');
+    return value ? String(value) : '';
+  }
+  function cell(cls, value) {
+    var el = document.createElement('span'); el.className = cls; el.textContent = value; return el;
+  }
+  function render(items) {
+    list.textContent = '';
+    items.slice(0, 20).forEach(function (issue) {
+      var li = document.createElement('li');
+      li.appendChild(cell('id', text(issue.identifier || issue.id)));
+      li.appendChild(cell('title', text(issue.title)));
+      li.appendChild(cell('state', text(issue.status || issue.state)));
+      list.appendChild(li);
+    });
+    empty.textContent = items.length ? '' : 'Нет открытых задач';
+    meta.textContent = 'Назначено мне · ' + items.length;
+    errorBox.textContent = '';
+  }
+  function onResult(data) {
+    var items = issuesOf(data);
+    if (items) render(items);
+  }
+  window.mia.onData(function (data, tool) {
+    if (tool === null || tool === 'list_issues' || tool === undefined) onResult(data);
+  });
+  function load() {
+    reload.disabled = true;
+    window.mia.ready.then(function () {
+      return window.mia.call('list_issues', { assignee: 'me', limit: 20 });
+    }).then(onResult, function (e) {
+      errorBox.textContent = e && e.message ? e.message : 'Не удалось загрузить задачи';
+      empty.textContent = list.firstChild ? '' : 'Нет данных';
+    }).then(function () { reload.disabled = false; });
+  }
+  reload.addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>
