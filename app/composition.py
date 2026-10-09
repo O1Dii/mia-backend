@@ -3,13 +3,15 @@
 from fastapi import FastAPI
 from pydantic import SecretStr
 
+from app.api.v1.feed import build_feed_router
 from app.core.circuit import GuardedRealtimeSession, GuardedTextProvider, ProviderCircuit
 from app.core.config import Settings
 from app.core.limits import DailyBudget
 from app.core.runtime import Runtime
-from app.modules.auth.composition import install_auth
+from app.modules.auth.composition import install_auth, request_authenticator
 from app.modules.auth.service import AuthService, InvalidCredentialsError
 from app.modules.auth.tokens import InvalidAccessTokenError
+from app.modules.conversations.feed import FeedService
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
 from app.modules.models import install_models
@@ -138,6 +140,12 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         approvals=tools.approvals,
     )
     tools.device_channel.bind_publisher(runs.publish)
+    app.include_router(
+        build_feed_router(
+            service=FeedService(runtime.database.session_factory),
+            authenticator=request_authenticator(app),
+        )
+    )
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,

@@ -8,6 +8,9 @@ existing conversation/entries API keeps working on the same data.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -61,6 +64,84 @@ class FeedContext:
 class FeedTurn:
     conversation_id: uuid.UUID
     turn_id: uuid.UUID
+
+
+class InvalidFeedCursorError(ValueError):
+    """The ``before`` cursor is malformed or does not belong to the caller's feed."""
+
+
+@dataclass(frozen=True, slots=True)
+class FeedCursor:
+    """Opaque keyset position: entries strictly older than ``sequence`` of one feed.
+
+    Bound to the feed conversation, so a cursor of another user's feed never decodes
+    for the caller (and a cursor can never widen what the caller may read).
+    """
+
+    conversation_id: uuid.UUID
+    sequence: int
+
+    def encode(self) -> str:
+        raw = json.dumps(
+            {"c": str(self.conversation_id), "s": self.sequence, "v": 1},
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+    @classmethod
+    def decode(cls, cursor: str, *, conversation_id: uuid.UUID) -> FeedCursor:
+        if not cursor or len(cursor) > 512:
+            raise InvalidFeedCursorError("cursor length is invalid")
+        try:
+            padded = cursor + "=" * (-len(cursor) % 4)
+            payload = json.loads(base64.b64decode(padded, altchars=b"-_", validate=True))
+        except (UnicodeDecodeError, binascii.Error, json.JSONDecodeError, ValueError) as error:
+            raise InvalidFeedCursorError("cursor is malformed") from error
+        if not isinstance(payload, dict) or set(payload) != {"c", "s", "v"} or payload["v"] != 1:
+            raise InvalidFeedCursorError("cursor shape is invalid")
+        sequence = payload["s"]
+        if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 1:
+            raise InvalidFeedCursorError("cursor sequence is invalid")
+        if payload["c"] != str(conversation_id):
+            raise InvalidFeedCursorError("cursor belongs to another feed")
+        return cls(conversation_id=conversation_id, sequence=sequence)
+
+
+@dataclass(frozen=True, slots=True)
+class FeedItem:
+    """One message of the user's feed (``FeedItem`` in openapi.yaml)."""
+
+    id: uuid.UUID
+    role: Literal["user", "assistant"]
+    source: str
+    text: str
+    display: dict[str, Any] | None
+    run_id: uuid.UUID | None
+    created_at: datetime
+    sequence: int
+
+
+@dataclass(frozen=True, slots=True)
+class FeedPage:
+    items: tuple[FeedItem, ...]
+    next_cursor: str | None
+
+
+def _run_id_of(idempotency_key: str) -> uuid.UUID | None:
+    prefix, _, value = idempotency_key.partition(":")
+    if prefix != "run":
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        return None
+
+
+def _display_of(entry: Entry) -> dict[str, Any] | None:
+    response = entry.content.get("response")
+    display = response.get("display") if isinstance(response, dict) else None
+    return display if isinstance(display, dict) else None
 
 
 class FeedSummarizer(Protocol):
@@ -197,6 +278,14 @@ class FeedService:
         """Create the run's turn and the user's entry; idempotent per ``run_id``."""
         key = f"run:{run_id}"
         async with self._session_factory() as session, session.begin():
+            # Take the feed row lock before inserting the turn: the turn's foreign key holds a
+            # shared row lock, and two concurrent runs of one user would otherwise each hold
+            # it while waiting for the exclusive lock in ``append_entry`` (deadlock, M18).
+            await session.execute(
+                select(Conversation.id)
+                .where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+                .with_for_update()
+            )
             repository = ConversationRepository(session)
             existing = await repository.get_turn_by_idempotency(
                 user_id=user_id, conversation_id=conversation_id, idempotency_key=key
@@ -296,6 +385,66 @@ class FeedService:
                 )
             )
             return bool(getattr(result, "rowcount", 0))
+
+    async def history(
+        self, *, user_id: uuid.UUID, before: str | None = None, limit: int = 50
+    ) -> FeedPage:
+        """A page of the primary feed, newest first, older than the ``before`` cursor.
+
+        Keyset on ``entries.sequence`` (allocated under the conversation row lock, so it is
+        committed in order): entries written meanwhile are newer than every cursor already
+        handed out, hence pages never skip or repeat an entry. Read-only: an absent feed
+        yields an empty page and rejects any cursor.
+        """
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        async with self._session_factory() as session:
+            feed_id = await session.scalar(
+                select(Conversation.id).where(
+                    Conversation.user_id == user_id, Conversation.is_primary_feed.is_(True)
+                )
+            )
+            if feed_id is None:
+                if before is not None:
+                    raise InvalidFeedCursorError("cursor belongs to another feed")
+                return FeedPage(items=(), next_cursor=None)
+            statement = (
+                select(Entry, Turn.source, Turn.idempotency_key)
+                .join(
+                    Turn,
+                    (Turn.id == Entry.turn_id) & (Turn.conversation_id == Entry.conversation_id),
+                )
+                .where(
+                    Entry.conversation_id == feed_id,
+                    Entry.role.in_(_DIALOG_ROLES),
+                    Entry.kind.in_(_TEXT_KINDS),
+                    func.btrim(Entry.content["text"].as_string()) != "",
+                )
+                .order_by(Entry.sequence.desc())
+                .limit(limit + 1)
+            )
+            if before is not None:
+                position = FeedCursor.decode(before, conversation_id=feed_id)
+                statement = statement.where(Entry.sequence < position.sequence)
+            rows = (await session.execute(statement)).all()
+        page = rows[:limit]
+        items = tuple(
+            FeedItem(
+                id=entry.id,
+                role="user" if entry.role == EntryRole.USER else "assistant",
+                source=source.value,
+                text=str(entry.content["text"]),
+                display=_display_of(entry),
+                run_id=_run_id_of(key),
+                created_at=entry.created_at,
+                sequence=entry.sequence,
+            )
+            for entry, source, key in page
+        )
+        next_cursor = (
+            FeedCursor(feed_id, items[-1].sequence).encode() if len(rows) > limit else None
+        )
+        return FeedPage(items=items, next_cursor=next_cursor)
 
     @staticmethod
     async def _touch(session: AsyncSession, conversation_id: uuid.UUID) -> None:
