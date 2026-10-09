@@ -1384,7 +1384,93 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M22 inbox
 
-- Нет записей.
+### OI-M22-001 — Эхо TTS и barge-in без AEC
+
+- Status: OPEN
+- Source session: M22
+- Component: Android voice (cascade)
+- Question: не перебивает ли ответ сам себя через динамик, и слышен ли barge-in в шуме на реальном микрофоне?
+- Why non-blocking: на SM-S938B с инжектированной речью barge-in работает (speech → `tts.stop()` 85/88 мс, cancel 89 мс); во время TTS порог VAD поднят (`playbackSpeechRms` 0.075), захват `VOICE_RECOGNITION` без AEC.
+- Current assumption: системный TTS на громкости по умолчанию не превышает порог воспроизведения.
+- Options: (a) оставить; (b) захват `VOICE_COMMUNICATION` + `AcousticEchoCanceler` на время ответа; (c) half-duplex: во время TTS слушать только кнопку Stop.
+- Recommendation: (a), при самоперебиваниях в user check M22 — (b).
+- Affected future sessions: M60, MW2 integrator.
+- Revisit trigger/deadline: user check 2 из handoff M22 / M60 device gate.
+
+### OI-M22-002 — `speech.ack` во время ожидания подтверждения
+
+- Status: OPEN
+- Source session: M22
+- Component: Run engine (M12) / approvals (M13)
+- Question: должен ли движок выпускать `speech.ack`, пока run ждёт approval?
+- Why non-blocking: клиент M22 не озвучивает ack после голосовой подсказки подтверждения (найдено на устройстве: ack пришёл через 2.2 с во время ожидания).
+- Current assumption: таймер ack (`RUN_VOICE_ACK_DELAY_MS`) не приостанавливается на ожидании подтверждения.
+- Options: (a) не выпускать ack после `approval.requested`; (b) оставить, клиенты фильтруют.
+- Recommendation: (a) в движке при интеграции M13.
+- Affected future sessions: M13, M30, MW2 integrator.
+- Revisit trigger/deadline: MW2 integration.
+
+### OI-M22-003 — Endpointing 480 мс — самое долгое звено
+
+- Status: OPEN
+- Source session: M22
+- Component: Android voice (VAD)
+- Question: какой хвост тишины завершает фразу?
+- Why non-blocking: 12 × 40 мс (480 мс) — внутри бюджета Review §6.2 (300–600 мс); при 0 мс модели первый звук p50 804 мс, из них 480 мс — VAD.
+- Current assumption: `CascadeVoiceConfig.vad = VadConfig(endFrames = 12)`; кнопка «Done speaking» завершает фразу сразу.
+- Options: (a) 480 мс; (b) 320–360 мс (8–9 кадров); (c) адаптивный хвост / Silero VAD (sherpa-onnx).
+- Recommendation: проверить (b) на живой речи; при обрывах фраз оставить (a).
+- Affected future sessions: M60.
+- Revisit trigger/deadline: user check 2 из handoff M22.
+
+### OI-M22-004 — Модель STT остаётся в памяти процесса
+
+- Status: OPEN
+- Source session: M22
+- Component: Android voice / STT
+- Question: когда освобождать загруженную модель (~290 МБ PSS)?
+- Why non-blocking: `CascadeVoiceRuntime` создаёт распознаватель один раз на процесс (как советует M21); повторное открытие голоса не платит ~1 с загрузки.
+- Current assumption: держать до смерти процесса.
+- Options: (a) держать; (b) `close()` через N минут без голоса или на `onTrimMemory`; (c) отдельный процесс для голоса.
+- Recommendation: (b) перед пилотом.
+- Affected future sessions: M24, M62.
+- Revisit trigger/deadline: жалобы на память / перед M62.
+
+### OI-M22-005 — `display.kind = app` на Android
+
+- Status: OPEN
+- Source session: M22
+- Component: Android voice / MCP Apps
+- Question: как показывать MCP App карточки на телефоне?
+- Why non-blocking: экран голоса показывает `fallback_markdown` (или `speech`); WebView-поверхности — scope M24.
+- Current assumption: fallback-текст.
+- Options: (a) WebView-хост MCP Apps (M24); (b) только fallback в MVP.
+- Recommendation: (a) в M24.
+- Affected future sessions: M24, M31.
+- Revisit trigger/deadline: M24.
+
+### Resolution update — OI-W6-005
+
+- В каскадном режиме перебивание = локальный `tts.stop()` + `POST /v1/runs/{id}/cancel`. Замер на SM-S938B (инжектированная речь, системный TTS, реальный backend M12): начало речи → `tts.stop()` 85/88 мс, → cancel отправлен 89 мс (включая окно старта VAD 80 мс); run на сервере → `cancelled`. Акустический путь (динамик → микрофон) — user check M22 (OI-M22-001). Режим Gemini Live не менялся; его цифры по-прежнему не перемерены.
+- Suggested status: RESOLVED for the cascade (default mode); Live — без изменений.
+- Evidence: [M22](handoffs/M22.md), `feature/voice/device-gate/results/barge-in.json` (Android).
+
+### Resolution update — OI-W6-017
+
+- Каскад (режим по умолчанию) использует один механизм: локальная остановка TTS + cancel run; provider-side interrupt существует только в опциональном Gemini Live (код не менялся). Для каскада вопрос двух механизмов снят.
+- Suggested status: RESOLVED (cascade); Live остаётся как есть (вариант (a) не замерялся).
+- Evidence: [M22](handoffs/M22.md), `CascadeVoiceController.bargeIn`.
+
+### Resolution update — OI-M12-004
+
+- Замер M22: при 0 мс модели первый звук p50 804 / p95 836 мс, поэтому ack с задержкой 1500 мс звучит только для медленных run (на устройстве: ack через 2215 мс после конца речи, первый звук 2306 мс). Решение M22: клиент озвучивает текст `speech.ack` (серверная фраза) сразу, без earcon; `RUN_VOICE_ACK_DELAY_MS` = 1500 оставить; пересмотреть по замеру с реальной моделью в MW2 gate.
+- Suggested status: DECIDED.
+- Evidence: [M22](handoffs/M22.md).
+
+### Resolution update — OI-M21-002
+
+- Реализовано по решению пользователя: экран голоса показывает «Download 225 MB» (размер из каталога), загрузка только по нажатию, в любой сети; «Not now» оставляет голос выключенным с подсказкой про Gemini Live. Код: `SpeechModelDownloader`, `CascadePhase.NeedsSpeechModel`.
+- Evidence: [M22](handoffs/M22.md), `CascadeVoiceControllerTest` (consent/decline).
 
 ## M15 inbox
 
