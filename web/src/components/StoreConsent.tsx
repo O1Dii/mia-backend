@@ -36,8 +36,17 @@ export function ConsentDialog({
     }
   }
   return (
-    <Dialog title={title} description={description} onClose={busy ? () => undefined : onClose} wide>
-      <ConsentSummary consent={consent} added={added} />
+    <Dialog
+      title={title}
+      description={description}
+      onClose={busy ? () => undefined : onClose}
+      wide
+      tall
+    >
+      {/* The consent scrolls between the title and the actions, which always stay on screen. */}
+      <div className="mw-dialog__body">
+        <ConsentSummary consent={consent} added={added} />
+      </div>
       {error && (
         <p className="mw-error" role="alert">
           {error}

@@ -418,8 +418,35 @@
   flex: none;
   accent-color: var(--mia-color-accent-text);
 }
+/*
+ * Dialog height (M24-R1): a percentage of the fixed containing block, i.e. of the viewport. Not vh/dvh: a WebView
+ * laid out as wrap_content reports a viewport height of 0 for them, and the dialog collapsed to one line.
+ */
 .mw-dialog {
-  max-height: 90dvh;
+  max-height: 90%;
+}
+/* A dialog with a body: title and actions stay put, only the body scrolls. */
+.mw-dialog:has(> .mw-dialog__body) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mw-dialog:has(> .mw-dialog__body) > * {
+  flex: none;
+}
+.mw-dialog > .mw-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 599px) {
+  .mw-dialog {
+    max-height: calc(100% - 2 * var(--mia-space-4));
+  }
+  .mw-dialog--tall {
+    height: calc(100% - 2 * var(--mia-space-4));
+  }
 }
 .mw-dialog h2 {
   margin-right: var(--mia-space-6);
