@@ -241,6 +241,8 @@ class RunExecution:
         self.structured = False
         self.started = False
         self.final_emitted = False
+        self.approval_requested = False
+        """No ``speech.ack`` after an approval prompt: the client speaks the prompt (OI-M22-002)."""
         self.final_lock = asyncio.Lock()
         self.steps = 0
         self.tool_calls = 0
@@ -531,6 +533,7 @@ class RunExecution:
             return ToolOutcome(
                 call_id=request.call_id, status="denied", error_code="approval_unavailable"
             )
+        self.approval_requested = True
         await self.emit("approval.requested", {"approval": approval_payload(approval)})
         remaining = max(0.0, (approval.expires_at - self.engine.clock()).total_seconds())
         waited_from = time.monotonic()
@@ -616,7 +619,7 @@ class RunExecution:
     async def ack_after(self, delay_ms: int) -> None:
         await asyncio.sleep(delay_ms / 1000)
         async with self.final_lock:
-            if self.final_emitted:
+            if self.final_emitted or self.approval_requested:
                 return
             try:
                 await self.emit(

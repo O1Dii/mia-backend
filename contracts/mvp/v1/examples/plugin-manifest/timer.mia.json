@@ -11,7 +11,7 @@
   },
   "server": {
     "kind": "builtin",
-    "module": "app.plugins.timer.server"
+    "module": "app.plugins.builtin.timer.server"
   },
   "skills": [
     "SKILL.md"

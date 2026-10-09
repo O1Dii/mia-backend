@@ -250,6 +250,33 @@ async def test_external_write_waits_for_approval(world: RunWorld, decision: str)
         assert router.executed == []
 
 
+async def test_no_speech_ack_while_waiting_for_approval(world: RunWorld) -> None:
+    """OI-M22-002: the client speaks the approval prompt; a later filler would talk over it."""
+    limits = RunLimits(
+        voice=ProfileLimits(max_steps=3, max_tool_calls=2, timeout_s=5, ack_delay_ms=50),
+        chat=TEST_LIMITS.chat,
+        job=TEST_LIMITS.job,
+        app=TEST_LIMITS.app,
+    )
+    router, approvals = router_with(descriptor("test.send", risk="write_external"))
+    gateway = scripted(tool_step("c1", "test.send", {"q": "привет"}), text_step(answer("Ок.")))
+    service = world.service(gateway, router=router, approvals=approvals, limits=limits)
+
+    record, _ = await service.start(
+        NewRun(user_id=world.user, profile="voice", input_text="Отправь")
+    )
+
+    async def decide_late() -> None:
+        await asyncio.sleep(0.2)
+        await decide_when_requested(service, world.user, record.id, approvals, "approve")
+
+    decider = asyncio.create_task(decide_late())
+    events = await collect(service, world.user, record.id)
+    await decider
+    assert "approval.requested" in types(events)
+    assert "speech.ack" not in types(events)
+
+
 async def test_approval_without_service_is_denied(world: RunWorld) -> None:
     router, _ = router_with(descriptor("test.send", risk="write_external"))
     gateway = scripted(tool_step("c1", "test.send", {"q": "x"}), text_step(answer("Ок.")))

@@ -59,7 +59,60 @@ Follow-ups MW1 (не блокируют MW2):
 - OI-M21-002 DECIDED (пользователь): M22 предлагает скачать модель STT (~225 МБ) по согласию в любой сети, без
   требования Wi-Fi.
 
-Готовы к старту: M13, M14, M22 (волна MW2, параллельно).
+MW2 стартовала 2026-10-09: M13, M14, M22 параллельно (worktrees `../mia-helper-wt/M13`, `M14`, `M22-coordination`,
+`../mia-helper-android-wt/M22`). Диспетчерские правила волны: `mcp==2.2.0` в обеих backend-сессиях; встроенные плагины в
+`app/plugins/builtin/<id>/` (контракт M00 требует `server.module` под `app.`); router M13 не импортирует M14 — получает фабрику;
+идентичность вызова в `_meta` (`mia/user_id`, `mia/workspace_id`, `mia/installation_id`, `mia/run_id`).
+
+**MW2 integrated 2026-10-09** (integrator: Opus 5.5 high). Backend merge: M13 → `6dc045a`, M14 → `b6f2563` (конфликты
+`pyproject.toml`/`uv.lock`/`tests/hardening/test_admission_and_resilience.py` — взята версия M13, lock перегенерирован
+`uv lock`), coordination M22 → `216a7c7`, integration commit поверх. Android main: M22 → `1cc92e8`, без конфликтов.
+Миграции: одна новая `20261009_m13_tools` (down_revision `20261009_m12_runs`), head; у M14 миграций нет.
+Integrator:
+- wiring `app/modules/plugins/composition.py`: `RouterServerFactory` (фабрика M14 → сигнатура router M13),
+  `BuiltinPluginCatalog` (digest = `compute_tools_digest` по `tools/list` того же сервера, OI-M13-004),
+  `GatewayHostLlm` (модель пользователя для `builtin.news`, profile `job`); `app/composition.py`: каталог → `install_workspace`,
+  фабрика → `install_tools` (workspace теперь монтируется после `install_models`);
+- OI-M13-001: обратимые алиасы имён tools в адаптерах M11 (`adapters/tool_names.py`, `responses.py`, `chat_completions.py`);
+- OI-M22-002: движок не выпускает `speech.ack` после `approval.requested`;
+- запрос M14: пример `contracts/mvp/v1/examples/plugin-manifest/timer.mia.json` → `app.plugins.builtin.timer.server`;
+- gate-тест `tests/integration/test_mw2_gate.py`.
+
+Gate MW2 — PASS офлайн; живые проверки — пользователь (см. ниже):
+- таймер вызывается моделью через MCP и router: PASS офлайн — вход Android по bearer → `POST /v1/installations`
+  `builtin.timer` с digest каталога → `POST /v1/runs` (voice) → реальный `DefaultModelGateway` `chatgpt-plan` (записанный
+  Responses-поток вызывает алиас `builtin__timer__start`) → router M13 → in-process MCP-сервер M14 → `tool.call.completed`
+  (`structured_content.items`, `ui://`) → `response.final`; таймер лежит в `PluginState` (`GET …/state`). Живой вызов основной
+  модели с tools не выполнялся (нужен интерактивный вход владельца);
+- подтверждения работают: PASS — `write_external` → `approval.requested` → `GET /v1/approvals?status=pending` →
+  `POST /v1/approvals/{id}/decision` (неверный `args_hash` → 409 `approval_args_mismatch`, верный → 200, channel `android`)
+  → `approval.resolved` → `tool.call.completed{succeeded}`, Postgres;
+- голосовой каскад отвечает на телефоне: PASS в M22 на SM-S938B (реальные GigaAM STT, Google TTS, SSE-клиент, M10+M12 на
+  Postgres; модель и M13 — фейки, речь инжектирована): 20 ходов, конец речи → первый звук p50 804 / p95 836 мс, barge-in
+  stop 85–88 мс + cancel 89 мс, reconnect по `Last-Event-ID`, подтверждение голосом (approve/deny/expired).
+
+Проверки: ruff, `ruff format --check`, mypy (292 файла), `validate_contracts.py` (mvp/v1: 24 examples, 14 run events,
+49 operations, 41 error codes) PASS; pytest с PostgreSQL+Redis 804 passed / 4 skipped, без БД 611 passed / 197 skipped;
+alembic upgrade → downgrade `20261009_m12_runs` → upgrade, `alembic check` без drift. Android main (JDK 17): `lint test
+assembleDebug` + androidTest-сборки `:feature:voice`, `:feature:approvals`, `:core:tts`, `:core:network`, `:feature:assistant`,
+`:core:stt` — BUILD SUCCESSFUL, 204 unit-теста, 0 failed.
+
+User checks MW2 (нужен человек):
+1. Живой путь: вход Google в приложении, подключение основной модели (Sign in with ChatGPT на хосте backend), согласие на
+   загрузку STT (225 МБ), несколько вопросов голосом, в т.ч. «поставь таймер на пять минут» (живой вызов tool с алиасом),
+   замер первого звука с реальной моделью; Gemini Live в настройках всё ещё работает.
+2. Реальный микрофон и динамик: barge-in и самоперебивание эхом TTS (OI-M22-001).
+3. Подтверждение на заблокированном экране: «Одобрить» сначала просит разблокировку.
+4. WER на живом голосе (OI-M21-004).
+
+Follow-ups MW2 (не блокируют MW3):
+- Запрошенные аддитивные правки `contracts/mvp/v1` не применены: M14 — `get_state` у декларативных (OI-M14-001) и
+  `permissions.publicWeb` (OI-M14-002); M10/M11 — пути и `cookieAuth` в `openapi.yaml` (с MW1). Владелец — M15.
+- Grants не проверяются (OI-M13-002) — словарь определяет M15.
+- Устройства: `PUT /v1/devices/{id}/tools` и `POST /v1/runs/{id}/device-tool-results` — M23 (канал M13 и клиент M22 готовы).
+- `GatewayHostLlm` без бюджета на установку (OI-M14-005).
+
+Готовы к старту: M15, M16, M17, M23 (волна MW3, параллельно; по умолчанию четыре активные).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -70,13 +123,13 @@ Follow-ups MW1 (не блокируют MW2):
 | M12 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M12](handoffs/M12.md) | `e4f0cc6` | runs/events/SSE, профили, speech/display, `speech.ack`; реестр error-codes |
 | M20 | MW1 | COMPLETED | M00 | Sonnet 5.5 high | [M20](handoffs/M20.md) | `6028f42` / Android `34e978b` | VIS + lock screen; device gate PASS на SM-S938B |
 | M21 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M21](handoffs/M21.md) | `8c037e6` / Android `522c517` | GigaAM-v3 CTC, sherpa-onnx 1.13.8, загрузка модели при первом запуске |
-| M13 | MW2 | READY | M10,M12 | Opus 5.5 high | — | — | Tool Router/policy/MCP/approvals |
-| M14 | MW2 | READY | M00,M10 | Sonnet 5.5 high | — | — | builtin + declarative плагины |
-| M22 | MW2 | READY | M12,M20,M21 | Opus 5.5 high | — | — | каскадный голос; заменяет S31-R1 |
-| M15 | MW3 | PENDING | M13,M14 | Sonnet 5.5 high | — | — | магазин и подключения |
-| M16 | MW3 | PENDING | M12,M13 | Opus 5.5 high | — | — | jobs/расписания/уведомления |
-| M17 | MW3 | PENDING | M10,M11,M12,M13 | Opus 5.5 high | — | — | Memory Ledger |
-| M23 | MW3 | PENDING | M13,M22 | Sonnet 5.5 high | — | — | Android device tools |
+| M13 | MW2 | COMPLETED | M10,M12 | Opus 5.5 high | [M13](handoffs/M13.md) | `6dc045a` | router/policy/MCP/approvals; миграция `20261009_m13_tools` |
+| M14 | MW2 | COMPLETED | M00,M10 | Sonnet 5.5 high | [M14](handoffs/M14.md) | `b6f2563` | 6 builtin + declarative host, конвертер v1/v2; пакеты в `app/plugins/builtin/` |
+| M22 | MW2 | COMPLETED | M12,M20,M21 | Opus 5.5 high | [M22](handoffs/M22.md) | `216a7c7` / Android `1cc92e8` | каскад STT→run→TTS, approvals, barge-in; device gate PASS (фейк модели) |
+| M15 | MW3 | READY | M13,M14 | Sonnet 5.5 high | — | — | магазин и подключения |
+| M16 | MW3 | READY | M12,M13 | Opus 5.5 high | — | — | jobs/расписания/уведомления |
+| M17 | MW3 | READY | M10,M11,M12,M13 | Opus 5.5 high | — | — | Memory Ledger |
+| M23 | MW3 | READY | M13,M22 | Sonnet 5.5 high | — | — | Android device tools |
 | M30 | MW4 | PENDING | M15 | Sonnet 5.5 high | — | — | web: чат/подтверждения/магазин |
 | M40 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Linear |
 | M41 | MW4 | PENDING | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |

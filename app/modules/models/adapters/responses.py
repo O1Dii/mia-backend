@@ -37,6 +37,7 @@ from app.modules.models.adapters.base import (
     parse_arguments,
     secret_value,
 )
+from app.modules.models.adapters.tool_names import ToolNames
 from app.modules.models.errors import ProviderError, from_stream_failure
 from app.modules.models.sse import iter_sse
 
@@ -44,7 +45,9 @@ STATE_KEY = "responses_reasoning_items"
 FinishReason = Literal["stop", "tool_calls", "length", "content_filter"]
 
 
-def build_input(messages: list[ModelMessage]) -> tuple[str | None, list[dict[str, Any]]]:
+def build_input(
+    messages: list[ModelMessage], names: ToolNames | None = None
+) -> tuple[str | None, list[dict[str, Any]]]:
     """Map neutral messages to ``(instructions, input items)``."""
     system = [m.content for m in messages if m.role == "system" and m.content]
     items: list[dict[str, Any]] = []
@@ -62,7 +65,7 @@ def build_input(messages: list[ModelMessage]) -> tuple[str | None, list[dict[str
                     {
                         "type": "function_call",
                         "call_id": call.call_id,
-                        "name": call.name,
+                        "name": names.wire(call.name) if names else call.name,
                         "arguments": json.dumps(call.arguments, ensure_ascii=False),
                     }
                 )
@@ -111,7 +114,8 @@ class ResponsesAdapter:
         self._include_encrypted = include_encrypted_reasoning
 
     def build_body(self, request: ModelRequest) -> dict[str, object]:
-        instructions, items = build_input(list(request.messages))
+        names = ToolNames.for_request(request)
+        instructions, items = build_input(list(request.messages), names)
         body: dict[str, object] = {
             "model": self._target.model,
             "input": items,
@@ -124,7 +128,7 @@ class ResponsesAdapter:
             body["tools"] = [
                 {
                     "type": "function",
-                    "name": tool.name,
+                    "name": names.wire(tool.name),
                     "description": tool.description,
                     "parameters": dict(tool.input_schema),
                 }
@@ -148,6 +152,7 @@ class ResponsesAdapter:
 
     async def stream(self, request: ModelRequest) -> AsyncGenerator[ModelEvent, None]:
         started = self._settings.clock()
+        names = ToolNames.for_request(request)
         calls: list[dict[str, str]] = []
         reasoning: list[dict[str, Any]] = []
         done = False
@@ -179,7 +184,7 @@ class ResponsesAdapter:
                         if isinstance(item, dict):
                             self._collect_item(item, calls, reasoning)
                     elif etype in {"response.completed", "response.incomplete"}:
-                        for event in self._finish(data, etype, calls, reasoning):
+                        for event in self._finish(data, etype, calls, reasoning, names):
                             yield event
                         done = True
                         break
@@ -212,6 +217,7 @@ class ResponsesAdapter:
         etype: str,
         calls: list[dict[str, str]],
         reasoning: list[dict[str, Any]],
+        names: ToolNames,
     ) -> list[ModelEvent]:
         response = data.get("response")
         response = response if isinstance(response, dict) else {}
@@ -224,7 +230,7 @@ class ResponsesAdapter:
                 ToolCallRequested(
                     ModelToolCall(
                         call_id=call["call_id"],
-                        name=call["name"],
+                        name=names.canonical(call["name"]),
                         arguments=parse_arguments(call["arguments"]),
                         provider_state=state,
                     )

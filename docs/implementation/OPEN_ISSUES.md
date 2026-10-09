@@ -29,7 +29,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-002 | OPEN | Live transcripts | Какому turn_id принадлежит реплика, расшифрованная до commit? | приписывается предыдущему turn | S33 |
 | OI-W6-003 | OPEN | Live diagnostics | Как отличить дефект mapping от сетевого сбоя в логах? | никак: причина поглощается | before beta |
 | OI-W6-004 | DECIDED | Gemini Live model | Какая Live-модель поддерживается адаптером? | `gemini-2.5-flash-native-audio-latest` | S31-R1 |
-| OI-W6-005 | OPEN | Barge-in | Сохраняются ли 83/84 ms после изменения playback-пути? | не измерено заново | S31-R1 |
+| OI-W6-005 | RESOLVED | Barge-in | Сохраняются ли 83/84 ms после изменения playback-пути? | каскад: stop 85/88 мс + cancel 89 мс (M22); Live не перемерен | resolved in MW2 integration |
 | OI-W6-006 | OPEN | Backend composition | Нужен ли явный override verifier/provider в `install_runtime_api`? | monkeypatch атрибутов модуля | S33 |
 | OI-W6-007 | OPEN | Auth config | Нужен ли более низкий пол `auth_access_token_ttl_seconds` для тестов? | токен выпускается вручную | S33 |
 | OI-W6-008 | RESOLVED | Live idle | Должна ли тишина 90 s завершать Live-сессию как «провайдер недоступен»? | нет; простой считается по обоим направлениям | resolved in S15-R1 |
@@ -41,7 +41,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-014 | RESOLVED | Credential smokes | Где запускать smoke-тесты, требующие ключа? | в `Dockerfile.test` через `ops/credential_smoke.sh` | resolved in S18-R1 |
 | OI-W6-015 | OPEN | Realtime runtime | Должно ли окно неактивности клиента настраиваться оператором? | константа 30 s в модуле | S33 |
 | OI-W6-016 | RESOLVED | Android voice | Клиент не замечает закрытый сокет в состоянии ожидания ответа | OkHttp не отдавал onClosed без ответа на close-фрейм | resolved in S25-R2 |
-| OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
+| OI-W6-017 | RESOLVED | Barge-in | Два механизма перебивания сразу | каскад — один механизм (M22); Live без изменений | resolved in MW2 integration |
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
 | OI-W6-019 | RESOLVED | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | клиент сам закрывал сокет кодом 1013 | resolved in S25-R3 |
 | OI-M00-001 | RESOLVED | MVP contracts | Где реестр кодов ошибок mvp/v1? | `contracts/mvp/v1/error-codes.json` (M12) | resolved in MW1 integration |
@@ -60,15 +60,33 @@ Integration session обновляет этот индекс после merge.
 | OI-M12-001 | OPEN | Runs | Retention `runs`/`run_events` | хранятся бессрочно | M17 |
 | OI-M12-002 | OPEN | Runs / web | Черновик текста в structured mode | без черновиков | M30 |
 | OI-M12-003 | OPEN | Runs runtime | Runs при нескольких backend-инстансах | один инстанс | with OI-S18-002 |
-| OI-M12-004 | OPEN | Voice | Язык и форма `speech.ack` | серверный текст «Секунду.» | M22 |
+| OI-M12-004 | DECIDED | Voice | Язык и форма `speech.ack` | клиент озвучивает серверный текст, задержка 1500 мс | живой замер MW2 |
 | OI-M20-001 | RESOLVED | Android assistant | Отдельная activity для ассистента? | `MainActivity` в отдельной assistant-задаче | resolved in M20 device gate |
 | OI-M20-002 | OPEN | Android assistant | Заглушка RecognitionService в VIS | заглушка до M22 | M22 |
 | OI-M20-003 | RESOLVED | Android assistant | ROLE_ASSISTANT запрашивается диалогом? | нет в One UI; открываются Настройки | resolved in M20 |
 | OI-M21-001 | OPEN | Android STT | Калиброванная уверенность STT | эвристика | M22 |
-| OI-M21-002 | DECIDED | Android STT | Политика загрузки модели ~225 МБ | предлагать загрузку по согласию пользователя в любой сети, без требования Wi-Fi | M22; Play Asset Delivery — до релиза |
+| OI-M21-002 | RESOLVED | Android STT | Политика загрузки модели ~225 МБ | загрузка по согласию в любой сети (M22) | resolved in M22; Play Asset Delivery — до релиза |
 | OI-M21-003 | OPEN | Android STT | Названия сервисов в смешанной речи RU/EN | как есть; словарь алиасов предложен | M22 |
 | OI-M21-004 | OPEN | Android STT | WER на живой речи | измерено только на синтезе | M22 device gate |
 | OI-M21-005 | OPEN | Android STT | Какие ABI упаковывать | только arm64-v8a | release AAB |
+| OI-M13-001 | RESOLVED | Model adapters | Имена tools с точками у OpenAI-совместимых API | алиас в адаптерах (`ToolNames`) | resolved in MW2 integration |
+| OI-M13-002 | OPEN | Tools / store | Словарь `installations.grants` | grants не проверяются сверх статуса/digest/network/scopes | M15 |
+| OI-M13-003 | OPEN | Tools / voice | Фильтр voice: `voice: true` и `read`? | только флаг `voice` | M15 / M60 |
+| OI-M13-004 | RESOLVED | Tools / catalog | Digest каталога = `compute_tools_digest` | builtin-каталог MW2 так и считает | resolved in MW2 integration; правило для M15 |
+| OI-M13-005 | OPEN | Tools | Skills удалённых плагинов не загружаются | только упакованные `SKILL.md` | M15 |
+| OI-M13-006 | OPEN | Approvals | Retention и отмена pending approvals завершённых run | хранятся; не отменяются | M17 / M30 |
+| OI-M14-001 | OPEN | Plugin contract | Скрытый app-only `get_state` у декларативных | не в манифесте; запрошен additive diff | M15 |
+| OI-M14-002 | OPEN | Plugin permissions | Разрешение «любая публичная HTTPS-страница» | `builtin.internet` без словаря; запрошен `permissions.publicWeb` | M15 |
+| OI-M14-003 | OPEN | Plugins | `mia.clock` и v2 id, начинающиеся с цифры | не перенесены | M15 |
+| OI-M14-004 | OPEN | Jobs | Контракт срабатывания дедлайнов timer/alarm/focus | M16 читает `items[].deadline_ms` | M16 |
+| OI-M14-005 | OPEN | Plugins / LLM | Бюджет `HostLlm` и плановые дайджесты | `GatewayHostLlm` без бюджета (profile `job`) | M16 / M17 |
+| OI-M14-006 | OPEN | MCP Apps | Bridge проверен только на фейковом хосте | протокольные тесты под node | M31 |
+| OI-M14-007 | RESOLVED | Dependencies | `mcp` тянет `httpx2` | одна копия правок тестов | resolved in MW2 integration |
+| OI-M22-001 | OPEN | Android voice | Эхо TTS и barge-in без AEC | порог VAD во время TTS | user check MW2 / M60 |
+| OI-M22-002 | RESOLVED | Runs / voice | `speech.ack` во время ожидания подтверждения | движок не шлёт ack после `approval.requested` | resolved in MW2 integration |
+| OI-M22-003 | OPEN | Android voice | Endpointing 480 мс — самое долгое звено | 480 мс | M60 |
+| OI-M22-004 | OPEN | Android voice | Модель STT остаётся в памяти процесса | держится | M60 |
+| OI-M22-005 | OPEN | Android UI | `display.kind = app` на Android | текстовая карточка | M24 |
 
 ## Record template
 
@@ -597,7 +615,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-005 — Barge-in latency after the playback change
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S31 (via S25-R1)
 - Component: Android voice
 - Question: сохраняются ли 83/84 ms speech-to-flush и speech-to-cancel-send
@@ -610,7 +628,7 @@ gates recorded in the S27 handoff, not open issues.
 - Recommendation: (b) — S26-R1 измерял инъецированное аудио и fake gateway.
 - Affects sessions: S31-R1, S33.
 - Revisit trigger/by: S31-R1.
-- Resolution: —
+- Resolution: MW2 integration 2026-10-09 (по M22): для каскада (режим по умолчанию) barge-in = `tts.stop()` 85/88 мс + cancel 89 мс на SM-S938B; Gemini Live не перемерялся. Акустический путь — OI-M22-001.
 - Evidence: [S25-R1](handoffs/S25-R1.md), [S26-R1](handoffs/S26-R1.md).
 
 ### OI-W6-008 — Silence ends a Live session as a provider failure
@@ -742,7 +760,7 @@ gates recorded in the S27 handoff, not open issues.
 
 ### OI-W6-017 — Barge-in now has two mechanisms
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: S16-R2
 - Component: Android voice / Gemini Live
 - Question: как взаимодействуют локальное перебивание (flush + `response.cancel`)
@@ -756,7 +774,7 @@ gates recorded in the S27 handoff, not open issues.
   латентности: 83/84 ms из S26-R1 получены на другом протоколе.
 - Affects sessions: S31-R1, S33.
 - Revisit trigger/by: S31-R1.
-- Resolution: —
+- Resolution: MW2 integration 2026-10-09 (по M22): каскад использует один механизм (локальный stop + cancel run); provider-side interrupt остался только в опциональном Gemini Live.
 - Evidence: [S16-R2](handoffs/S16-R2.md), [S26-R1](handoffs/S26-R1.md).
 
 ## S18-R1 inbox
@@ -1240,7 +1258,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M12-004 — Locale and form of the `speech.ack` filler
 
-- Status: OPEN
+- Status: DECIDED
 - Source session: M12
 - Component: Voice / run engine
 - Question: should the filler follow the user's locale, vary, or be an on-device earcon?
@@ -1250,7 +1268,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: M22 measures time to first sound on the phone and chooses.
 - Affects sessions: M22, M61.
 - Revisit trigger/by: M22.
-- Resolution:
+- Resolution: MW2 integration 2026-10-09 (по M22): клиент сразу озвучивает серверный текст `speech.ack` без earcon; `RUN_VOICE_ACK_DELAY_MS` = 1500. Пересмотреть по замеру с живой моделью (user check MW2).
 - Evidence: `contracts/mvp/v1/run-events.schema.json#/$defs/speechAck`.
 
 ### Resolution update — OI-M00-001
@@ -1322,7 +1340,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M21-002 — Политика загрузки модели STT (~225 МБ)
 
-- Status: DECIDED
+- Status: RESOLVED
 - Source session: M21
 - Component: Android STT / UX
 - Question: когда и с чьего согласия качать модель: только Wi-Fi, явный запрос, фоновая загрузка (WorkManager)? Для релиза — Play Asset Delivery?
@@ -1332,7 +1350,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) в MVP; (c) рассмотреть перед публикацией в Play (зеркало вместо HuggingFace).
 - Affected future sessions: M22, M24, M62
 - Revisit trigger/deadline: M22 (экран голоса) / до публичного релиза.
-- Resolution: решение пользователя 2026-10-09 (MW1 integration): вариант (a) — Mia предлагает скачать модель распознавания по явному согласию пользователя, **в любой сети, Wi-Fi не требуется** (размер ~225 МБ показывается в предложении). Автозагрузка без согласия не делается. Play Asset Delivery / зеркало вместо HuggingFace — пересмотреть перед публикацией в Play.
+- Resolution: решение пользователя 2026-10-09 (MW1 integration): вариант (a) — Mia предлагает скачать модель распознавания по явному согласию пользователя, **в любой сети, Wi-Fi не требуется** (размер ~225 МБ показывается в предложении). Автозагрузка без согласия не делается. Play Asset Delivery / зеркало вместо HuggingFace — пересмотреть перед публикацией в Play. Реализовано в M22 (`SpeechModelDownloader`, `CascadePhase.NeedsSpeechModel`; MW2 integration).
 - Evidence: решение пользователя в MW1 integration session; [M21](handoffs/M21.md).
 
 ### OI-M21-003 — Смешанная речь RU/EN и названия сервисов
@@ -1378,7 +1396,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M13-001 — Qualified tool names contain dots; OpenAI-style function names do not allow them
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M13
 - Component: Model gateway adapters / tool router
 - Question: the contract shows tools to the model as `<plugin>.<tool>` (`qualifiedToolName`, e.g. `builtin.timer.start`); OpenAI-compatible APIs (ChatGPT plan Responses, DeepInfra chat completions) accept function names matching `^[a-zA-Z0-9_-]{1,64}$`. Where is the name mapped?
@@ -1388,7 +1406,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: adapter-level alias in `app/modules/models/adapters/{responses,chat_completions}.py` by the MW2 integrator or an M11 follow-up.
 - Affects sessions: M11 follow-up, MW2 integrator (live gate), M22, M60.
 - Revisit trigger/by: before the MW2 gate with a live model.
-- Resolution:
+- Resolution: MW2 integration 2026-10-09: адаптерный алиас `app/modules/models/adapters/tool_names.py` (`ToolNames`): валидные имена без изменений, `.`→`__`, недопустимые символы → `_`, >64 — хеш-суффикс, коллизии — `_2…`; детерминирован по набору имён запроса (tools + replayed `tool_calls`), обратно маппится в `ToolCallRequested`. Применён в `responses.py` и `chat_completions.py`. Тесты `tests/models/test_tool_names.py`, gate `tests/integration/test_mw2_gate.py` (Responses-поток с алиасом `builtin__timer__start`).
 - Evidence: `app/modules/models/adapters/responses.py` (`"name": tool.name`), handoff M13.
 
 ### OI-M13-002 — Vocabulary of `installations.grants` is undefined
@@ -1423,7 +1441,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M13-004 — Catalog `tools_digest` must use `compute_tools_digest`
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M13
 - Component: Plugin catalog / consent
 - Question: who computes the digest pinned in `installations.tools_digest`, and over what?
@@ -1433,7 +1451,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: as implemented; M14/M15 compute catalog digests with the same function at publish/packaging time.
 - Affects sessions: M14, M15, MW2 integrator.
 - Revisit trigger/by: MW2 integration (a wrong digest makes builtins invisible).
-- Resolution:
+- Resolution: MW2 integration 2026-10-09: каталог встроенных плагинов `app/modules/plugins/composition.py` (`BuiltinPluginCatalog`) считает `tools_digest` через `compute_tools_digest` по `tools/list` того же сервера; gate-установка `builtin.timer` по digest каталога не блокируется. Для M15 правило остаётся в силе.
 - Evidence: `tests/tools/test_registry.py::test_digest_is_canonical_and_sensitive`, `test_substituted_tool_description_blocks_until_consent`.
 
 ### OI-M13-005 — Skills of remote plugins (Skills over MCP) are not loaded
@@ -1560,7 +1578,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M14-007 — `mcp` pulls `httpx2`, which changes Starlette's TestClient
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M14
 - Component: Dependencies / tests
 - Question: `mcp==2.2.0` depends on `httpx2`; once installed, Starlette's `TestClient` returns `httpx2` responses and cookies, which broke three `tests/hardening` assertions and three mypy lines in `tests/web_poc`.
@@ -1570,7 +1588,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: keep the edits, resolve the possible merge conflict by taking either identical hunk.
 - Affects sessions: M13, MW2 integrator.
 - Revisit trigger/by: MW2 integration.
-- Resolution:
+- Resolution: MW2 integration 2026-10-09: при merge M13/M14 оставлена одна копия (вариант M13: `isinstance(response, httpx2.Response)`; `assert cookie is not None` — идентичные hunks), `uv.lock` перегенерирован.
 - Evidence: commit `af56a4d`, `tests/hardening/test_admission_and_resilience.py`, `tests/web_poc/test_accounts.py`.
 
 ## M22 inbox
@@ -1590,7 +1608,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M22-002 — `speech.ack` во время ожидания подтверждения
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M22
 - Component: Run engine (M12) / approvals (M13)
 - Question: должен ли движок выпускать `speech.ack`, пока run ждёт approval?
@@ -1600,6 +1618,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) в движке при интеграции M13.
 - Affected future sessions: M13, M30, MW2 integrator.
 - Revisit trigger/deadline: MW2 integration.
+- Resolution: MW2 integration 2026-10-09: вариант (a) — `RunExecution.approval_requested`; после `approval.requested` движок больше не выпускает `speech.ack`. Тест `tests/runs/test_engine.py::test_no_speech_ack_while_waiting_for_approval`. Клиентский фильтр M22 можно оставить как защиту.
 
 ### OI-M22-003 — Endpointing 480 мс — самое долгое звено
 

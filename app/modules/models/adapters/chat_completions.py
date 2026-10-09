@@ -32,6 +32,7 @@ from app.modules.models.adapters.base import (
     parse_arguments,
     secret_value,
 )
+from app.modules.models.adapters.tool_names import ToolNames
 from app.modules.models.errors import ProviderError, from_stream_failure
 from app.modules.models.sse import iter_sse
 
@@ -39,7 +40,9 @@ STATE_KEY = "reasoning_content"
 FinishReason = Literal["stop", "tool_calls", "length", "content_filter"]
 
 
-def build_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
+def build_messages(
+    messages: list[ModelMessage], names: ToolNames | None = None
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for message in messages:
         if message.role in {"system", "user"}:
@@ -55,7 +58,7 @@ def build_messages(messages: list[ModelMessage]) -> list[dict[str, Any]]:
                         "id": call.call_id,
                         "type": "function",
                         "function": {
-                            "name": call.name,
+                            "name": names.wire(call.name) if names else call.name,
                             "arguments": json.dumps(call.arguments, ensure_ascii=False),
                         },
                     }
@@ -90,9 +93,10 @@ class ChatCompletionsAdapter:
         self._settings = settings
 
     def build_body(self, request: ModelRequest) -> dict[str, object]:
+        names = ToolNames.for_request(request)
         body: dict[str, object] = {
             "model": self._target.model,
-            "messages": build_messages(list(request.messages)),
+            "messages": build_messages(list(request.messages), names),
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -101,7 +105,7 @@ class ChatCompletionsAdapter:
                 {
                     "type": "function",
                     "function": {
-                        "name": tool.name,
+                        "name": names.wire(tool.name),
                         "description": tool.description,
                         "parameters": dict(tool.input_schema),
                     },
@@ -121,6 +125,7 @@ class ChatCompletionsAdapter:
 
     async def stream(self, request: ModelRequest) -> AsyncGenerator[ModelEvent, None]:
         started = self._settings.clock()
+        names = ToolNames.for_request(request)
         slots: dict[int, dict[str, str]] = {}
         reasoning = ""
         finish: str | None = None
@@ -183,7 +188,7 @@ class ChatCompletionsAdapter:
             yield ToolCallRequested(
                 ModelToolCall(
                     call_id=call["call_id"],
-                    name=call["name"],
+                    name=names.canonical(call["name"]),
                     arguments=parse_arguments(call["arguments"]),
                     provider_state=state,
                 )
