@@ -2507,7 +2507,93 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M43 inbox
 
-- Нет записей.
+### Resolution update → OI-M15-004 (частично: публикация)
+
+- Proposed status: OPEN (вопрос о DCR и предзарегистрированных клиентах остаётся).
+- Resolution: руководство описывает фактический путь публикации: `cli.mia_plugin` на backend-хосте,
+  нужен каталог `contracts/`, API загрузки нет, публикует администратор из `STORE_ADMIN_USER_IDS`.
+  Публикация шаблона через этот entry point проверяется тестом на тестовой базе
+  (`tests/plugin_template/test_template.py::test_mia_plugin_publish_stores_the_template_release`).
+- Evidence: `docs/PLUGIN_DEVELOPMENT.md` (раздел «Публикация»), `plugins/_template/`, handoff M43.
+
+### Resolution update → OI-M30-003 (текст подтверждения)
+
+- Proposed status: OPEN, решение отложено.
+- Resolution: в этой сессии дополнительное поле `mia.json` для текста подтверждения **не добавлено**
+  (сессия документационная, аддитивное изменение схемы требует решения владельца контракта).
+  `docs/PLUGIN_DEVELOPMENT.md` описывает текущий технический текст подтверждения.
+- Evidence: `contracts/mvp/v1/plugin-manifest.schema.json` (поля без изменений), раздел «Подтверждения».
+
+### OI-M43-001 — Bundled HTML плиток не отдаётся клиентам
+
+- Status: OPEN
+- Source session: M43
+- Component: Plugins / каталог / плитки дашборда
+- Question: как клиент получает HTML плитки (`tiles[].bundled`) и кто добавляет CSP и мост `window.mia`?
+- Why non-blocking: контракт, валидация и примеры работают (`plugins/_template`, `plugins/linear`, `plugins/google-calendar`).
+  Но реальной отдачи нет: `GET /v1/plugins/{id}/releases/{version}/files/{path}` отдаёт только изображения
+  (`CatalogService.file` пропускает `IMAGE_SUFFIXES`), а `render_app_html` (CSP и мост) вызывается только
+  для in-process серверов (`app/modules/plugins/builtin/kit.py`, `declarative/host.py`).
+- Current assumption: M24/M31 получат HTML иначе или добавят CSP и мост на клиенте.
+- Options: (a) сервер отдаёт `.html` релиза как документ с `render_app_html` и `Content-Security-Policy: default-src 'none'; sandbox`-подобной политикой;
+  (b) клиент сам подставляет CSP и мост из одного общего кода; (c) плитки только через `ui://` сервера (см. OI-M43-002).
+- Recommendation: (a): одна точка CSP на сервере, клиент рисует документ в sandbox-iframe без собственной логики безопасности.
+  Решение до приёмки дашборда.
+- Affected future sessions: M24, M31, M60.
+- Revisit trigger/by: до M60 (приёмка дашборда).
+- Resolution:
+- Evidence: `app/modules/plugins/catalog/service.py` (`CatalogService.file`), `app/api/v1/plugins.py` (`get_release_file`), `app/modules/plugins/builtin/bridge.py` (`render_app_html`).
+
+### OI-M43-002 — `ui://` ресурсы серверов плагинов не проксируются
+
+- Status: OPEN
+- Source session: M43
+- Component: Tools router / MCP Apps
+- Question: должна ли Mia читать `ui://` ресурсы remote-серверов (`resources/read`) и отдавать их клиенту, и с какой политикой?
+- Why non-blocking: роутер сохраняет `_meta.ui.resourceUri` результата (`ui_resource_uri` в событиях run), но ни один путь
+  не вызывает `resources/read` у remote-сервера; чтение ресурсов discovery выполняет только для in-process серверов.
+  Плитки MVP строятся на `bundled`, это задокументировано.
+- Current assumption: авторы remote-плагинов используют `bundled` для дашборда; `ui://` в чате — после MVP.
+- Options: (a) прокси `resources/read` с проверкой префикса `ui://<plugin id>/` и CSP; (b) запретить `resourceUri` вне `bundled` для remote; (c) оставить до M60.
+- Recommendation: (c) для MVP; (a) — при первом сценарии, где нужен `ui://` сервера (превью карты M51 или чат-приложение). Изменить ADR-0010 п. 5 при реализации.
+- Affected future sessions: M31, M51, M60.
+- Revisit trigger/by: M51 (MCP App превью карты MindWeaver).
+- Resolution:
+- Evidence: `app/modules/tools/router.py` (`_ui_uri`), `app/modules/plugins/catalog/discovery.py` (`_read_tiles`, только in-process), `docs/PLUGIN_DEVELOPMENT.md` (раздел «Статус в MVP»).
+
+### OI-M43-003 — Распространение SDK: индекса нет
+
+- Status: OPEN
+- Source session: M43
+- Component: SDK / распространение
+- Question: как внешние приложения получают `mia-sdk` (Python) и `@mia/sdk` (JS): внутренний индекс (CodeArtifact), git-зависимость или путь в репозитории?
+- Why non-blocking: оба пакета собираются и тестируются из репозитория (`tests/oauth`; `sdk/js` `npm test` на Node 22 проходит без зависимостей).
+  JS-пакет поставляется исходниками TypeScript без сборки, у `package.json` нет devDependencies; потребителю нужен bundler с TypeScript или Node 22 с `--experimental-strip-types`.
+- Current assumption: M51 подключает SDK по пути или git-ссылке из репозитория Mia.
+- Options: (a) внутренний индекс (CodeArtifact) — потребует учётных данных и решения об именах пакетов; (b) git-зависимость; (c) путь в монорепо; (d) собрать JS в `dist/`.
+- Recommendation: (b) для M51; (d) и (a) — отдельным решением владельца перед приёмкой внешних приложений.
+- Affected future sessions: M51, M62.
+- Revisit trigger/by: до M51.
+- Resolution:
+- Evidence: `sdk/python/pyproject.toml`, `sdk/js/package.json`, `sdk/js/README.md`, `sdk/python/README.md`.
+
+### OI-M43-004 — `auth: mia_token` не работает: токен не передаётся, подключения нет
+
+- Status: OPEN
+- Source session: M43
+- Component: Plugins / подключения / схема манифеста
+- Question: нужен ли режим, в котором Mia передаёт токен пользователя Мии серверу плагина, и нужно ли оставлять значение `mia_token` в схеме?
+- Why non-blocking: в схеме `mia_token` допустим, но `ConnectionService.headers` возвращает `None` для любого значения, кроме `oauth`.
+  При этом `requires_connection` (`app/modules/plugins/install/consent.py`) считает `mia_token` подключаемым, а подключения для него нет:
+  установка застрянет в `needs_connection`. Документация помечает значение как непригодное.
+- Current assumption: MVP использует `none` и `oauth`; MindWeaver ходит к Mia со своим токеном (M50), а не наоборот.
+- Options: (a) убрать `mia_token` из схемы и валидатора до появления потребителя; (b) реализовать передачу scope-ограниченного токена серверу плагина с отдельным грантом; (c) оставить как есть.
+- Recommendation: (a), если M51 не нужен обратный поток; иначе (b) отдельной сессией с согласием в Мии.
+- Affected future sessions: M51, M60.
+- Revisit trigger/by: M51 (решение перед кодом «Войти через Mia» на стороне MindWeaver).
+- Resolution:
+- Evidence: `contracts/mvp/v1/plugin-manifest.schema.json` (`remoteServer.auth`), `app/modules/connections/oauth/service.py` (`headers`), `app/modules/plugins/install/consent.py` (`requires_connection`).
+
 
 ## M51 inbox
 
