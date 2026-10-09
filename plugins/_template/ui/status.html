@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заметки</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #15171c; color: #e3e6ee; margin: 12px; }
+  .eyebrow { color: #8b93a7; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  .value { font-size: 28px; margin: 6px 0 2px; }
+  .muted { color: #8b93a7; font-size: 12px; }
+  .error { color: #f28b82; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="eyebrow">Заметки</div>
+<div class="value" id="count">—</div>
+<div class="muted" id="updated"></div>
+<div class="error" id="error" role="alert"></div>
+<script>
+(function () {
+  var count = document.getElementById('count');
+  var updated = document.getElementById('updated');
+  var errorBox = document.getElementById('error');
+  // Data arrives as structuredContent of get_status; text is set with textContent only.
+  function render(data) {
+    if (!data || typeof data.notes_count !== 'number') return;
+    count.textContent = String(data.notes_count);
+    updated.textContent = data.updated_at ? 'Обновлено: ' + String(data.updated_at) : '';
+    errorBox.textContent = '';
+  }
+  window.mia.onData(function (data, tool) {
+    if (tool === null || tool === undefined || tool === 'get_status') render(data);
+  });
+  window.mia.ready.then(function () {
+    return window.mia.call('get_status', {});
+  }).then(render, function (e) {
+    errorBox.textContent = e && e.message ? e.message : 'Не удалось загрузить статус';
+  });
+})();
+</script>
+</body>
+</html>

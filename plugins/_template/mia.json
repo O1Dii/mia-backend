@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "team.plugin-template",
+  "version": "0.1.0",
+  "name": "Шаблон плагина",
+  "listing": {
+    "description": "Шаблон нового плагина: статус заметок, добавление заметки и плитка на дашборде",
+    "category": "utilities",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "remote",
+    "url": "https://plugin-template.mia.example/mcp",
+    "auth": "none"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "get_status": { "risk": "read", "voice": true },
+    "add_note": { "risk": "write_reversible" }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "status",
+        "title": "Заметки",
+        "resourceUri": "ui://team.plugin-template/status",
+        "bundled": "ui/status.html",
+        "sizes": ["2x2", "4x2"],
+        "mobile": "card",
+        "refresh": { "tool": "get_status", "everySeconds": 300 }
+      }
+    ]
+  },
+  "permissions": {
+    "network": ["plugin-template.mia.example"],
+    "llm": { "viaHost": false },
+    "memory": [],
+    "notify": false
+  }
+}
