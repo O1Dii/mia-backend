@@ -21,6 +21,7 @@ tags:
   - name: Memory
   - name: Background
   - name: Devices
+  - name: Telegram
   - name: Apps
 x-mia-anchors:
   request-id: &rid
@@ -1558,6 +1559,76 @@ paths:
         '204':
           description: Declarations replaced
           headers: *rid
+        default: *error
+  /v1/telegram/link:
+    get:
+      tags: [Telegram]
+      operationId: getTelegramLink
+      summary: Whether the Mia Telegram bot is available and linked to this user (M41)
+      responses:
+        '200':
+          description: Link status
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available, linked, bot_username, linked_at]
+                properties:
+                  available: {type: boolean, description: Bot token, username and webhook secret are configured}
+                  linked: {type: boolean}
+                  bot_username: {type: [string, 'null']}
+                  linked_at: {type: [string, 'null'], format: date-time}
+        default: *error
+    post:
+      tags: [Telegram]
+      operationId: createTelegramLink
+      parameters: [*idem]
+      summary: One-time deep link that binds the bot chat to this user (M41; the Idempotency-Key is accepted but a retry issues a new token, older ones expire)
+      responses:
+        '201':
+          description: Open deep_link in Telegram and press Start; the token works once
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deep_link, bot_username, expires_at]
+                properties:
+                  deep_link: {type: string, description: 'https://t.me/<bot>?start=<token>'}
+                  bot_username: {type: string}
+                  expires_at: {type: string, format: date-time}
+        default: *error
+    delete:
+      tags: [Telegram]
+      operationId: deleteTelegramLink
+      parameters: [*idem]
+      summary: Unlink the bot chat (idempotent, M41)
+      responses:
+        '204':
+          description: Unlinked
+          headers: *rid
+        default: *error
+  /webhooks/telegram:
+    post:
+      tags: [Telegram]
+      operationId: telegramWebhook
+      summary: Telegram Bot API webhook; authenticated only by the X-Telegram-Bot-Api-Secret-Token header (M41)
+      security: []
+      parameters:
+        - {name: X-Telegram-Bot-Api-Secret-Token, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 256}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, description: Telegram Update}
+      responses:
+        '200':
+          description: Update accepted (also when its handling failed, so Telegram does not retry)
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object, required: [ok], properties: {ok: {type: boolean}}}
         default: *error
   /v1/chat/completions:
     post:
