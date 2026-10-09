@@ -164,7 +164,8 @@ def write_package(root: Path, body: dict[str, Any]) -> Path:
 
 class Clock:
     def __init__(self) -> None:
-        self.now = datetime(2026, 10, 9, 12, 0, tzinfo=UTC)
+        # Real time: the Postgres approval store and the engine compare with the wall clock.
+        self.now = datetime.now(UTC).replace(microsecond=0)
 
     def __call__(self) -> datetime:
         return self.now

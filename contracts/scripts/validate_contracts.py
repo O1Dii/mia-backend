@@ -232,8 +232,12 @@ def check_manifest_semantics(manifest: dict[str, Any], source: str) -> None:
             raise AssertionError(f"{source}: server host {host} must be in permissions.network")
     if server["kind"] == "declarative":
         actions = {action["name"] for action in server["actions"]}
-        if actions != tools:
-            raise AssertionError(f"{source}: declarative actions {actions} != tools {tools}")
+        # get_state is the hidden app-only tool every declarative server adds (OI-M14-001)
+        if not actions <= tools <= actions | {"get_state"}:
+            raise AssertionError(
+                f"{source}: declarative actions {actions} must equal tools {tools}"
+                " (get_state is the only extra tool allowed)"
+            )
     for tile in manifest.get("surfaces", {}).get("tiles", []):
         refresh = tile.get("refresh")
         if refresh and refresh["tool"] not in tools:

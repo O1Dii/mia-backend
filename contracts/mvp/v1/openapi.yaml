@@ -12,6 +12,7 @@ servers:
   - url: https://mia.example.com
 security:
   - bearerAuth: []
+  - cookieAuth: []
 tags:
   - name: Runs
   - name: Feed
@@ -202,17 +203,94 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
         default: *error
+  /v1/auth/web/nonce:
+    post:
+      tags: [Plugins]
+      operationId: createWebNonce
+      summary: Google nonce for web sign-in, bound to the browser by the HttpOnly cookie mia_web_nonce (M10)
+      security: []
+      parameters: [*idem]
+      responses:
+        '201':
+          description: Nonce issued
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nonce, expires_at]
+                properties:
+                  nonce: {type: string}
+                  expires_at: {type: string, format: date-time}
+        default: *error
+  /v1/auth/web/google:
+    post:
+      tags: [Plugins]
+      operationId: webSignInGoogle
+      summary: Exchange a Google ID token for the mia_session cookie; the session is never in the body (M10)
+      security: []
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [credential]
+              properties:
+                credential: {type: string, minLength: 1, maxLength: 16384}
+      responses:
+        '200':
+          description: Signed in; Set-Cookie mia_session (HttpOnly, SameSite=Strict)
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, expires_at]
+                properties:
+                  user: {type: object}
+                  expires_at: {type: string, format: date-time}
+        default: *error
+  /v1/auth/web/logout:
+    post:
+      tags: [Plugins]
+      operationId: webLogout
+      security:
+        - cookieAuth: []
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Session closed, cookie cleared
+          headers: *rid
+        default: *error
+  /v1/workspace:
+    get:
+      tags: [Plugins]
+      operationId: getWorkspace
+      summary: The caller's personal workspace (M10)
+      responses:
+        '200':
+          description: Workspace
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        default: *error
   /v1/plugins:
     get:
       tags: [Plugins]
       operationId: listCatalog
+      summary: Store catalog, latest published release of every plugin (M15)
       parameters:
         - {$ref: '#/components/parameters/Cursor'}
         - {$ref: '#/components/parameters/Limit'}
         - {name: category, in: query, required: false, schema: {type: string}}
+        - {name: query, in: query, required: false, description: 'Substring of name, description or id', schema: {type: string, maxLength: 100}}
       responses:
         '200':
-          description: Store catalog entries
+          description: Store catalog entries ordered by name
           headers: *rid
           content:
             application/json:
@@ -228,13 +306,112 @@ paths:
     get:
       tags: [Plugins]
       operationId: getCatalogEntry
+      parameters:
+        - {name: version, in: query, required: false, schema: {type: string}}
       responses:
         '200':
-          description: Catalog entry with the published manifest
+          description: Catalog entry with the published manifest, all versions and the consent screen
           headers: *rid
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CatalogEntry'}
+              schema: {$ref: '#/components/schemas/CatalogEntryDetail'}
+        default: *error
+  /v1/plugins/{plugin_id}/consent:
+    parameters: [{$ref: '#/components/parameters/PluginId'}]
+    get:
+      tags: [Plugins]
+      operationId: getPluginConsent
+      summary: Consent screen of a release - tools with risk, data, network, model use, grants
+      parameters:
+        - {name: version, in: query, required: false, schema: {type: string}}
+      responses:
+        '200':
+          description: What the user consents to by installing this version
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Consent'}
+        default: *error
+  /v1/plugins/{plugin_id}/install:
+    parameters: [{$ref: '#/components/parameters/PluginId'}]
+    post:
+      tags: [Plugins]
+      operationId: installPlugin
+      summary: Install a published release with consent (digest and grants of the consent screen)
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InstallRequest'}
+      responses:
+        '201':
+          description: Installed and pinned to the release; connect the account next if status is needs_connection
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Installation'}
+        default: *error
+  /v1/plugins/{plugin_id}/reviews:
+    parameters: [{$ref: '#/components/parameters/PluginId'}]
+    get:
+      tags: [Plugins]
+      operationId: listPluginReviews
+      responses:
+        '200':
+          description: Reviews, newest first, with the rating summary
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReviewList'}
+        default: *error
+  /v1/plugins/{plugin_id}/reviews/me:
+    parameters: [{$ref: '#/components/parameters/PluginId'}]
+    put:
+      tags: [Plugins]
+      operationId: putPluginReview
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [rating]
+              properties:
+                rating: {type: integer, minimum: 1, maximum: 5}
+                text: {type: string, maxLength: 2000}
+      responses:
+        '204':
+          description: The caller's single review of this plugin is saved
+          headers: *rid
+        default: *error
+    delete:
+      tags: [Plugins]
+      operationId: deletePluginReview
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Review removed
+          headers: *rid
+        default: *error
+  /v1/plugins/{plugin_id}/releases/{version}/files/{path}:
+    parameters:
+      - {$ref: '#/components/parameters/PluginId'}
+      - {name: version, in: path, required: true, schema: {type: string}}
+      - {name: path, in: path, required: true, schema: {type: string}}
+    get:
+      tags: [Plugins]
+      operationId: getReleaseFile
+      summary: A listing image (icon, screenshot) of a release; nosniff and a sandbox CSP are set
+      responses:
+        '200':
+          description: Image bytes
+          headers: *rid
+          content:
+            image/*:
+              schema: {type: string, contentEncoding: base64}
         default: *error
   /v1/installations:
     get:
@@ -255,7 +432,13 @@ paths:
     post:
       tags: [Plugins]
       operationId: createInstallation
-      summary: Install a catalog plugin, or add a custom MCP server by URL (own account only)
+      summary: Install a catalog plugin by digest, or add a custom MCP server by URL (own account only)
+      description: >-
+        Catalog installs through this operation pin the release digest only; the consented
+        grants are recorded by POST /v1/plugins/{plugin_id}/install, which the clients use.
+        A custom MCP URL answers needs_consent: probe it with GET
+        /v1/installations/{id}/discovery, connect the account when asked, then consent with
+        POST /v1/installations/{id}/consent.
       parameters: [*idem]
       requestBody:
         required: true
@@ -272,9 +455,46 @@ paths:
         default: *error
   /v1/installations/{installation_id}:
     parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    get:
+      tags: [Plugins]
+      operationId: getInstallation
+      responses:
+        '200':
+          description: Installation
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Installation'}
+        default: *error
+    patch:
+      tags: [Plugins]
+      operationId: updateInstallation
+      summary: Enable or disable an installation (compare-and-swap on state_version)
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_version]
+              properties:
+                expected_version: {type: integer, minimum: 0}
+                status: {type: string, enum: [active, needs_connection, needs_consent, disabled]}
+                grants: {type: array, maxItems: 64, items: {type: string}}
+      responses:
+        '200':
+          description: Updated; 409 version_conflict (details.current_version) when expected_version is stale
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Installation'}
+        default: *error
     delete:
       tags: [Plugins]
       operationId: deleteInstallation
+      summary: Uninstall; the connection's tokens are revoked at the provider first
       parameters:
         - *idem
         - {name: delete_data, in: query, required: false, schema: {type: boolean, default: false}}
@@ -282,6 +502,119 @@ paths:
         '204':
           description: Uninstalled; tokens revoked and tiles removed
           headers: *rid
+        default: *error
+  /v1/installations/{installation_id}/state:
+    parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    get:
+      tags: [Plugins]
+      operationId: getPluginState
+      responses:
+        '200':
+          description: Plugin data of this installation
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginState'}
+        default: *error
+    put:
+      tags: [Plugins]
+      operationId: putPluginState
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_version, data]
+              properties:
+                expected_version: {type: integer, minimum: 0}
+                data: {type: object}
+      responses:
+        '200':
+          description: Saved; 409 version_conflict when expected_version is stale
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginState'}
+        default: *error
+  /v1/installations/{installation_id}/update:
+    parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    get:
+      tags: [Plugins]
+      operationId: getInstallationUpdate
+      summary: Is a newer release published, and which permissions would it add
+      responses:
+        '200':
+          description: Update information with the consent screen of the latest version
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UpdateInfo'}
+        default: *error
+  /v1/installations/{installation_id}/upgrade:
+    parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    post:
+      tags: [Plugins]
+      operationId: upgradeInstallation
+      summary: Move to a newer release; expanded permissions need consent
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpgradeRequest'}
+      responses:
+        '200':
+          description: >-
+            Updated. 409 consent_required (details.added_grants) while the release needs
+            grants that were not sent; 409 tools_digest_mismatch; 409 version_conflict.
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Installation'}
+        default: *error
+  /v1/installations/{installation_id}/discovery:
+    parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    get:
+      tags: [Plugins]
+      operationId: discoverCustomInstallation
+      summary: Probe an MCP server added by URL (the server is contacted through the SSRF guard)
+      responses:
+        '200':
+          description: needs_connection when the server wants OAuth, otherwise its tools and the grants to consent to
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DiscoverResult'}
+        default: *error
+  /v1/installations/{installation_id}/consent:
+    parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    post:
+      tags: [Plugins]
+      operationId: consentCustomInstallation
+      summary: Consent to the probed tools of a custom MCP server (every tool is write_external)
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_version, tools_digest, grants]
+              properties:
+                expected_version: {type: integer, minimum: 0}
+                tools_digest: {type: string}
+                grants: {type: array, maxItems: 128, items: {type: string}}
+      responses:
+        '200':
+          description: Installation is active
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Installation'}
         default: *error
   /v1/connections:
     get:
@@ -302,6 +635,7 @@ paths:
     post:
       tags: [Plugins]
       operationId: startConnection
+      summary: Start the OAuth flow (PKCE S256, resource indicator) of an installation
       parameters: [*idem]
       requestBody:
         required: true
@@ -313,6 +647,11 @@ paths:
               required: [installation_id]
               properties:
                 installation_id: {type: string, format: uuid}
+                return_to:
+                  type: string
+                  maxLength: 300
+                  pattern: '^/(?!/)'
+                  description: Path on this origin to send the browser to after consent, with ?connection=ok|error
       responses:
         '201':
           description: OAuth flow started; open authorization_url
@@ -326,11 +665,51 @@ paths:
                   connection_id: {type: string, format: uuid}
                   authorization_url: {type: string, format: uri}
         default: *error
+  /v1/connections/callback:
+    get:
+      tags: [Plugins]
+      operationId: connectionOAuthCallback
+      summary: Redirect target of the provider's consent; the single-use state is the credential
+      security: []
+      parameters:
+        - {name: state, in: query, required: false, schema: {type: string, maxLength: 256}}
+        - {name: code, in: query, required: false, schema: {type: string, maxLength: 2048}}
+        - {name: error, in: query, required: false, schema: {type: string, maxLength: 128}}
+      responses:
+        '200':
+          description: Connected (HTML page when no return_to was given)
+          headers: *rid
+          content:
+            text/html:
+              schema: {type: string}
+        '303':
+          description: Redirect to return_to with ?connection=ok or ?connection=error&code=...
+          headers: *rid
+        '400':
+          description: Unknown, expired or used state, or the provider refused
+          headers: *rid
+          content:
+            text/html:
+              schema: {type: string}
+  /v1/connections/client-metadata.json:
+    get:
+      tags: [Plugins]
+      operationId: getConnectionClientMetadata
+      summary: Client ID Metadata Document that identifies Mia to authorization servers
+      security: []
+      responses:
+        '200':
+          description: OAuth client metadata
+          headers: *rid
+          content:
+            application/json:
+              schema: {type: object}
   /v1/connections/{connection_id}:
     parameters: [{$ref: '#/components/parameters/ConnectionId'}]
     delete:
       tags: [Plugins]
       operationId: deleteConnection
+      summary: Revoke at the provider and delete the tokens; the installation needs a connection again
       parameters: [*idem]
       responses:
         '204':
@@ -360,11 +739,244 @@ paths:
             schema: {$ref: '#/components/schemas/Dashboard'}
       responses:
         '200':
-          description: Saved; 409 conflict when expected_version is stale
+          description: Saved; 409 version_conflict (details.current_version) when expected_version is stale
           headers: *rid
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Dashboard'}
+        default: *error
+  /v1/dashboard/tiles/{tile_id}:
+    parameters:
+      - {name: tile_id, in: path, required: true, schema: {type: string, format: uuid}}
+    patch:
+      tags: [Plugins]
+      operationId: patchDashboardTile
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_version, settings]
+              properties:
+                expected_version: {type: integer, minimum: 0}
+                settings: {type: object}
+      responses:
+        '200':
+          description: Tile settings saved; 409 version_conflict when expected_version is stale
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DashboardTile'}
+        default: *error
+  /v1/model-connections:
+    get:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: listModelConnections
+      summary: The user's model connections (M11); keys are never returned
+      responses:
+        '200':
+          description: Connections
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/ModelConnection'}}
+        default: *error
+    post:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: createModelConnection
+      parameters: [*idem]
+      description: >-
+        Idempotency-Key is accepted for uniformity with the other mutations; M11 does not use it
+        yet, a duplicate answers 409 connection_conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [provider, label, model]
+              properties:
+                provider: {type: string, enum: [openai, deepinfra, groq, mistral, local, anthropic, gemini, ollama]}
+                label: {type: string, minLength: 1, maxLength: 80}
+                model: {type: string, minLength: 1, maxLength: 160}
+                api_key: {type: string, maxLength: 512, writeOnly: true}
+                base_url: {type: string, maxLength: 512}
+                capability: {type: string, enum: [tools, chat_only]}
+                make_primary: {type: boolean}
+      responses:
+        '201':
+          description: Connection created
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelConnection'}
+        default: *error
+  /v1/model-connections/chatgpt-plan/sign-in:
+    post:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: startChatgptPlanSignIn
+      summary: Start Sign in with ChatGPT (browser on the backend host, OI-M11-002)
+      parameters: [*idem]
+      responses:
+        '201':
+          description: Sign-in attempt
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt_id, authorize_url, expires_at]
+                properties:
+                  attempt_id: {type: string}
+                  authorize_url: {type: string}
+                  expires_at: {type: string, format: date-time}
+        default: *error
+  /v1/model-connections/chatgpt-plan/sign-in/{attempt_id}:
+    parameters:
+      - {name: attempt_id, in: path, required: true, schema: {type: string}}
+    get:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: getChatgptPlanSignIn
+      responses:
+        '200':
+          description: Attempt status
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt_id, status, error_code, connection_id]
+                properties:
+                  attempt_id: {type: string}
+                  status: {type: string, enum: [pending, completed, failed]}
+                  error_code: {type: [string, 'null']}
+                  connection_id: {type: [string, 'null'], format: uuid}
+        default: *error
+  /v1/model-connections/{connection_id}:
+    parameters: [{$ref: '#/components/parameters/ConnectionId'}]
+    get:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: getModelConnection
+      responses:
+        '200':
+          description: Connection
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelConnection'}
+        default: *error
+    patch:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: updateModelConnection
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                label: {type: string, minLength: 1, maxLength: 80}
+                model: {type: string, minLength: 1, maxLength: 160}
+                api_key: {type: string, maxLength: 512, writeOnly: true}
+                base_url: {type: string, maxLength: 512}
+                capability: {type: string, enum: [tools, chat_only]}
+                make_primary: {type: boolean}
+      responses:
+        '200':
+          description: Updated connection
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelConnection'}
+        default: *error
+    delete:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: deleteModelConnection
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Deleted (a plan connection is revoked first)
+          headers: *rid
+        default: *error
+  /v1/model-connections/{connection_id}/test:
+    parameters: [{$ref: '#/components/parameters/ConnectionId'}]
+    post:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: testModelConnection
+      parameters: [*idem]
+      summary: One-token test call, rate limited to one per 5 s per connection
+      responses:
+        '200':
+          description: Result
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, latency_ms, error_code]
+                properties:
+                  ok: {type: boolean}
+                  latency_ms: {type: integer}
+                  error_code: {type: [string, 'null']}
+        default: *error
+  /v1/model-connections/{connection_id}/resume:
+    parameters: [{$ref: '#/components/parameters/ConnectionId'}]
+    post:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: resumeModelConnection
+      parameters: [*idem]
+      responses:
+        '200':
+          description: Pause cleared
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelConnection'}
+        default: *error
+  /v1/model-connections/{connection_id}/sign-out:
+    parameters: [{$ref: '#/components/parameters/ConnectionId'}]
+    post:
+      security:
+        - bearerAuth: []
+      tags: [Plugins]
+      operationId: signOutModelConnection
+      parameters: [*idem]
+      responses:
+        '200':
+          description: Plan tokens revoked, connection needs_reauth
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelConnection'}
         default: *error
   /v1/memory/facts:
     get:
@@ -964,6 +1576,13 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: mia_session
+      description: >-
+        Web session (HttpOnly, SameSite=Strict), an alternative to bearerAuth for the first-party
+        web client. Mutations must be same-origin; otherwise 403 permission_denied.
     miaOAuth:
       type: oauth2
       description: «Войти через Mia» (ADR-0013). Public clients use PKCE; clients are identified by CIMD URLs.
@@ -1139,6 +1758,158 @@ components:
         plugin_id: {type: string}
         version: {type: string}
         manifest: {$ref: '#/components/schemas/PluginManifest'}
+        name: {type: string}
+        description: {type: string}
+        category: {type: string, enum: [work, productivity, communication, knowledge, home, utilities, fun]}
+        author: {type: [string, 'null']}
+        kind: {type: string, enum: [builtin, remote, declarative]}
+        tagline: {type: [string, 'null'], description: Showcase line (store_meta; not part of mia.json)}
+        color: {type: [string, 'null']}
+        art: {type: [string, 'null']}
+        featured: {type: boolean}
+        rating:
+          type: object
+          required: [average, count]
+          properties:
+            average: {type: [number, 'null']}
+            count: {type: integer, minimum: 0}
+        installs: {type: integer, minimum: 0}
+        icon_url: {type: [string, 'null']}
+        screenshots: {type: array, items: {type: string}}
+        published_at: {type: string, format: date-time}
+    CatalogEntryDetail:
+      allOf:
+        - {$ref: '#/components/schemas/CatalogEntry'}
+        - type: object
+          required: [versions, consent]
+          properties:
+            versions: {type: array, items: {type: string}, description: 'Published versions, newest first'}
+            consent: {$ref: '#/components/schemas/Consent'}
+    Consent:
+      type: object
+      required: [plugin_id, version, tools_digest, tools, grants, network, public_web, llm, memory, notify, schedules, device_tools, requires_connection]
+      properties:
+        plugin_id: {type: string}
+        version: {type: string}
+        tools_digest: {type: string, description: Echo it in the install request}
+        tools:
+          type: array
+          items:
+            type: object
+            required: [name, description, risk, voice]
+            properties:
+              name: {type: string}
+              description: {type: string}
+              risk: {type: string, enum: [read, write_reversible, write_external]}
+              voice: {type: boolean}
+        grants:
+          type: array
+          description: >-
+            Grant vocabulary (OI-M13-002): tools.read | tools.write_reversible | tools.write_external |
+            network:<host> | network.public_web | llm.generate | memory.context | memory.suggest |
+            memory.read:<scope> | notify | schedules. Echo every id in the install request.
+          items:
+            type: object
+            required: [id, text]
+            properties:
+              id: {type: string}
+              text: {type: string}
+        network: {type: array, items: {type: string}}
+        public_web: {type: boolean}
+        llm:
+          type: object
+          required: [via_host, monthly_budget_usd]
+          properties:
+            via_host: {type: boolean}
+            monthly_budget_usd: {type: [number, 'null']}
+        memory: {type: array, items: {type: string}}
+        notify: {type: boolean}
+        schedules: {type: boolean}
+        device_tools: {type: array, items: {type: string}}
+        requires_connection: {type: boolean}
+        stores_state: {type: boolean}
+    InstallRequest:
+      type: object
+      additionalProperties: false
+      required: [version, tools_digest, grants]
+      properties:
+        version: {type: string}
+        tools_digest: {type: string}
+        grants: {type: array, maxItems: 128, items: {type: string}}
+    UpgradeRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, version, tools_digest, grants]
+      properties:
+        expected_version: {type: integer, minimum: 0, description: state_version of the installation}
+        version: {type: string}
+        tools_digest: {type: string}
+        grants: {type: array, maxItems: 128, items: {type: string}}
+    UpdateInfo:
+      type: object
+      required: [installation_id, plugin_id, installed_version, latest_version, update_available, added_grants, removed_grants, digest_changed, consent]
+      properties:
+        installation_id: {type: string, format: uuid}
+        plugin_id: {type: string}
+        installed_version: {type: string}
+        latest_version: {type: string}
+        update_available: {type: boolean}
+        added_grants: {type: array, items: {type: string}}
+        removed_grants: {type: array, items: {type: string}}
+        digest_changed: {type: boolean}
+        consent:
+          oneOf:
+            - {$ref: '#/components/schemas/Consent'}
+            - {type: 'null'}
+    DiscoverResult:
+      type: object
+      required: [installation_id, state, tools, tools_digest, grants, host]
+      properties:
+        installation_id: {type: string, format: uuid}
+        state: {type: string, enum: [needs_connection, ready]}
+        tools:
+          type: array
+          items:
+            type: object
+            required: [name, description, risk]
+            properties:
+              name: {type: string}
+              description: {type: string}
+              risk: {type: string, enum: [write_external]}
+        tools_digest: {type: [string, 'null']}
+        grants:
+          type: array
+          items:
+            type: object
+            required: [id, text]
+            properties:
+              id: {type: string}
+              text: {type: string}
+        host: {type: string}
+        skipped_tools: {type: array, items: {type: string}, description: Tool names the manifest grammar cannot hold; Mia does not offer them}
+    ReviewList:
+      type: object
+      required: [items, rating]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, plugin_id, rating, text, author, mine, updated_at]
+            properties:
+              id: {type: string, format: uuid}
+              plugin_id: {type: string}
+              rating: {type: integer, minimum: 1, maximum: 5}
+              text: {type: string}
+              author: {type: string, description: First name only}
+              mine: {type: boolean}
+              updated_at: {type: string, format: date-time}
+        rating:
+          type: object
+          required: [average, count]
+          properties:
+            average: {type: [number, 'null']}
+            count: {type: integer, minimum: 0}
     Installation:
       type: object
       required: [id, plugin_id, version, status]
@@ -1148,6 +1919,12 @@ components:
         version: {type: string}
         status: {type: string, enum: [active, needs_connection, needs_consent, disabled]}
         custom_url: {type: [string, 'null'], description: Set for «добавить свой MCP по URL»}
+        source: {type: string, enum: [catalog, custom, legacy_web]}
+        grants: {type: array, items: {type: string}, description: Consented grants (see Consent.grants)}
+        tools_digest: {type: [string, 'null']}
+        state_version: {type: integer, minimum: 0, description: Send back as expected_version}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
     CreateInstallationRequest:
       oneOf:
         - type: object
@@ -1168,8 +1945,43 @@ components:
       properties:
         id: {type: string, format: uuid}
         installation_id: {type: string, format: uuid}
+        plugin_id: {type: string}
         status: {type: string, enum: [pending, connected, expired, revoked]}
         account_label: {type: [string, 'null']}
+        scopes: {type: [string, 'null']}
+    Workspace:
+      type: object
+      required: [id, name, owner_user_id, layout_version]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        owner_user_id: {type: string, format: uuid}
+        layout_version: {type: integer, minimum: 0}
+    PluginState:
+      type: object
+      required: [plugin_id, data, state_version]
+      properties:
+        plugin_id: {type: string}
+        data: {type: object}
+        state_version: {type: integer, minimum: 0}
+    TilePlacement:
+      type: object
+      required: [size, position]
+      properties:
+        size: {type: string, enum: ['1x1', '2x1', '2x2', '4x2', '4x4']}
+        position: {type: integer, minimum: 0}
+    DashboardTile:
+      type: object
+      required: [id, installation_id, tile_id, size, position]
+      properties:
+        id: {type: string, format: uuid}
+        installation_id: {type: string, format: uuid}
+        tile_id: {type: string}
+        size: {type: string, enum: ['1x1', '2x1', '2x2', '4x2', '4x4'], description: Desktop size}
+        position: {type: integer, minimum: 0, description: Desktop position}
+        mobile: {$ref: '#/components/schemas/TilePlacement'}
+        settings: {type: object}
+        state_version: {type: integer, minimum: 0}
     Dashboard:
       type: object
       required: [expected_version, tiles]
@@ -1177,15 +1989,27 @@ components:
         expected_version: {type: integer, minimum: 0}
         tiles:
           type: array
-          items:
-            type: object
-            required: [id, installation_id, tile_id, size, position]
-            properties:
-              id: {type: string, format: uuid}
-              installation_id: {type: string, format: uuid}
-              tile_id: {type: string}
-              size: {type: string, enum: ['1x1', '2x1', '2x2', '4x2', '4x4']}
-              position: {type: integer, minimum: 0}
+          items: {$ref: '#/components/schemas/DashboardTile'}
+    ModelConnection:
+      type: object
+      required: [id, provider, label, model, capability, has_key, status, is_primary, verified]
+      properties:
+        id: {type: string, format: uuid}
+        provider: {type: string}
+        label: {type: string}
+        model: {type: string}
+        base_url: {type: [string, 'null']}
+        capability: {type: string, enum: [tools, chat_only]}
+        has_key: {type: boolean}
+        key_last4: {type: [string, 'null']}
+        status: {type: string, enum: [active, paused, needs_reauth]}
+        paused_until: {type: [string, 'null'], format: date-time}
+        is_primary: {type: boolean}
+        verified: {type: boolean}
+        last_tested_at: {type: [string, 'null'], format: date-time}
+        last_test_ok: {type: [boolean, 'null']}
+        last_test_error_code: {type: [string, 'null']}
+        created_at: {type: string, format: date-time}
     RunEvent: {$ref: 'run-events.schema.json'}
     AssistantResponse: {$ref: 'assistant-response.schema.json'}
     PluginManifest: {$ref: 'plugin-manifest.schema.json'}

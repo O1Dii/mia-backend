@@ -292,5 +292,103 @@
     "retryable": false,
     "public_message": "The feed cursor is invalid.",
     "owner": "M18"
+  },
+  {
+    "code": "version_conflict",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The resource was changed by another request; reload and retry.",
+    "owner": "M10"
+  },
+  {
+    "code": "tools_digest_mismatch",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "Tool descriptions changed; review and consent again.",
+    "owner": "M10"
+  },
+  {
+    "code": "unauthenticated",
+    "http_status": 401,
+    "retryable": false,
+    "public_message": "Authentication is required.",
+    "owner": "M11"
+  },
+  {
+    "code": "connection_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The connection was not found.",
+    "owner": "M11"
+  },
+  {
+    "code": "invalid_connection",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The model connection settings are invalid.",
+    "owner": "M11"
+  },
+  {
+    "code": "connection_conflict",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The connection conflicts with an existing one.",
+    "owner": "M11"
+  },
+  {
+    "code": "sign_in_unavailable",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "Sign in with ChatGPT is not enabled on this server.",
+    "owner": "M11"
+  },
+  {
+    "code": "attempt_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The sign-in attempt was not found.",
+    "owner": "M11"
+  },
+  {
+    "code": "release_exists",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "This version is already published with different content.",
+    "owner": "M15"
+  },
+  {
+    "code": "plugin_package_invalid",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The plugin package failed publication checks.",
+    "owner": "M15"
+  },
+  {
+    "code": "consent_required",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The update needs permissions the user has not consented to.",
+    "owner": "M15"
+  },
+  {
+    "code": "connection_oauth_unsupported",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The server's sign-in is not supported by Mia.",
+    "owner": "M15"
+  },
+  {
+    "code": "connection_oauth_failed",
+    "http_status": 502,
+    "retryable": true,
+    "public_message": "The server's sign-in could not be completed.",
+    "owner": "M15"
+  },
+  {
+    "code": "connection_flow_invalid",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The sign-in link is unknown, expired or already used.",
+    "owner": "M15"
   }
 ]
