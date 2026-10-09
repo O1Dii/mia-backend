@@ -19,7 +19,8 @@
     "kind": "remote",
     "url": "https://mindweaver.example.com/mcp",
     "auth": "mia_token",
-    "protocolVersion": "2026-07-28"
+    "protocolVersion": "2026-07-28",
+    "clientId": "https://mindweaver.example.com/api/auth/mia/client-metadata.json"
   },
   "skills": [
     "SKILL.md"

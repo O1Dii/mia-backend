@@ -6,6 +6,12 @@ hands the router a bearer for exactly one request. ``installations.status`` foll
 connection: ``needs_connection`` until the callback completes, ``active`` afterwards (when
 the consent was already given), back to ``needs_connection`` on disconnect or when the
 refresh token is rejected.
+
+``server.auth: mia_token`` (M51-R1): Mia is the plugin's authorization server. Connecting
+records that the user signed in to the plugin's app with Mia (an active grant of the
+plugin's own client, ``server.clientId``); :meth:`ConnectionService.headers` then mints a
+5-minute access token from that grant for each call, bound to the server URL, with
+``openid`` only. Revoking the app in «Подключённые приложения» stops it at once.
 """
 
 from __future__ import annotations
@@ -18,7 +24,7 @@ import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Final, cast
+from typing import Any, Final, Protocol, cast
 from urllib.parse import urlsplit
 
 from app.modules.connections.oauth import pkce
@@ -37,9 +43,11 @@ from app.modules.connections.oauth.errors import (
 )
 from app.modules.connections.oauth.models import TOKEN_PURPOSE, PluginConnection
 from app.modules.models.vault import KeyVault
+from app.modules.oauth.service import GrantView, MintedToken
+from app.modules.plugins.catalog.models import PluginRelease
 from app.modules.plugins.registry.manifest import RemoteAuth
-from app.modules.workspace.errors import ConflictError, ResourceNotFoundError
-from app.modules.workspace.models import Installation
+from app.modules.workspace.errors import ConflictError, ResourceNotFoundError, WorkspaceError
+from app.modules.workspace.models import Installation, Workspace
 from app.modules.workspace.service import MutationResult, WorkspaceContext, WorkspaceService
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -50,6 +58,52 @@ FLOW_PURPOSE: Final = "oauth_flow"
 REFRESH_SKEW: Final = timedelta(seconds=60)
 CALLBACK_PATH: Final = "/v1/connections/callback"
 CLIENT_METADATA_PATH: Final = "/v1/connections/client-metadata.json"
+MIA_TOKEN_SCOPES: Final = ("openid",)
+"""What a minted plugin token carries (∩ the grant): who the user is, nothing more."""
+
+
+class MiaTokenIssuer(Protocol):
+    """Mia's authorization server, seen from connections (``AuthorizationService``)."""
+
+    async def plugin_grant(self, user_id: uuid.UUID, client_id: str) -> GrantView | None: ...
+
+    async def mint_plugin_token(
+        self,
+        user_id: uuid.UUID,
+        *,
+        client_id: str,
+        resource: str,
+        scopes: tuple[str, ...] = ...,
+    ) -> MintedToken | None: ...
+
+
+class SignInRequiredError(WorkspaceError):
+    """``mia_token`` plugin: the user has not signed in to the plugin's app with Mia yet."""
+
+    status_code = 409
+    code = "connection_sign_in_required"
+
+
+@dataclass(frozen=True, slots=True)
+class MiaTokenSpec:
+    """``server`` of a ``mia_token`` manifest: where the token goes and whose grant mints it."""
+
+    url: str
+    client_id: str
+
+
+def mia_token_spec(manifest: Mapping[str, Any] | None) -> MiaTokenSpec | None:
+    server = manifest.get("server") if isinstance(manifest, Mapping) else None
+    if (
+        not isinstance(server, Mapping)
+        or server.get("kind") != "remote"
+        or server.get("auth") != "mia_token"
+    ):
+        return None
+    url, client_id = server.get("url"), server.get("clientId")
+    if not isinstance(url, str) or not isinstance(client_id, str) or not client_id:
+        return None
+    return MiaTokenSpec(url=url, client_id=client_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +172,7 @@ class ConnectionService:
         flow_ttl_s: int = 600,
         on_change: Callable[[str], None] | None = None,
         clock: Callable[[], datetime] = _now,
+        mia_tokens: MiaTokenIssuer | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._vault = vault
@@ -128,6 +183,11 @@ class ConnectionService:
         self.on_change = on_change
         self._clock = clock
         self._refresh_locks: dict[uuid.UUID, asyncio.Lock] = {}
+        self._mia_tokens = mia_tokens
+
+    def use_mia_tokens(self, issuer: MiaTokenIssuer) -> None:
+        """Wire Mia's AS (built after the router in the composition) for ``mia_token``."""
+        self._mia_tokens = issuer
 
     @property
     def oauth(self) -> OAuthClient:
@@ -171,6 +231,11 @@ class ConnectionService:
         async with self._session_factory() as session:
             installation = await _installation(session, ctx, installation_id)
             target = remote_target(installation)
+            manifest = await _effective_manifest(session, installation)
+        if (target is not None and target.auth == "mia_token") or mia_token_spec(manifest):
+            return await self._connect_mia_token(
+                ctx, installation_id, installation.plugin_id, manifest, idempotency_key
+            )
         if target is None or target.auth != "oauth":
             raise ConflictError("This plugin does not need an account connection.")
         server = await self._discover(target)
@@ -259,6 +324,88 @@ class ConnectionService:
             f"start-connection:{installation_id}:{return_to or ''}",
             work,
         )
+
+    async def _connect_mia_token(
+        self,
+        ctx: WorkspaceContext,
+        installation_id: uuid.UUID,
+        plugin_id: str,
+        manifest: Mapping[str, Any] | None,
+        idempotency_key: str,
+    ) -> MutationResult:
+        """``mia_token``: no browser step; the user's grant of the plugin's client is the link.
+
+        200 ``{connection_id, status: "connected"}`` and the installation becomes active;
+        409 ``connection_sign_in_required`` (``details.client_id``) when the user has not
+        signed in to the plugin's app with Mia (or that grant lacks ``openid``).
+        """
+        spec = mia_token_spec(manifest)
+        if spec is None or self._mia_tokens is None:
+            raise ConflictError("This plugin cannot be connected with a Mia token.")
+        owner = uuid.UUID(ctx.user_id)
+        grant = await self._mia_tokens.plugin_grant(owner, spec.client_id)
+        if grant is None or not set(MIA_TOKEN_SCOPES) <= set(grant.scopes):
+            raise SignInRequiredError(
+                "Sign in to this app with Mia first, then connect it again.",
+                details={"client_id": spec.client_id},
+            )
+        label = (grant.client_name or urlsplit(spec.client_id).hostname or "")[:200]
+
+        async def work(session: AsyncSession) -> MutationResult:
+            await _installation(session, ctx, installation_id)  # still ours
+            row = await session.scalar(
+                select(PluginConnection).where(PluginConnection.installation_id == installation_id)
+            )
+            if row is None:
+                row = PluginConnection(
+                    id=uuid.uuid4(),
+                    user_id=owner,
+                    workspace_id=ctx.workspace_uuid,
+                    installation_id=installation_id,
+                    status="connected",
+                )
+                session.add(row)
+            row.status = "connected"
+            row.resource = spec.url
+            row.issuer = None
+            row.authorization_endpoint = None
+            row.token_endpoint = None
+            row.revocation_endpoint = None
+            row.client_id = spec.client_id
+            row.auth_method = "mia_token"
+            row.scopes = " ".join(MIA_TOKEN_SCOPES)
+            row.account_label = label
+            row.secret_ciphertext = None
+            row.expires_at = None
+            row.connected_at = self._clock()
+            row.flow_state_hash = None
+            row.flow_verifier_ciphertext = None
+            row.flow_expires_at = None
+            row.flow_return_to = None
+            row.flow_binding_hash = None
+            await session.flush()
+            await session.execute(
+                update(Installation)
+                .where(
+                    Installation.id == installation_id,
+                    Installation.workspace_id == ctx.workspace_uuid,
+                    Installation.status == "needs_connection",
+                    Installation.tools_digest.is_not(None),
+                )
+                .values(
+                    status="active",
+                    state_version=Installation.state_version + 1,
+                    updated_at=func.now(),
+                )
+            )
+            return MutationResult(200, {"connection_id": str(row.id), "status": "connected"})
+
+        result = await self._workspace.mutate(
+            ctx, idempotency_key, f"connect-mia-token:{installation_id}", work
+        )
+        if self.on_change is not None:
+            self.on_change(plugin_id)
+        return result
 
     async def _discover(self, target: RemoteTarget) -> ServerAuth:
         try:
@@ -444,12 +591,14 @@ class ConnectionService:
         self, *, user_id: str, installation_id: str, plugin_id: str, auth: RemoteAuth
     ) -> Mapping[str, str] | None:
         """``Authorization`` for this user's connection; None when not (or no longer) connected."""
-        if auth != "oauth":
+        if auth not in ("oauth", "mia_token"):
             return None
         try:
             owner, installation = uuid.UUID(user_id), uuid.UUID(installation_id)
         except ValueError:
             return None
+        if auth == "mia_token":
+            return await self._mia_token_headers(owner, installation)
         async with self._session_factory() as session:
             row = await session.scalar(
                 select(PluginConnection).where(
@@ -467,6 +616,49 @@ class ConnectionService:
             secrets = await self._refresh(connection_id, plugin_id) or {}
         token = secrets.get("access_token")
         return {"Authorization": f"Bearer {token}"} if token else None
+
+    async def _mia_token_headers(
+        self, owner: uuid.UUID, installation_id: uuid.UUID
+    ) -> Mapping[str, str] | None:
+        """Mint a token for one call; None (→ ``connection_required``) without a live grant.
+
+        The connection must exist and still name the manifest's server URL and client: a
+        release that moves the server or changes ``clientId`` needs a new connect.
+        """
+        if self._mia_tokens is None:
+            return None
+        async with self._session_factory() as session:
+            found = (
+                await session.execute(
+                    select(PluginConnection, Installation)
+                    .join(
+                        Installation,
+                        (Installation.id == PluginConnection.installation_id)
+                        & (Installation.workspace_id == PluginConnection.workspace_id),
+                    )
+                    .join(Workspace, Workspace.id == Installation.workspace_id)
+                    .where(
+                        PluginConnection.installation_id == installation_id,
+                        PluginConnection.user_id == owner,
+                        PluginConnection.status == "connected",
+                        PluginConnection.auth_method == "mia_token",
+                        Workspace.owner_user_id == owner,
+                    )
+                )
+            ).first()
+            if found is None:
+                return None
+            row, installation = found
+            spec = mia_token_spec(await _effective_manifest(session, installation))
+        if spec is None or row.client_id != spec.client_id or row.resource != spec.url:
+            return None
+        minted = await self._mia_tokens.mint_plugin_token(
+            owner, client_id=spec.client_id, resource=spec.url, scopes=MIA_TOKEN_SCOPES
+        )
+        if minted is None:
+            logger.info("mia_token_grant_missing", extra={"installation_id": str(installation_id)})
+            return None
+        return {"Authorization": f"Bearer {minted.access_token}"}
 
     async def _refresh(self, connection_id: uuid.UUID, plugin_id: str) -> dict[str, str] | None:
         lock = self._refresh_locks.setdefault(connection_id, asyncio.Lock())
@@ -660,6 +852,25 @@ def _info(row: PluginConnection, plugin_id: str) -> ConnectionInfo:
         account_label=row.account_label,
         scopes=row.scopes,
         connected_at=row.connected_at,
+    )
+
+
+async def _effective_manifest(
+    session: AsyncSession, installation: Installation
+) -> Mapping[str, Any] | None:
+    """The installation's manifest, or its release's when the row does not carry one."""
+    if installation.manifest is not None:
+        return installation.manifest
+    if installation.source != "catalog":
+        return None
+    return cast(
+        "Mapping[str, Any] | None",
+        await session.scalar(
+            select(PluginRelease.manifest).where(
+                PluginRelease.plugin_id == installation.plugin_id,
+                PluginRelease.version == installation.version,
+            )
+        ),
     )
 
 

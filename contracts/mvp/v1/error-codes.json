@@ -614,5 +614,12 @@
     "retryable": false,
     "public_message": "The landing path is not allowed.",
     "owner": "M24"
+  },
+  {
+    "code": "connection_sign_in_required",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "Sign in to this app with Mia first, then connect it again.",
+    "owner": "M51"
   }
 ]

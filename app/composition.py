@@ -14,6 +14,7 @@ from app.core.runtime import Runtime
 from app.modules.auth.composition import install_auth, request_authenticator
 from app.modules.auth.service import AuthService, InvalidCredentialsError
 from app.modules.auth.tokens import InvalidAccessTokenError
+from app.modules.connections.resources import PluginResources
 from app.modules.conversations.feed import FeedService
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
@@ -199,7 +200,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         runs=runs,
         authenticator=request_authenticator(app),
     )
-    install_oauth(
+    oauth = install_oauth(
         app,
         settings,
         runtime.database.session_factory,
@@ -208,7 +209,12 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         router=tools.router,
         approvals=tools.approvals,
         memory=memory.service,
+        resources=PluginResources(
+            runtime.database.session_factory,
+            connection_client_id=connections.client_metadata_url,
+        ),
     )
+    connections.use_mia_tokens(oauth.service)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
