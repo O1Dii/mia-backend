@@ -2739,7 +2739,77 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M51 inbox
 
-- Нет записей.
+### Resolution update → OI-M15-009 (`server.auth: mia_token` has no token source)
+
+- Proposed status: DECIDED (реализация за Mia, см. OI-M51-001).
+- Resolution: выбран вариант (a) в уточнённом виде: Mia выпускает короткоживущий access-токен (5 мин, без refresh) из **активного гранта клиента самого плагина** (его CIMD `client_id`), `resource` = URL сервера плагина. Сторона MindWeaver готова: `/mcp` проверяет токен через `/oauth/userinfo` и сопоставляет `sub`/verified email; `aud` проверяется, когда Mia его отдаёт. E2E подменяет выпуск токена настоящим OAuth-потоком клиента MindWeaver.
+- Evidence: handoff M51 (R1–R3), `backend/e2e_mia/test_mia_chain.py` (MindWeaver repo), `MintedMiaToken`.
+
+### Resolution update → OI-M50-002 and OI-M50-003 (scopes `jobs`/`notify`/`mia.install`, app tokens on runs/memory)
+
+- Proposed status: остаются OPEN, MindWeaver их не требует.
+- Resolution: MindWeaver запрашивает только `openid profile email llm.generate memory.context` и ходит в `/v1/chat/completions`; фон («Мия → job») обеспечивает `background.start` самой Мии, а не scope `jobs` приложения; `mia.install` заменён добавлением по URL / публикацией пакета; `/v1/runs` и `/v1/memory/context` для приложений не понадобились. Реальный расход MindWeaver (стоимость в E2E задана скриптом) — замер в M60 (OI-M50-004).
+- Evidence: handoff M51, `mia_auth.py` (`MIA_SCOPES`), E2E.
+
+### OI-M51-001 — Plugin resource indicators and the `mia_token` source are missing in Mia
+
+- Status: OPEN
+- Source session: M51
+- Component: OAuth AS (M50) / Connections (M15)
+- Question: как Mia выдаёт токен для MCP-сервера приложения (`auth: mia_token`) и принимает его `resource` (RFC 8707)?
+- Why non-blocking: DoD M51 выполнен на подмене (E2E), пользовательский путь «установить по URL» ещё не работает.
+- Current assumption: AS отвечает `invalid_target` на `resource=https://mindmapgen.xyz/mcp`; `/oauth/userinfo` отвергает токен с чужим `resource`; `ConnectionService.headers` для `mia_token` возвращает None. Тест `test_add_by_url_can_authorize_against_mia_as_the_authorization_server` (strict xfail) фиксирует это.
+- Options: (a) R1–R3 из handoff M51 (`OAUTH_EXTRA_RESOURCES`, userinfo с `aud`/`azp`, токен из гранта клиента плагина + `remoteServer.clientId`); (b) отдельный endpoint интроспекции RFC 7662 с аутентификацией ресурс-сервера.
+- Recommendation: (a): минимум нового кода, отзыв гранта действует сразу.
+- Affects sessions: M60, M43, M62.
+- Revisit trigger/by: до M60 (сквозная приёмка).
+- Resolution:
+- Evidence: handoff M51, `app/modules/oauth/{service,principal,router}.py`, `app/modules/connections/oauth/service.py`.
+
+### OI-M51-002 — Which MindWeaver account does a Mia-issued plugin token belong to
+
+- Status: OPEN
+- Source session: M51
+- Component: OAuth / pairwise subject
+- Question: `sub` у Mia попарный (на клиента); токен, выпущенный не для `client_id` MindWeaver, даёт другой `sub`.
+- Why non-blocking: MindWeaver уже связывает по `sub`, затем по verified email; при R3 (тот же клиент) совпадает `sub`.
+- Current assumption: при R3 связь точная; email-ветка (scope `email` + `email_verified`) остаётся запасной и тестируется.
+- Options: токен плагина всегда от клиента плагина (рекомендуется); отдавать email плагину при установке (приватность хуже).
+- Recommendation: клиент плагина, без email.
+- Affects sessions: M60, M43 (документация `mia_token`).
+- Revisit trigger/by: вместе с OI-M51-001.
+- Resolution:
+- Evidence: `mia_auth.user_for_principal`, `test_a_verified_email_matching_an_account_is_accepted_but_unverified_is_not`.
+
+### OI-M51-003 — Hosted `/mcp` limits and legacy clients
+
+- Status: OPEN
+- Source session: M51
+- Component: MindWeaver `/mcp`
+- Question: нужны ли rate limit, потоковая стоимость и handshake старых версий протокола?
+- Why non-blocking: протокол 2026-07-28 — единственный требуемый; каждый `build_map` ограничен месячным лимитом гранта в Mia.
+- Current assumption: клиенты старых ревизий (initialize) получают `-32602`; лимиты запросов нет; для потоковых ответов LiteLLM 1.53.7 теряет `mia.cost_usd` (стоимость в журнале MindWeaver «unpriced», токены есть).
+- Options: добавить legacy `initialize`; лимит на пользователя/минуту и параллельные `build_map`; обновить LiteLLM либо брать стоимость из `/v1/apps/{id}/usage`.
+- Recommendation: лимит запросов до публичного запуска; остальное по требованию клиентов.
+- Affects sessions: M60, M62.
+- Revisit trigger/by: до деплоя MindWeaver.
+- Resolution:
+- Evidence: `backend/app/routers/mcp_http.py`, handoff M51 (Known limitations).
+
+### OI-M51-004 — Deploy and store publication of MindWeaver
+
+- Status: OPEN
+- Source session: M51
+- Component: MindWeaver deploy / Store (M15)
+- Question: что нужно, чтобы поставить пакет `team.mindweaver` у реального пользователя?
+- Why non-blocking: деплой на mindmapgen.xyz вне scope и требует разрешения пользователя.
+- Current assumption: нужны `API_BASE_URL` (публичный https; Mia берёт CIMD-документ оттуда), `MIA_BASE_URL`, `SECRET_KEY`; образ без `mia/ui` (плитка встроена в пакет, `resources/read` отдаёт её только из checkout); публикация `cli.mia_plugin publish` из checkout Mia с живым `/mcp` и токеном (OI-M15-004).
+- Options: `COPY mia/ui ./mia/ui` в Dockerfile; Mia получает доступ к CIMD-документу MindWeaver через SSRF-guard (нужен публичный DNS).
+- Recommendation: сделать после R1–R3 и разрешения пользователя на деплой.
+- Affects sessions: M60, M62.
+- Revisit trigger/by: перед пилотом.
+- Resolution:
+- Evidence: handoff M51 (Starting point), `README.md` (MindWeaver).
 
 ## M60 inbox
 
