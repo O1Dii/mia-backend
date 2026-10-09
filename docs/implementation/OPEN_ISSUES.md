@@ -82,7 +82,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M14-005 | OPEN | Plugins / LLM | Бюджет `HostLlm` и плановые дайджесты | `GatewayHostLlm` без бюджета (profile `job`) | M16 / M17 |
 | OI-M14-006 | RESOLVED | MCP Apps | Bridge проверен только на фейковом хосте | настоящий хост web (M31) | resolved in MW5 integration |
 | OI-M14-007 | RESOLVED | Dependencies | `mcp` тянет `httpx2` | одна копия правок тестов | resolved in MW2 integration |
-| OI-M22-001 | OPEN | Android voice | Эхо TTS и barge-in без AEC | порог VAD во время TTS | user check MW2 / M60 |
+| OI-M22-001 | ESCALATED | Android voice | Эхо TTS и barge-in без AEC | живая проверка 2026-10-10: FAIL, голос перебивает сам себя | M22-R1 (blocker голосового режима) |
 | OI-M22-002 | RESOLVED | Runs / voice | `speech.ack` во время ожидания подтверждения | движок не шлёт ack после `approval.requested` | resolved in MW2 integration |
 | OI-M22-003 | OPEN | Android voice | Endpointing 480 мс — самое долгое звено | 480 мс | M60 |
 | OI-M22-004 | OPEN | Android voice | Модель STT остаётся в памяти процесса | держится | M60 |
@@ -1670,7 +1670,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M22-001 — Эхо TTS и barge-in без AEC
 
-- Status: OPEN
+- Status: ESCALATED
 - Source session: M22
 - Component: Android voice (cascade)
 - Question: не перебивает ли ответ сам себя через динамик, и слышен ли barge-in в шуме на реальном микрофоне?
@@ -1680,6 +1680,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a), при самоперебиваниях в user check M22 — (b).
 - Affected future sessions: M60, MW2 integrator.
 - Revisit trigger/deadline: user check 2 из handoff M22 / M60 device gate.
+- Escalation (2026-10-10): живая проверка UC-MW2-3 на стенде — FAIL: ассистент слышит свою озвучку и перебивает себя. Код: AEC/NS выключены (`core/audio/.../Pcm16Audio.kt:47-48`), захват `VOICE_RECOGNITION`, системный TTS `USAGE_ASSISTANT` вне communication-пути, после `Done` порог сразу падает до 0.025 без holdoff (`CascadeVoiceController.kt:422-424`). Blocker голосового режима → repair M22-R1 (STATUS).
 
 ### OI-M22-002 — `speech.ack` во время ожидания подтверждения
 

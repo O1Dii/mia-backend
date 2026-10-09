@@ -321,6 +321,28 @@ E2E Mia ↔ MindWeaver 7 passed (xfail снят); MindWeaver unittest OK; web `t
 OI-M51-001/002, OI-M15-009, OI-M43-004, OI-M51-R1-001 RESOLVED. **M51 → COMPLETED.** Новые ручные проверки UC-M51R1-1/2.
 M60 теперь ждёт только живые проверки M40 и M41 (UC-M40-1, UC-M41-1/2), после них — `Выполни M60`.
 
+**Живые проверки на локальном стенде 2026-10-10** (пользователь, SM-S938B; стенд — `~/PycharmProjects/mia-stand`: backend + worker +
+web на Mac, телефон через `adb reverse`, вход Google и ChatGPT-план подключены, встроенные плагины опубликованы). Итоги — в
+[USER_CHECKS.md](USER_CHECKS.md):
+- UC-MW2-3 **FAIL**: голосовой режим слышит свою озвучку и перебивает себя → OI-M22-001 ESCALATED (AEC выключен, системный TTS вне
+  communication-пути, после TTS нет holdoff);
+- UC-M25-1 **FAIL**: при вводе текста поле уходит к верху экрана, ленты не видно (нет `adjustResize`, IME учитывается дважды:
+  `enableEdgeToEdge` + `safeDrawing` в `MiaScreen`); после выхода из голосового режима боковая кнопка не ведёт в чат (задача
+  ассистента стартует с голосового экрана без кнопки «В чат», повторное нажатие игнорируется — `MiaApp.kt:87,114,295`);
+- UC-M25-2 **FAIL**: диктовка обрывается через 480 мс тишины, одна фраза на нажатие, хвост в буфере захвата теряется при стопе,
+  pre-roll 80 мс режет начало первого слова (`Dictation.kt:95,148-152,213-231`, `PcmVoiceActivityDetector.kt:32-39`).
+
+Repair (параллельно, write scopes не пересекаются):
+- **M22-R1** — эхо и barge-in голосового режима (Opus 5.5 high, аудио). Scope Android: `core/audio/**` (владелец
+  `PcmVoiceActivityDetector`, в т. ч. настоящий pre-roll для всех потребителей), `core/tts/**`, `feature/voice/**`. Подход: TTS через
+  свой `AudioTrack` в communication-пути (`USAGE_VOICE_COMMUNICATION`/`MODE_IN_COMMUNICATION`) + захват `VOICE_COMMUNICATION` с AEC,
+  либо holdoff после Started/Done и адаптивный порог по измеренному эху; device gate с реальным динамиком;
+- **M25-R1** — чат Android (Sonnet 5.5 high → Opus 5.5 high по правилу эскалации repair). Scope: `feature/chat/**` (диктовка: свой
+  `VadConfig` ~1,2–1,6 с тишины, несколько сегментов до стопа, дочитать буфер при `finish()`, mic до `stt.prepare()`),
+  `app/**` (`windowSoftInputMode=adjustResize`, одна обработка insets, из голосового экрана задачи ассистента — переход в чат),
+  `feature/assistant/**` (интенты запуска). VAD-класс не меняет — только передаёт конфиг.
+Повторная проверка — UC-R-0110.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -350,6 +372,8 @@ M60 теперь ждёт только живые проверки M40 и M41 (U
 | M43 | MW5 | COMPLETED | M15,M50 | Haiku 5.5 high | [M43](handoffs/M43.md) | `b623a41` | руководство, шаблон `plugins/_template` (публикация CLI в тесте), SDK quickstart |
 | M51 | MW5 | COMPLETED | M15,M50 | Sonnet 5.5 high | [M51](handoffs/M51.md) | `5d36258` / MM `7d84b6f` | DoD локально PASS; add-by-URL и публикация — после M51-R1 |
 | M51-R1 | MW5 | COMPLETED | M51 | Opus 5.5 high | [M51-R1](handoffs/M51-R1.md) | `823f33c` / MM `857cc5b` | plugin resources (RFC 8707), userinfo `aud`/`azp`, `mia_token`; E2E 7/7; web-дифф OI-M51-R1-001 применён integrator-ом |
+| M22-R1 | MW5 | READY | M22, UC-MW2-3 | Opus 5.5 high | — | — | repair: эхо TTS → самоперебивание (OI-M22-001 ESCALATED); scope `core/audio`, `core/tts`, `feature/voice` |
+| M25-R1 | MW5 | READY | M25, UC-M25-1/2 | Opus 5.5 high | — | — | repair: клавиатура перекрывает чат, диктовка обрывается, боковая кнопка не ведёт в чат; scope `feature/chat`, `app`, `feature/assistant` |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт живые UC-M40-1 (M40) и UC-M41-1/2 (M41) |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
