@@ -600,5 +600,19 @@
     "retryable": false,
     "public_message": "The request was cancelled by the user.",
     "owner": "M50"
+  },
+  {
+    "code": "web_handoff_invalid",
+    "http_status": 401,
+    "retryable": false,
+    "public_message": "The sign-in code is invalid or has expired.",
+    "owner": "M24"
+  },
+  {
+    "code": "web_handoff_path_invalid",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The landing path is not allowed.",
+    "owner": "M24"
   }
 ]

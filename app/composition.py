@@ -5,6 +5,7 @@ from pydantic import SecretStr
 
 from app.api.v1.device_tools import install_device_tools
 from app.api.v1.feed import build_feed_router
+from app.api.v1.web_handoff import install_web_handoff
 from app.core.circuit import GuardedRealtimeSession, GuardedTextProvider, ProviderCircuit
 from app.core.config import Settings
 from app.core.limits import DailyBudget
@@ -130,6 +131,9 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         settings,
         database=runtime.database,
         redis=runtime.redis,
+    )
+    install_web_handoff(
+        app, settings, session_factory=runtime.database.session_factory, redis=runtime.redis
     )
     authenticator = AuthServiceAuthenticator(auth_service)
     models_stack = install_models(app, settings, runtime, authenticator)

@@ -266,6 +266,64 @@ paths:
           description: Session closed, cookie cleared
           headers: *rid
         default: *error
+  /v1/auth/web/handoff:
+    post:
+      tags: [Plugins]
+      operationId: createWebHandoff
+      summary: >-
+        Single-use code that signs the Android WebView in with the app's bearer (M24).
+        Bearer only (a cookie session gets 403 permission_denied).
+      security:
+        - bearerAuth: []
+      parameters: [*idem]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                path:
+                  type: string
+                  maxLength: 512
+                  description: >-
+                    Same-origin landing path bound to the code, for example /store. The first
+                    segment must be one of chat, store, installed, models, approvals, dashboard,
+                    memory, inbox, privacy; default /chat. Otherwise 400 web_handoff_path_invalid.
+      responses:
+        '201':
+          description: >-
+            Code valid for 60 s, redeemable once. Each call (including a retry with the same
+            Idempotency-Key) issues a new code; the response is not stored (Cache-Control no-store).
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, expires_at, redeem_path]
+                properties:
+                  code: {type: string}
+                  expires_at: {type: string, format: date-time}
+                  redeem_path:
+                    type: string
+                    description: Path (with query) the WebView loads on the web origin.
+        default: *error
+  /v1/auth/web/handoff/redeem:
+    get:
+      tags: [Plugins]
+      operationId: redeemWebHandoff
+      summary: >-
+        Consume a hand-off code: Set-Cookie mia_session (HttpOnly, SameSite=Strict) and a 303
+        redirect to the path bound to the code (M24). Called by the WebView without credentials.
+      security: []
+      parameters:
+        - {name: code, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 256}}
+      responses:
+        '303':
+          description: Signed in; Location is the same-origin landing path. Never cached.
+          headers: *rid
+        default: *error
   /v1/workspace:
     get:
       tags: [Plugins]
