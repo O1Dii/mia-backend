@@ -5,6 +5,7 @@ from pydantic import SecretStr
 
 from app.api.v1.device_tools import install_device_tools
 from app.api.v1.feed import build_feed_router
+from app.api.v1.tiles import install_tiles
 from app.core.circuit import GuardedRealtimeSession, GuardedTextProvider, ProviderCircuit
 from app.core.config import Settings
 from app.core.limits import DailyBudget
@@ -159,6 +160,13 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         connections=connections,
         tools=tools,
         workspace=workspace,
+    )
+    install_tiles(
+        app,
+        registry=tools.registry,
+        connector=tools.connector,
+        router=tools.router,
+        authenticator=request_authenticator(app),
     )
     memory = install_memory(app, runtime, vault=models_stack.vault, tools=tools)
     runs = install_runs(

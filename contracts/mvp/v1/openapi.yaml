@@ -774,6 +774,54 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DashboardTile'}
         default: *error
+  /v1/installations/{installation_id}/tiles/{tile_id}:
+    parameters:
+      - {$ref: '#/components/parameters/InstallationId'}
+      - {name: tile_id, in: path, required: true, schema: {type: string, pattern: '^[a-z][a-z0-9-]{0,47}$'}}
+    get:
+      tags: [Plugins]
+      operationId: getTileDocument
+      summary: The ui:// document of a dashboard tile for the MCP Apps host (M31), CSP and bridge included
+      responses:
+        '200':
+          description: Tile document and what the host may offer it
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TileDocument'}
+        default: *error
+  /v1/installations/{installation_id}/tiles/{tile_id}/tool-calls:
+    parameters:
+      - {$ref: '#/components/parameters/InstallationId'}
+      - {name: tile_id, in: path, required: true, schema: {type: string, pattern: '^[a-z][a-z0-9-]{0,47}$'}}
+    post:
+      tags: [Plugins]
+      operationId: callTileTool
+      summary: A tool call made by a tile through the host (JSON-RPC tools/call); never write_external
+      description: >-
+        The tile reaches only the tools of its own installation. A `write_external` tool is refused with
+        403 tool_permission_denied and nothing is executed; other failures are a 200 with
+        `status` and `error_code` of the router (M13).
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 128, description: Local tool name or plugin_id.name}
+                arguments: {type: object}
+      responses:
+        '200':
+          description: Outcome of the call
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TileToolResult'}
+        default: *error
   /v1/model-connections:
     get:
       security:
@@ -2602,6 +2650,37 @@ components:
         tiles:
           type: array
           items: {$ref: '#/components/schemas/DashboardTile'}
+    TileDocument:
+      type: object
+      required: [installation_id, plugin_id, tile_id, resource_uri, html, csp, sizes, mobile, refresh, tools]
+      properties:
+        installation_id: {type: string, format: uuid}
+        plugin_id: {type: string}
+        tile_id: {type: string}
+        title: {type: [string, 'null']}
+        resource_uri: {type: string, pattern: '^ui://'}
+        html: {type: string, description: Full document; the host puts it into a sandboxed iframe (allow-scripts only)}
+        csp: {type: string, description: The Content-Security-Policy already inside html}
+        sizes: {type: array, items: {type: string, enum: ['1x1', '2x1', '2x2', '4x2', '4x4']}}
+        mobile: {type: string, enum: [card, tile, hidden]}
+        refresh:
+          oneOf:
+            - {type: 'null'}
+            - type: object
+              required: [tool, every_seconds]
+              properties:
+                tool: {type: string}
+                every_seconds: {type: integer, minimum: 30}
+        tools: {type: array, items: {type: string}, description: Local names of the tools the tile may call (no write_external)}
+    TileToolResult:
+      type: object
+      required: [status, is_error, content, structured_content, error_code]
+      properties:
+        status: {type: string, enum: [succeeded, failed, approval_required, denied, expired, uncertain, cancelled]}
+        is_error: {type: boolean}
+        content: {type: string}
+        structured_content: {type: [object, 'null']}
+        error_code: {type: [string, 'null']}
     ModelConnection:
       type: object
       required: [id, provider, label, model, capability, has_key, status, is_primary, verified]

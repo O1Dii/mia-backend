@@ -284,3 +284,23 @@ class McpConnector:
             structured=result.structured_content,
             is_error=bool(result.is_error),
         )
+
+    async def read_resource(
+        self, plugin: InstalledPlugin, *, user_id: str, uri: str, timeout_s: float = 8.0
+    ) -> str:
+        """``resources/read`` of one ``ui://`` document as text (M31, MCP Apps host).
+
+        Raises ``McpFailure``/``ConnectionRequired``; the text is capped at 512 KiB.
+        """
+        phase: Phase = "connect"
+        try:
+            async with asyncio.timeout(timeout_s):
+                async with self._client(plugin, user_id, timeout_s) as client:
+                    phase = "call"
+                    result = await client.read_resource(uri)
+        except (ConnectionRequired, McpFailure):
+            raise
+        except Exception as error:
+            raise _logged(_classify(error, phase), plugin, error) from error
+        text = "".join(str(getattr(item, "text", "") or "") for item in result.contents)
+        return text[:524_288]
