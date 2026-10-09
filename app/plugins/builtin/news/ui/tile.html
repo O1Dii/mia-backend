@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Коротко о главном</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #181d16; color: #d9e8c6; margin: 12px; }
+  .eyebrow { color: #8fa07a; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  form { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+  input { flex: 1; min-width: 140px; font: inherit; padding: 6px; background: #252e1e; color: #eaf4dc; border: 1px solid #5a6d44; border-radius: 8px; }
+  button { padding: 6px 10px; border-radius: 8px; border: 0; background: #d6f882; color: #223018; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; }
+  #summary { white-space: pre-wrap; line-height: 1.5; margin: 8px 0; }
+  ol { padding-left: 20px; } li { margin-bottom: 4px; } a { color: #d6f882; overflow-wrap: anywhere; }
+  .empty { color: #8fa07a; } .error { color: #f28b82; margin: 6px 0; }
+</style>
+</head>
+<body>
+<div class="eyebrow" id="meta">Новости за 48 часов</div>
+<form id="form">
+  <input id="topics" maxlength="200" placeholder="Темы: например, робототехника" aria-label="Темы новостей">
+  <button id="go" type="submit">Собрать</button>
+</form>
+<p class="error" id="error" role="alert"></p>
+<div id="summary" class="empty">Свежие материалы по вашим темам.</div>
+<ol id="sources"></ol>
+<script>
+(function () {
+  var topics = document.getElementById('topics'), summary = document.getElementById('summary');
+  var sources = document.getElementById('sources'), errorBox = document.getElementById('error');
+  var meta = document.getElementById('meta'), go = document.getElementById('go');
+  window.mia.onData(function (data) {
+    if (!data || !('summary' in data)) return;
+    if (data.topics && !topics.value) topics.value = data.topics;
+    if (data.error) errorBox.textContent = data.error;
+    if (data.summary) {
+      summary.className = ''; summary.textContent = data.summary;
+      meta.textContent = (data.topics || '') + (data.model ? ' · ' + data.model : '') +
+        (data.updated_ms ? ' · ' + new Date(data.updated_ms).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) : '');
+    }
+    sources.textContent = '';
+    (data.items || []).forEach(function (item, index) {
+      var li = document.createElement('li');
+      if (typeof item.url === 'string' && item.url.indexOf('https://') === 0) {
+        var a = document.createElement('a'); a.href = item.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = '[' + (index + 1) + '] ' + item.title; li.appendChild(a);
+      } else { li.textContent = '[' + (index + 1) + '] ' + item.title; }
+      sources.appendChild(li);
+    });
+  });
+  document.getElementById('form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    errorBox.textContent = ''; go.disabled = true; go.textContent = 'Собираем…';
+    window.mia.call('refresh', { topics: topics.value.trim() })
+      .catch(function (e) { errorBox.textContent = e.message; })
+      .then(function () { go.disabled = false; go.textContent = 'Собрать'; });
+  });
+  window.mia.ready.then(function () { return window.mia.call('get'); }).catch(function () {});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мысли вслух</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #181d16; color: #d9e8c6; margin: 12px; }
+  form { display: flex; gap: 6px; margin-bottom: 8px; }
+  textarea { flex: 1; font: inherit; padding: 6px; height: 40px; resize: vertical; background: #252e1e; color: #eaf4dc; border: 1px solid #5a6d44; border-radius: 8px; }
+  button { padding: 6px 10px; border-radius: 8px; border: 0; background: #d6f882; color: #223018; cursor: pointer; }
+  button.ghost { background: #2c3624; color: #d9e8c6; }
+  .note { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2c3624; }
+  .note p { flex: 1; margin: 0; line-height: 1.4; overflow-wrap: anywhere; }
+  .note.done p { text-decoration: line-through; color: #8fa07a; }
+  .empty { color: #8fa07a; }
+  .error { color: #f28b82; margin: 6px 0; }
+</style>
+</head>
+<body>
+<form id="form">
+  <textarea id="text" maxlength="5000" placeholder="Идея, задача или список покупок…" aria-label="Новая заметка"></textarea>
+  <button type="submit">Сохранить</button>
+</form>
+<div id="list"></div>
+<p class="error" id="error" role="alert"></p>
+<script>
+(function () {
+  var notes = [];
+  var list = document.getElementById('list'), errorBox = document.getElementById('error');
+  var text = document.getElementById('text');
+  function act(name, args) {
+    errorBox.textContent = '';
+    return window.mia.call(name, args).catch(function (e) { errorBox.textContent = e.message; });
+  }
+  function button(label, aria, onClick) {
+    var b = document.createElement('button'); b.className = 'ghost'; b.textContent = label;
+    b.setAttribute('aria-label', aria); b.addEventListener('click', onClick); return b;
+  }
+  function render() {
+    list.textContent = '';
+    if (!notes.length) {
+      var p = document.createElement('p'); p.className = 'empty';
+      p.textContent = 'Напишите здесь или попросите Мию сохранить мысль.'; list.appendChild(p);
+    }
+    notes.forEach(function (note) {
+      var row = document.createElement('div'); row.className = 'note' + (note.done ? ' done' : '');
+      var body = document.createElement('p'); body.textContent = note.text;
+      row.append(
+        button(note.done ? '↺' : '✓', note.done ? 'Вернуть задачу' : 'Выполнить задачу', function () { act('toggle', { id: note.id }); }),
+        body,
+        button('✕', 'Удалить заметку', function () { act('delete', { id: note.id }); }));
+      list.appendChild(row);
+    });
+  }
+  document.getElementById('form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = text.value.trim();
+    if (!value) return;
+    act('add', { text: value }).then(function () { text.value = ''; });
+  });
+  window.mia.onData(function (data) {
+    if (!data || !Array.isArray(data.notes)) return;
+    notes = data.notes; render();
+  });
+  render();
+  window.mia.ready.then(function () { return window.mia.call('list'); }).catch(function () {});
+})();
+</script>
+</body>
+</html>

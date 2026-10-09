@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.news",
+  "version": "1.0.0",
+  "name": "Коротко о главном",
+  "listing": {
+    "description": "Сводка новостей за 48 часов по вашим темам с источниками и расписанием",
+    "category": "knowledge",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.builtin.news.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "refresh": {
+      "risk": "write_reversible",
+      "timeoutSeconds": 90
+    },
+    "get": {
+      "risk": "read",
+      "voice": true
+    },
+    "set_schedule": {
+      "risk": "write_reversible"
+    }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "digest",
+        "title": "Коротко о главном",
+        "resourceUri": "ui://builtin.news/tile",
+        "sizes": [
+          "2x2",
+          "4x2",
+          "4x4"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "get",
+          "everySeconds": 300
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [
+      "news.google.com"
+    ],
+    "llm": {
+      "viaHost": true
+    },
+    "memory": [],
+    "notify": true,
+    "schedules": true
+  }
+}

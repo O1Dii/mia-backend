@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.alarm",
+  "version": "1.0.0",
+  "name": "Будильник",
+  "listing": {
+    "description": "Напоминания на точное время с учётом часового пояса",
+    "category": "utilities",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.builtin.alarm.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "set": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "get": {
+      "risk": "read",
+      "voice": true
+    },
+    "cancel": {
+      "risk": "write_reversible",
+      "voice": true
+    }
+  },
+  "requires": {
+    "deviceTools": [
+      "device.alarm.set"
+    ]
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "alarms",
+        "title": "Будильник",
+        "resourceUri": "ui://builtin.alarm/tile",
+        "sizes": [
+          "1x1",
+          "2x1"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "get",
+          "everySeconds": 60
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": true,
+    "schedules": true
+  }
+}
