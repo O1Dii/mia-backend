@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Будильник</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #181d16; color: #d9e8c6; margin: 12px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #2c3624; }
+  .label { flex: 1; min-width: 0; }
+  .label small { display: block; color: #8fa07a; }
+  .time { font-size: 20px; font-variant-numeric: tabular-nums; }
+  form { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  input { font: inherit; padding: 6px; background: #252e1e; color: #eaf4dc; border: 1px solid #5a6d44; border-radius: 8px; }
+  button { padding: 6px 10px; border-radius: 8px; border: 0; background: #d6f882; color: #223018; cursor: pointer; }
+  button.ghost { background: #2c3624; color: #d9e8c6; }
+  .empty { color: #8fa07a; margin: 6px 0; }
+  .error { color: #f28b82; margin: 6px 0; }
+</style>
+</head>
+<body>
+<div id="list"></div>
+<form id="form">
+  <input id="time" type="time" value="07:30" aria-label="Время будильника" required>
+  <input id="label" value="Будильник" maxlength="80" aria-label="Название">
+  <button type="submit">Установить</button>
+</form>
+<p class="error" id="error" role="alert"></p>
+<script>
+(function () {
+  var items = [], offset = 0;
+  var list = document.getElementById('list'), errorBox = document.getElementById('error');
+  function fmt(ms) {
+    var s = Math.ceil(Math.max(ms, 0) / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h + ' ч ' + m + ' мин';
+  }
+  function act(name, args) {
+    errorBox.textContent = '';
+    return window.mia.call(name, args).catch(function (e) { errorBox.textContent = e.message; });
+  }
+  function render() {
+    list.textContent = '';
+    if (!items.length) {
+      var p = document.createElement('p'); p.className = 'empty'; p.textContent = 'Будильников нет.'; list.appendChild(p);
+    }
+    items.forEach(function (item) {
+      var row = document.createElement('div'); row.className = 'row';
+      var label = document.createElement('span'); label.className = 'label';
+      label.textContent = item.label;
+      var small = document.createElement('small');
+      small.textContent = new Date(item.deadline_ms).toLocaleString('ru');
+      label.appendChild(small);
+      var left = item.deadline_ms - (Date.now() + offset);
+      var time = document.createElement('span'); time.className = 'time';
+      time.textContent = left <= 0 ? 'Время!' : 'через ' + fmt(left);
+      var cancel = document.createElement('button'); cancel.className = 'ghost'; cancel.textContent = '✕';
+      cancel.setAttribute('aria-label', 'Отменить будильник');
+      cancel.addEventListener('click', function () { act('cancel', { id: item.id }); });
+      row.append(label, time, cancel); list.appendChild(row);
+    });
+  }
+  document.getElementById('form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var parts = document.getElementById('time').value.split(':').map(Number);
+    var date = new Date(); date.setHours(parts[0], parts[1], 0, 0);
+    if (date.getTime() <= Date.now()) date.setDate(date.getDate() + 1);
+    var offsetMin = -date.getTimezoneOffset(), sign = offsetMin < 0 ? '-' : '+', abs = Math.abs(offsetMin);
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var local = date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' +
+      pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':00' + sign + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60);
+    act('set', { at: local, label: document.getElementById('label').value.trim() || 'Будильник' });
+  });
+  window.mia.onData(function (data) {
+    if (!data || !Array.isArray(data.items)) return;
+    items = data.items;
+    if (typeof data.server_time_ms === 'number') offset = data.server_time_ms - Date.now();
+    render();
+  });
+  setInterval(render, 30000);
+  render();
+  window.mia.ready.then(function () { return window.mia.call('get'); }).catch(function () {});
+})();
+</script>
+</body>
+</html>

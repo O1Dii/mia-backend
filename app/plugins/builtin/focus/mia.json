@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.focus",
+  "version": "1.0.0",
+  "name": "В потоке",
+  "listing": {
+    "description": "Фокус-сессии 25 минут и перерывы 5 минут с обратным отсчётом",
+    "category": "productivity",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.builtin.focus.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "start": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "get": {
+      "risk": "read",
+      "voice": true
+    },
+    "pause": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "resume": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "cancel": {
+      "risk": "write_reversible",
+      "voice": true
+    }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "focus",
+        "title": "В потоке",
+        "resourceUri": "ui://builtin.focus/tile",
+        "sizes": [
+          "1x1",
+          "2x1",
+          "2x2"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "get",
+          "everySeconds": 30
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": true,
+    "schedules": true
+  }
+}

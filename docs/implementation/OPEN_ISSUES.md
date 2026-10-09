@@ -1468,7 +1468,110 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M14 inbox
 
-- Нет записей.
+### OI-M14-001 — Declarative servers expose an app-only `get_state` that the manifest cannot list
+
+- Status: OPEN
+- Source session: M14
+- Component: Plugins / declarative host, manifest contract
+- Question: the tile of a declarative plugin must read its state without an LLM, but the M00 rule `declarative actions == tools` (validator `check_manifest_semantics`) forbids declaring a read tool, and a tile `refresh.tool` must be in `tools`. How is the tile refreshed?
+- Why non-blocking: the host serves an extra tool `get_state` marked `_meta.ui.visibility: ["app"]` (hidden from the model); the tile calls it once after the MCP App handshake and then receives pushed tool results. Builtin plugins are not affected (they declare a read tool).
+- Current assumption: `get_state` is implicit for `server.kind: declarative`, absent from `tools`, never offered to models; declarative tiles have no `refresh` in the manifest.
+- Options: (a) keep it implicit and let M13/M15 special-case `get_state` (policy: read, not voice, app-only; ignore it in the "tools/list equals manifest" publication check); (b) relax the validator/schema so a declarative manifest may declare `get_state` (and refresh with it); (c) add a `view.refreshSeconds` field.
+- Recommendation: (a) for the MVP, then (b) additively in the contract when M15 writes the publication check.
+- Affects sessions: M13, M15, M30, M31.
+- Revisit trigger/by: M15 (publication checks) and M31 (dashboard refresh).
+- Resolution:
+- Evidence: `app/modules/plugins/declarative/host.py` (`GET_STATE_TOOL`), `tests/plugins/test_declarative.py::test_actions_become_tools_and_state_patch_persists_per_installation`.
+
+### OI-M14-002 — No permission vocabulary for "any public HTTPS page"
+
+- Status: OPEN
+- Source session: M14
+- Component: Plugins / manifest permissions
+- Question: `builtin.internet.read(url)` fetches arbitrary public HTTPS pages, but `permissions.network` is an allow-list of hosts (SSRF list for remote servers).
+- Why non-blocking: the manifest lists the fixed search hosts (`news.google.com`, `www.bing.com`); the client itself refuses non-public addresses (DNS pinning, all answers must be global, redirects re-validated, size/time bounds), so the host list is advisory for builtin plugins.
+- Current assumption: builtin plugins are first-party, so the consent screen shows the listed hosts plus the SKILL.md description of `read`.
+- Options: additive `permissions.network` wildcard token (e.g. `"public-web"`) rendered as "any public site"; a separate boolean `permissions.publicWeb`; keep as is.
+- Recommendation: add `publicWeb: boolean` additively to the schema in M15 and use it in the consent screen.
+- Affects sessions: M15, M30.
+- Revisit trigger/by: M15 consent screen.
+- Resolution:
+- Evidence: `app/plugins/builtin/internet/mia.json`, `app/modules/plugins/builtin/web.py`.
+
+### OI-M14-003 — Mia-clock plugin and v2 ids that cannot be converted
+
+- Status: OPEN
+- Source session: M14
+- Component: Plugins / migration from the web POC
+- Question: (1) `mia.clock` (world clock) is a POC builtin that is not in the M14 card and was not ported; (2) a POC v2 id such as `community.1app` (slug starting with a digit) does not match the `mia.json` id pattern, so the converter refuses it instead of renaming.
+- Why non-blocking: the six card plugins are done; POC apps with a letter-first slug (all examples) convert; the converter reports the exact problem.
+- Current assumption: clock is dropped or added later as a builtin; digit-first ids are rare and need a manual rename.
+- Options: port `mia.clock` (now/add_zone/remove_zone, `zoneinfo`) as `builtin.clock`; auto-prefix digit-first slugs with `app-` and record the id mapping for M10's legacy import.
+- Recommendation: decide with the M31 web cleanup; port the clock only if users of the POC use it.
+- Affects sessions: M15, M30, M31.
+- Revisit trigger/by: M31 (removal of `app/web_poc`).
+- Resolution:
+- Evidence: `app/modules/plugins/declarative/convert.py` (`_envelope`), `docs/implementation/handoffs/M14.md`.
+
+### OI-M14-004 — Firing contract for stored deadlines (M16)
+
+- Status: OPEN
+- Source session: M14
+- Component: Plugins / jobs
+- Question: timer, alarm and focus only store `items[]` in `PluginState` (`deadline_ms`, `status`, `label`); who marks an item as fired and how is firing de-duplicated?
+- Why non-blocking: M14 stores the deadline only (card); `deadlines.pending(items)` returns what still waits; expired items stay in state for 24 h (pruned on the next write) so a late scheduler can still deliver them.
+- Current assumption: M16 keeps its own fired marker per `(installation_id, item id, deadline_ms)` in its job table and does not rewrite plugin state; paused timers are not due.
+- Options: M16 writes `fired_ms` into the item; M16 creates a one-shot job from `start`/`set` (needs a tool-result hook); poll `PluginState` every 30 s.
+- Recommendation: one-shot job created by the router/host when a tool result carries `structuredContent.changed` with a `deadline_ms`, falling back to the periodic scan.
+- Affects sessions: M13, M16, M31.
+- Revisit trigger/by: M16.
+- Resolution:
+- Evidence: `app/modules/plugins/builtin/deadlines.py`, `tests/plugins/test_countdown_plugins.py`.
+
+### OI-M14-005 — Host LLM budget and scheduled digest runs
+
+- Status: OPEN
+- Source session: M14
+- Component: Plugins / model access
+- Question: `permissions.llm.viaHost` plugins (`builtin.news`, declarative `model.prompt`) call `HostServices.llm`; who enforces `monthlyBudgetUsd`, and which model/connection is used when a scheduled job refreshes the digest while the user is offline?
+- Why non-blocking: the protocol (`HostLlm.generate(prompt, identity, plugin_id)`) is defined and a clear tool error ("Выберите модель…") is returned when none is wired or available; nothing is charged by M14 itself.
+- Current assumption: the integrator implements `HostLlm` over M11's gateway with the user's primary model and a per-installation budget check.
+- Options: budget counter in M11's usage ledger keyed by `installation_id`; allow jobs to run only with the primary connection; block scheduled refresh when the connection needs a user session.
+- Recommendation: implement over the gateway in the MW2 integration and cap `refresh` frequency by `interval_minutes >= 30`.
+- Affects sessions: M11, M15, M16.
+- Revisit trigger/by: MW2 integration, M16.
+- Resolution:
+- Evidence: `app/modules/plugins/builtin/services.py` (`HostLlm`), `tests/plugins/test_notes_internet_news.py`.
+
+### OI-M14-006 — MCP App bridge is verified at protocol level only
+
+- Status: OPEN
+- Source session: M14
+- Component: Plugins / MCP Apps UI
+- Question: tiles and the `window.mia` bridge follow the MCP Apps JSON-RPC over `postMessage` (`ui/initialize`, `tools/call`, `ui/notifications/tool-result`), but no real MCP Apps host exists yet in this repository.
+- Why non-blocking: scripts are syntax-checked and the bridge protocol is exercised under node with a fake host; tiles are plain DOM code with `textContent` only and a restrictive CSP.
+- Current assumption: M31's dashboard host implements the same three messages and forwards `tools/call` through the router with the installation identity.
+- Options: adapt the bridge once the M31 host is written; adopt the official `@modelcontextprotocol/ext-apps` client in tiles.
+- Recommendation: M31 runs each tile in its iframe sandbox and adjusts `app/modules/plugins/builtin/bridge.py` if the protocol version or message names differ.
+- Affects sessions: M30, M31, M24.
+- Revisit trigger/by: M31.
+- Resolution:
+- Evidence: `tests/plugins/test_bridge_js.py`, `app/modules/plugins/builtin/bridge.py`.
+
+### OI-M14-007 — `mcp` pulls `httpx2`, which changes Starlette's TestClient
+
+- Status: OPEN
+- Source session: M14
+- Component: Dependencies / tests
+- Question: `mcp==2.2.0` depends on `httpx2`; once installed, Starlette's `TestClient` returns `httpx2` responses and cookies, which broke three `tests/hardening` assertions and three mypy lines in `tests/web_poc`.
+- Why non-blocking: fixed in M14 with minimal test-only edits (`cast` and `assert ... is not None`); M13 pins the same `mcp` and will meet the same failures, so the integrator should expect an identical (or conflicting) edit.
+- Current assumption: keep `httpx` for application code, accept `httpx2` as a transitive dependency.
+- Options: migrate tests to a single client library; pin an older `mcp`; ignore.
+- Recommendation: keep the edits, resolve the possible merge conflict by taking either identical hunk.
+- Affects sessions: M13, MW2 integrator.
+- Revisit trigger/by: MW2 integration.
+- Resolution:
+- Evidence: commit `af56a4d`, `tests/hardening/test_admission_and_resilience.py`, `tests/web_poc/test_accounts.py`.
 
 ## M22 inbox
 

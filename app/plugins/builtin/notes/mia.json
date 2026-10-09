@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.notes",
+  "version": "1.0.0",
+  "name": "Мысли вслух",
+  "listing": {
+    "description": "Заметки и задачи: добавить, посмотреть, отметить, удалить",
+    "category": "productivity",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.builtin.notes.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "add": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "list": {
+      "risk": "read",
+      "voice": true
+    },
+    "toggle": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "delete": {
+      "risk": "write_reversible"
+    }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "notes",
+        "title": "Заметки",
+        "resourceUri": "ui://builtin.notes/tile",
+        "sizes": [
+          "2x1",
+          "2x2",
+          "4x2"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "list",
+          "everySeconds": 60
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": false
+  }
+}

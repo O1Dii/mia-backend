@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.internet",
+  "version": "1.0.0",
+  "name": "Интернет",
+  "listing": {
+    "description": "Поиск по публичным страницам, свежие новости и чтение HTTPS-страниц",
+    "category": "knowledge",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.builtin.internet.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "search": {
+      "risk": "read",
+      "voice": true,
+      "timeoutSeconds": 20
+    },
+    "news": {
+      "risk": "read",
+      "voice": true,
+      "timeoutSeconds": 20
+    },
+    "read": {
+      "risk": "read",
+      "timeoutSeconds": 20
+    }
+  },
+  "permissions": {
+    "network": [
+      "news.google.com",
+      "www.bing.com"
+    ],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": false
+  }
+}

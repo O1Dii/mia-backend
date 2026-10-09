@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Интернет</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #181d16; color: #d9e8c6; margin: 12px; }
+  ol { padding-left: 20px; margin: 6px 0; }
+  li { margin-bottom: 8px; }
+  a { color: #d6f882; overflow-wrap: anywhere; }
+  small { display: block; color: #8fa07a; }
+  .empty { color: #8fa07a; }
+</style>
+</head>
+<body>
+<p id="head" class="empty">Результаты поиска появятся здесь.</p>
+<ol id="list"></ol>
+<script>
+(function () {
+  var list = document.getElementById('list'), head = document.getElementById('head');
+  window.mia.onData(function (data) {
+    if (!data) return;
+    list.textContent = '';
+    if (data.text !== undefined) {
+      head.textContent = data.url || ''; head.className = '';
+      var li = document.createElement('li'); li.textContent = String(data.text).slice(0, 600); list.appendChild(li);
+      return;
+    }
+    if (!Array.isArray(data.items)) return;
+    head.className = data.items.length ? '' : 'empty';
+    head.textContent = data.items.length ? data.query + ' · источников: ' + data.items.length : 'Ничего не найдено.';
+    data.items.forEach(function (item) {
+      var li = document.createElement('li');
+      var title = String(item.title || item.url);
+      if (typeof item.url === 'string' && item.url.indexOf('https://') === 0) {
+        var a = document.createElement('a'); a.href = item.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = title; li.appendChild(a);
+      } else { li.textContent = title; }
+      var small = document.createElement('small');
+      small.textContent = (item.source || '') + (item.published_at ? ' · ' + item.published_at : '');
+      li.appendChild(small); list.appendChild(li);
+    });
+  });
+})();
+</script>
+</body>
+</html>

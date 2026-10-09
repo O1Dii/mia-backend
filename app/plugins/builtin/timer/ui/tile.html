@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Таймеры</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #181d16; color: #d9e8c6; margin: 12px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #2c3624; }
+  .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .time { font-size: 26px; font-variant-numeric: tabular-nums; }
+  .time.done { color: #f2b36d; }
+  button { padding: 6px 10px; border-radius: 8px; border: 0; background: #d6f882; color: #223018; cursor: pointer; }
+  button.ghost { background: #2c3624; color: #d9e8c6; }
+  .presets { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .empty, .error { color: #8fa07a; margin: 6px 0; }
+  .error { color: #f28b82; }
+</style>
+</head>
+<body>
+<div id="list"></div>
+<div class="presets" id="presets"></div>
+<p class="error" id="error" role="alert"></p>
+<script>
+(function () {
+  var items = [], offset = 0;
+  var list = document.getElementById('list'), errorBox = document.getElementById('error');
+  function fmt(ms) {
+    var s = Math.ceil(Math.max(ms, 0) / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return (h ? h + ':' : '') + pad(m) + ':' + pad(r);
+  }
+  function remaining(item) {
+    if (item.status === 'paused') return item.remaining_ms;
+    return Math.max(0, item.deadline_ms - (Date.now() + offset));
+  }
+  function act(name, args) {
+    errorBox.textContent = '';
+    return window.mia.call(name, args).catch(function (e) { errorBox.textContent = e.message; });
+  }
+  function button(text, cls, onClick) {
+    var b = document.createElement('button');
+    b.textContent = text; if (cls) b.className = cls; b.addEventListener('click', onClick); return b;
+  }
+  function render() {
+    list.textContent = '';
+    if (!items.length) {
+      var p = document.createElement('p'); p.className = 'empty';
+      p.textContent = 'Нет таймеров. Скажите «поставь таймер на 5 минут».'; list.appendChild(p);
+    }
+    items.forEach(function (item) {
+      var row = document.createElement('div'); row.className = 'row';
+      var label = document.createElement('span'); label.className = 'label'; label.textContent = item.label;
+      var left = remaining(item), done = item.status !== 'paused' && left <= 0;
+      var time = document.createElement('span'); time.className = 'time' + (done ? ' done' : '');
+      time.textContent = done ? 'Время!' : fmt(left); time.dataset.id = item.id;
+      row.append(label, time);
+      if (!done) row.appendChild(item.status === 'paused'
+        ? button('▶', '', function () { act('resume', { id: item.id }); })
+        : button('⏸', 'ghost', function () { act('pause', { id: item.id }); }));
+      row.appendChild(button('✕', 'ghost', function () { act('cancel', { id: item.id }); }));
+      list.appendChild(row);
+    });
+  }
+  var presets = document.getElementById('presets');
+  [1, 5, 10, 30].forEach(function (min) {
+    presets.appendChild(button(min + ' мин', 'ghost', function () {
+      act('start', { seconds: min * 60, label: 'Таймер ' + min + ' мин' });
+    }));
+  });
+  window.mia.onData(function (data) {
+    if (!data || !Array.isArray(data.items)) return;
+    items = data.items;
+    if (typeof data.server_time_ms === 'number') offset = data.server_time_ms - Date.now();
+    render();
+  });
+  setInterval(render, 1000);
+  render();
+  window.mia.ready.then(function () { return window.mia.call('get'); }).catch(function () {});
+})();
+</script>
+</body>
+</html>
