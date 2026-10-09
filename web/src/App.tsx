@@ -1,29 +1,54 @@
 import { useEffect } from 'react'
-import { Blocks, Cpu, Layers3, LogOut, MessageCircle, ShieldCheck } from 'lucide-react'
+import {
+  Brain,
+  Ellipsis,
+  Inbox as InboxIcon,
+  LayoutGrid,
+  LogOut,
+  MessageCircle,
+  ShieldCheck,
+  Blocks,
+} from 'lucide-react'
 import { useAuth } from './lib/auth'
 import { ChatProvider } from './lib/chat'
 import { Link, navigate, usePlace } from './lib/router'
 import { Approvals, usePendingApprovals } from './components/Approvals'
 import { Chat } from './components/Chat'
+import { Dashboard } from './components/Dashboard'
+import { Inbox, useUnreadInbox } from './components/Inbox'
+import { Memory } from './components/Memory'
 import { Models } from './components/Models'
+import { More } from './components/More'
 import { PluginPage } from './components/PluginPage'
+import { Privacy } from './components/Privacy'
 import { Store } from './components/Store'
 import { StoreAddUrl } from './components/StoreAddUrl'
 import { StoreConnected } from './components/StoreConnected'
 import { StoreInstalled } from './components/StoreInstalled'
 
-const tabs = [
+type Tab = {
+  to: string
+  label: string
+  short?: string
+  icon: typeof MessageCircle
+  match: RegExp
+}
+
+// Seven tabs fit a phone's bottom bar; plugins, models and the data page live under «Ещё».
+const tabs: Tab[] = [
+  { to: '/dashboard', label: 'Дашборд', icon: LayoutGrid, match: /^\/dashboard/ },
   { to: '/chat', label: 'Чат', icon: MessageCircle, match: /^\/chat/ },
+  { to: '/inbox', label: 'Входящие', icon: InboxIcon, match: /^\/inbox/ },
+  { to: '/memory', label: 'Память', icon: Brain, match: /^\/memory/ },
   { to: '/store', label: 'Магазин', icon: Blocks, match: /^\/store/ },
-  { to: '/installed', label: 'Мои плагины', icon: Layers3, match: /^\/installed/ },
-  { to: '/models', label: 'Модели', icon: Cpu, match: /^\/models/ },
   {
     to: '/approvals',
     label: 'Подтверждения',
-    short: 'Одобрения',
+    short: 'Решения',
     icon: ShieldCheck,
     match: /^\/approvals/,
   },
+  { to: '/more', label: 'Ещё', icon: Ellipsis, match: /^\/(more|installed|models|data)/ },
 ]
 
 export function App() {
@@ -39,6 +64,7 @@ function Shell() {
   const auth = useAuth()
   const pending = usePendingApprovals()
   const count = pending.items?.length ?? 0
+  const unread = useUnreadInbox()
 
   useEffect(() => {
     if (place.path === '/') navigate('/chat', true)
@@ -47,6 +73,11 @@ function Shell() {
   const path = place.path
   let screen
   if (path.startsWith('/chat')) screen = <Chat />
+  else if (path.startsWith('/dashboard')) screen = <Dashboard />
+  else if (path.startsWith('/inbox')) screen = <Inbox />
+  else if (path.startsWith('/memory')) screen = <Memory />
+  else if (path.startsWith('/data')) screen = <Privacy />
+  else if (path.startsWith('/more')) screen = <More />
   else if (path === '/store/connected') screen = <StoreConnected search={place.search} />
   else if (path === '/store/add-url') screen = <StoreAddUrl search={place.search} />
   else if (path.startsWith('/store/plugin/'))
@@ -95,6 +126,11 @@ function Shell() {
                 {to === '/approvals' && count > 0 && (
                   <b className="mw-badge" aria-label={`ожидают: ${count}`}>
                     {count}
+                  </b>
+                )}
+                {to === '/inbox' && unread > 0 && (
+                  <b className="mw-badge" aria-label={`непрочитано: ${unread}`}>
+                    {unread}
                   </b>
                 )}
               </Link>

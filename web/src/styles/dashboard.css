@@ -1,0 +1,338 @@
+/*
+ * Screens of M31: dashboard (MCP Apps tiles), memory, inbox and tasks, data page.
+ * Only Mia tokens (--mia-*) and the shared components; classes are prefixed mw- like app.css.
+ */
+
+/* ---------- dashboard ---------- */
+.mw-dash__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--mia-space-3);
+}
+.mw-tiles {
+  --mw-row: 176px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: var(--mw-row);
+  gap: var(--mia-space-4);
+}
+.mw-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--mia-radius-lg);
+  order: var(--mw-pos, 0);
+  grid-column: span 1;
+  grid-row: span 1;
+}
+.mw-tile[data-size='2x1'] {
+  grid-column: span 2;
+}
+.mw-tile[data-size='2x2'] {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.mw-tile[data-size='4x2'] {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+.mw-tile[data-size='4x4'] {
+  grid-column: span 4;
+  grid-row: span 4;
+}
+.mw-tile__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mia-space-2);
+  padding: var(--mia-space-3) var(--mia-space-4) var(--mia-space-1);
+  padding-right: calc(var(--mia-space-4) + var(--mia-size-touch-web));
+}
+.mw-app .mw-tile__head h2 {
+  font-size: var(--mia-type-body-size);
+  font-weight: var(--mia-type-title-weight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mw-tile__plugin {
+  color: var(--mia-color-text-muted);
+  font-size: var(--mia-type-caption-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mw-tile__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 var(--mia-space-2) var(--mia-space-2);
+  border-radius: var(--mia-radius-md);
+  overflow: hidden;
+}
+.mw-tile__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+.mw-tile__refresh {
+  position: absolute;
+  top: var(--mia-space-1);
+  right: var(--mia-space-1);
+  z-index: 2;
+}
+.mw-tile__state {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--mia-space-2);
+  padding: var(--mia-space-3);
+  text-align: center;
+  color: var(--mia-color-text-secondary);
+}
+.mw-tile__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mia-space-2);
+  padding: var(--mia-space-2) var(--mia-space-3);
+  border-top: 1px solid var(--mia-color-border);
+  background: var(--mia-color-surface-1);
+}
+.mw-tile__size {
+  display: flex;
+  flex: 1 1 140px;
+  align-items: center;
+  gap: var(--mia-space-2);
+  min-width: 0;
+}
+.mw-tile__size select {
+  min-width: 0;
+  flex: 1;
+}
+@media (max-width: 767px) {
+  .mw-tiles {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+  .mw-tile {
+    order: var(--mw-pos-mobile, 0);
+    grid-column: auto !important;
+    grid-row: auto !important;
+    height: 200px;
+  }
+  .mw-tile[data-mobile-size='2x2'],
+  .mw-tile[data-mobile-size='4x2'] {
+    height: 320px;
+  }
+  .mw-tile[data-mobile-size='4x4'] {
+    height: 480px;
+  }
+  .mw-tile--no-mobile {
+    display: none;
+  }
+  .mw-tile:has(.mw-tile__edit) {
+    height: auto;
+    min-height: 200px;
+  }
+  .mw-tile:has(.mw-tile__edit) .mw-tile__body {
+    height: 160px;
+    flex: none;
+  }
+}
+.mw-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mia-space-3);
+  padding: var(--mia-space-3);
+  border: 1px solid var(--mia-color-border);
+  border-radius: var(--mia-radius-md);
+}
+
+/* ---------- tabs ---------- */
+.mw-tabs {
+  display: flex;
+  gap: var(--mia-space-2);
+  overflow-x: auto;
+  padding-bottom: var(--mia-space-1);
+  scrollbar-width: thin;
+}
+.mw-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--mia-space-2);
+  min-height: var(--mia-size-touch-web);
+  padding: 0 var(--mia-space-4);
+  border: 1px solid var(--mia-color-border);
+  border-radius: var(--mia-radius-pill);
+  background: transparent;
+  color: var(--mia-color-text-secondary);
+  font-size: var(--mia-type-label-size);
+  font-weight: var(--mia-weight-semibold);
+  cursor: pointer;
+}
+.mw-tab:hover {
+  background: var(--mia-color-surface-2);
+}
+.mw-tab.is-current {
+  background: var(--mia-color-accent-soft);
+  border-color: transparent;
+  color: var(--mia-color-accent-text);
+}
+.mw-tab__count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--mia-radius-pill);
+  background: var(--mia-color-accent);
+  color: var(--mia-color-on-accent);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* ---------- records (memory, inbox, tasks) ---------- */
+.mw-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mia-space-3) var(--mia-space-4);
+  padding: var(--mia-space-4);
+  border-radius: var(--mia-radius-lg);
+}
+.mw-record.is-unread {
+  box-shadow: inset 4px 0 0 var(--mia-color-accent);
+}
+.mw-record__body {
+  display: grid;
+  flex: 1 1 260px;
+  gap: var(--mia-space-2);
+  min-width: 0;
+}
+.mw-record__text {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-2);
+  overflow-wrap: anywhere;
+}
+.mw-app .mw-record__title {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.mw-record__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mia-space-2);
+  justify-content: flex-end;
+}
+.mw-quote {
+  margin: 0;
+  padding: var(--mia-space-3) var(--mia-space-4);
+  border-left: 3px solid var(--mia-color-accent);
+  background: var(--mia-color-surface-1);
+  border-radius: var(--mia-radius-sm);
+  overflow-wrap: anywhere;
+}
+.mw-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mia-space-3);
+}
+.mw-danger {
+  border: 1px solid var(--mia-color-danger);
+}
+.mw-log {
+  display: grid;
+  gap: var(--mia-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mia-type-label-size);
+}
+.mw-log li {
+  display: grid;
+  grid-template-columns: 120px 110px 1fr;
+  gap: var(--mia-space-3);
+  padding: var(--mia-space-2) 0;
+  border-bottom: 1px solid var(--mia-color-border);
+}
+@media (max-width: 767px) {
+  .mw-log li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* ---------- data page, «Ещё» ---------- */
+.mw-data-row {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-4);
+  padding: var(--mia-space-4);
+  border-radius: var(--mia-radius-lg);
+}
+.mw-data-row__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--mia-radius-md);
+  background: var(--mia-color-accent-soft);
+  color: var(--mia-color-accent-text);
+}
+.mw-data-row__body {
+  display: grid;
+  flex: 1;
+  gap: var(--mia-space-1);
+  min-width: 0;
+}
+.mw-data-row__body p {
+  color: var(--mia-color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.mw-more-link {
+  color: inherit;
+  text-decoration: none;
+}
+.mw-more-link:hover {
+  background: var(--mia-color-surface-2);
+}
+@media (max-width: 767px) {
+  .mw-data-row {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- MCP Apps card in the conversation ---------- */
+.mw-inline-app {
+  padding: var(--mia-space-2);
+}
+.mw-inline-app__body {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  border-radius: var(--mia-radius-md);
+}
+
+/* Seven tabs on a phone: tighter padding so the labels are not cut. */
+@media (max-width: 767px) {
+  .mw-nav__item {
+    padding-inline: 1px;
+  }
+  .mw-nav__item span:not(.mw-badge) {
+    letter-spacing: -0.02em;
+  }
+}

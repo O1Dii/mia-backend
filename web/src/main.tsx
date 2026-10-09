@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { App } from './App'
 import './styles.css'
 import './styles/app.css'
+import './styles/dashboard.css'
 import { AuthProvider } from './lib/auth'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

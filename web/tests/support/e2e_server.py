@@ -34,6 +34,7 @@ import app.modules.models.composition as models_composition  # noqa: E402
 import uvicorn  # noqa: E402
 from app.api.v1.approvals import build_approvals_router  # noqa: E402
 from app.api.v1.feed import build_feed_router  # noqa: E402
+from app.api.v1.tiles import install_tiles  # noqa: E402
 from app.composition import AuthServiceAuthenticator  # noqa: E402
 from app.core.config import Settings  # noqa: E402
 from app.core.database import Database  # noqa: E402
@@ -53,6 +54,8 @@ from app.modules.auth.composition import install_auth, request_authenticator  # 
 from app.modules.connections.oauth.client import OAuthClient  # noqa: E402
 from app.modules.connections.oauth.service import ConnectionService  # noqa: E402
 from app.modules.conversations.feed import FeedService  # noqa: E402
+from app.modules.jobs.composition import install_jobs  # noqa: E402
+from app.modules.memory import install_memory  # noqa: E402
 from app.modules.models.composition import install_models  # noqa: E402
 from app.modules.models.gateway import ProbeResult  # noqa: E402
 from app.modules.plugins.builtin import BUILTIN_ROOT  # noqa: E402
@@ -74,6 +77,7 @@ from app.modules.tools.mcp_client import McpConnector  # noqa: E402
 from app.modules.tools.router import McpToolRouter, RouterConfig  # noqa: E402
 from app.modules.users import UserRepository  # noqa: E402
 from app.modules.workspace.composition import install_workspace  # noqa: E402
+from app.worker.main import Worker  # noqa: E402
 from fastapi import APIRouter, FastAPI, Request  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from sqlalchemy import text  # noqa: E402
@@ -90,6 +94,7 @@ from tests.workspace.harness import CLIENT_ID, TokenGoogleVerifier, migrate_to_h
 ADMIN_SUB = "e2e-store-admin"
 TRACKER_ID = "team.tracker"
 UPDATER_ID = "team.updater"
+TILES_DIR = Path(__file__).resolve().parent / "tiles"
 
 
 class RealClock:
@@ -105,6 +110,8 @@ class Script:
     """What the fake model does; ``structured`` is toggled by ``POST /__e2e/model-mode``."""
 
     structured = True
+    model_calls = 0
+    """How many times the model was asked: dashboard tiles must never raise it."""
 
 
 def answer(speech: str, display: dict[str, Any] | None = None, followups: list[str] | None = None):
@@ -132,6 +139,7 @@ class ScriptedGateway:
         return ProbeResult(ok=True, latency_ms=12, error_code=None)
 
     async def stream(self, request: ModelRequest) -> AsyncIterator[ModelEvent]:
+        Script.model_calls += 1
         last = request.messages[-1]
         names = [tool.name for tool in request.tools]
         user = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
@@ -139,7 +147,9 @@ class ScriptedGateway:
         if last.role == "tool":
             body = json.loads(last.content) if last.content.startswith("{") else {}
             status = body.get("status")
-            if status == "succeeded":
+            if status == "succeeded" and "запомни" in lowered:
+                reply = answer("Предложила запомнить: подтвердите на странице «Память».")
+            elif status == "succeeded":
                 reply = answer(
                     "Готово, задача создана." if "создай" in lowered else "Вот что нашлось.",
                     {"kind": "card", "title": "Tracker", "markdown": "**A-3** — результат готов"},
@@ -153,7 +163,17 @@ class ScriptedGateway:
                 yield event
             return
         wanted = None
-        if "создай задачу" in lowered:
+        if "запомни" in lowered:
+            fact = user.split("что", 1)[-1].strip().capitalize() if "что" in lowered else user
+            wanted = (
+                "remember",
+                {
+                    "text": fact,
+                    "category": "home",
+                    "person": {"name": "Яна", "relation": "жена"},
+                },
+            )
+        elif "создай задачу" in lowered:
             wanted = (
                 "create_issue",
                 {"title": user.split("задачу", 1)[1].strip() or "Без названия"},
@@ -161,7 +181,9 @@ class ScriptedGateway:
         elif "список задач" in lowered:
             wanted = ("list_issues", {})
         if wanted is not None:
-            name = next((n for n in names if n.endswith(f".{wanted[0]}")), None)
+            name = next((n for n in names if n == f"memory.{wanted[0]}"), None) or next(
+                (n for n in names if n.endswith(f".{wanted[0]}") and n != "memory.remember"), None
+            )
             if name is not None:
                 call = ModelToolCall(call_id="call-1", name=name, arguments=wanted[1])
                 yield ToolCallRequested(call)
@@ -170,7 +192,18 @@ class ScriptedGateway:
             for event in self._text(answer("Этот инструмент не установлен.")):
                 yield event
             return
-        if "карточк" in lowered:
+        if "покажи таймеры" in lowered:
+            reply = answer(
+                "Вот ваши таймеры.",
+                {
+                    "kind": "app",
+                    "plugin_id": "builtin.timer",
+                    "resource_uri": "ui://builtin.timer/tile",
+                    "structured_content": {"items": [], "server_time_ms": 0},
+                    "fallback_markdown": "Таймеры: плитка недоступна в этом окне.",
+                },
+            )
+        elif "карточк" in lowered:
             reply = answer(
                 "Вот карточка на экране.",
                 {"kind": "card", "title": "Сегодня", "markdown": "- 10:00 Олег\n- 13:00 Команда"},
@@ -201,8 +234,9 @@ def tracker_manifest(
     name: str = "Tracker",
     version: str = "1.0.0",
     notify: bool = False,
+    tiles: bool = False,
 ) -> dict[str, Any]:
-    return {
+    manifest: dict[str, Any] = {
         "schemaVersion": "mia.plugin/1",
         "id": plugin_id,
         "version": version,
@@ -224,6 +258,27 @@ def tracker_manifest(
             "notify": notify,
         },
     }
+    if tiles:
+        manifest["surfaces"] = {
+            "tiles": [
+                {
+                    "id": "issues",
+                    "title": "Задачи Tracker",
+                    "resourceUri": f"ui://{plugin_id}/issues",
+                    "bundled": "ui/issues.html",
+                    "sizes": ["2x2", "4x2"],
+                    "refresh": {"tool": "list_issues", "everySeconds": 60},
+                },
+                {
+                    "id": "probe",
+                    "title": "Проба изоляции",
+                    "resourceUri": f"ui://{plugin_id}/probe",
+                    "bundled": "ui/probe.html",
+                    "sizes": ["2x2"],
+                },
+            ]
+        }
+    return manifest
 
 
 async def prepare(public_origin: str) -> str:
@@ -334,6 +389,14 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     app.include_router(
         build_approvals_router(service=approvals, authenticator=request_authenticator(app))
     )
+    install_tiles(
+        app,
+        registry=registry,
+        connector=connector,
+        router=router,
+        authenticator=request_authenticator(app),
+    )
+    memory = install_memory(app, runtime, vault=models.vault, tools=tools)
     runs = install_runs(
         app,
         settings,
@@ -342,7 +405,10 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         model_gateway=gateway,  # type: ignore[arg-type]
         tool_router=router,
         approvals=approvals,
+        memory=memory.service,
     )
+    memory.tools.bind_publisher(runs.publish)
+    jobs = install_jobs(app, settings, runtime, runs=runs, core_tools=core_tools)
     app.include_router(
         build_feed_router(
             service=FeedService(runtime.database.session_factory),
@@ -350,12 +416,20 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         )
     )
 
-    async def publish_remote(plugin_id: str, name: str, version: str, notify: bool) -> None:
+    async def publish_remote(
+        plugin_id: str, name: str, version: str, notify: bool, tiles: bool = False
+    ) -> None:
         package = Path(tempfile.mkdtemp(prefix="mia-e2e-")) / plugin_id
         package.mkdir()
         manifest = tracker_manifest(
-            "https://mcp.test.example/mcp", plugin_id, name, version, notify
+            "https://mcp.test.example/mcp", plugin_id, name, version, notify, tiles
         )
+        if tiles:
+            (package / "ui").mkdir()
+            for tile in ("issues", "probe"):
+                (package / "ui" / f"{tile}.html").write_text(
+                    (TILES_DIR / f"{tile}.html").read_text("utf-8"), "utf-8"
+                )
         (package / "mia.json").write_text(json.dumps(manifest), "utf-8")
         (package / "SKILL.md").write_text("---\ndescription: Issues\n---\nUse it.\n", "utf-8")
         await stack.service.publish(
@@ -384,6 +458,7 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
                 "revocations": auth_server.revocations,
                 "registrations": len(auth_server.registrations),
                 "authorize_requests": auth_server.authorize_requests,
+                "model_calls": Script.model_calls,
             }
         )
 
@@ -399,15 +474,22 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with original_lifespan(application), running(world):
+            worker = Worker(jobs)
+            stop = asyncio.Event()
+            worker_task = asyncio.create_task(worker.run(stop))
             admin_publish = stack.service.publish
             for name in sorted(p.parent.name for p in BUILTIN_ROOT.glob("*/mia.json")):
                 built = load_package(BUILTIN_ROOT / name)
                 await admin_publish(
                     built, actor_user_id=admin_id, store_meta=showcase_for(built.plugin_id)
                 )
-            await publish_remote(TRACKER_ID, "Tracker", "1.0.0", False)
+            await publish_remote(TRACKER_ID, "Tracker", "1.0.0", False, tiles=True)
             await publish_remote(UPDATER_ID, "Updater", "1.0.0", False)
-            yield
+            try:
+                yield
+            finally:
+                stop.set()
+                await worker_task
 
     app.router.lifespan_context = lifespan  # type: ignore[assignment]
     _ = runs

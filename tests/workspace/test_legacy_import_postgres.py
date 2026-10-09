@@ -11,6 +11,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +31,6 @@ from app.modules.workspace.models import (
     WidgetInstance,
     Workspace,
 )
-from app.web_poc.accounts import AccountStore
-from app.web_poc.runtime import Workspace as LegacyWorkspace
 from sqlalchemy import func, select
 
 from tests.workspace.harness import (
@@ -49,28 +48,76 @@ def identity(subject: str, email: str) -> GoogleIdentity:
     return GoogleIdentity(subject, email, True, subject.title(), None, "ru")
 
 
+LEGACY_SCHEMA = """
+CREATE TABLE web_users (
+  id TEXT PRIMARY KEY, google_sub TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL, email TEXT NOT NULL);
+CREATE TABLE web_sessions (
+  token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES web_users(id),
+  expires REAL NOT NULL);
+CREATE TABLE web_challenges (
+  cookie_hash TEXT PRIMARY KEY, nonce TEXT NOT NULL, expires REAL NOT NULL);
+CREATE TABLE web_workspaces (
+  user_id TEXT PRIMARY KEY REFERENCES web_users(id), document TEXT NOT NULL);
+CREATE TABLE web_reviews (
+  plugin_id TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES web_users(id),
+  rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+  text TEXT NOT NULL, updated REAL NOT NULL, PRIMARY KEY(plugin_id,user_id));
+"""
+"""The web-POC SQLite schema, frozen here when ``app/web_poc`` was removed (M31)."""
+
+
+def _widget(plugin_id: str) -> dict[str, str]:
+    return {"id": plugin_id, "plugin_id": plugin_id, "size": "medium"}
+
+
 def build_legacy_database(path: Path) -> dict[str, str]:
-    """Create a web-POC database with the POC's own store; return legacy user ids."""
-    store = AccountStore(str(path))
+    """Create a web-POC database in the POC's own layout; return legacy user ids."""
+    ids = {"alice": str(uuid.uuid4()), "bob": str(uuid.uuid4()), "hub": str(uuid.uuid4())}
+    db = sqlite3.connect(path)
     try:
-        _, alice = store.login(identity("google-alice", "alice@example.test"))
-        _, bob = store.login(identity("google-bob", "bob@example.test"))
-        _, hub = store.login(identity("hub:7f6c1d3e-2b1a-4c5d-9e8f-0a1b2c3d4e5f", "hub@ex.test"))
-        workspace = LegacyWorkspace(expires=time.monotonic() + 60, subject_id=alice["id"])
-        workspace.install("mia.timer")
-        workspace.install("mia.notes")
-        workspace.states["mia.timer"] = {"left": 42}
-        workspace.states["mia.notes"] = {"items": ["купить хлеб"]}
-        workspace.audit.append({"action": "secret-ish audit"})
-        store.save(workspace)
-        hub_workspace = LegacyWorkspace(expires=time.monotonic() + 60, subject_id=hub["id"])
-        hub_workspace.install("mia.timer")
-        store.save(hub_workspace)
-        store.review("mia.timer", alice["id"], 5, "Отличный таймер")
-        store.review("mia.timer", bob["id"], 3, "Нормально")
+        db.executescript(LEGACY_SCHEMA)
+        for key, subject, email in (
+            ("alice", "google-alice", "alice@example.test"),
+            ("bob", "google-bob", "bob@example.test"),
+            ("hub", "hub:7f6c1d3e-2b1a-4c5d-9e8f-0a1b2c3d4e5f", "hub@ex.test"),
+        ):
+            db.execute(
+                "INSERT INTO web_users VALUES (?,?,?,?)",
+                (ids[key], subject, subject.split(":")[0].title(), email),
+            )
+
+        def manifest(plugin_id: str) -> dict[str, str]:
+            return {"id": plugin_id, "schemaVersion": "2.0", "name": plugin_id}
+
+        alice_document = {
+            "installed": {name: manifest(name) for name in ("mia.timer", "mia.notes")},
+            "states": {"mia.timer": {"left": 42}, "mia.notes": {"items": ["купить хлеб"]}},
+            "layout": [_widget("mia.timer"), _widget("mia.notes")],
+            "revision": 2,
+            "audit": [{"action": "secret-ish audit"}],
+        }
+        hub_document = {
+            "installed": {"mia.timer": manifest("mia.timer")},
+            "states": {"mia.timer": {}},
+            "layout": [_widget("mia.timer")],
+            "revision": 1,
+            "audit": [],
+        }
+        for key, document in (("alice", alice_document), ("hub", hub_document)):
+            db.execute(
+                "INSERT INTO web_workspaces VALUES (?,?)",
+                (ids[key], json.dumps(document, ensure_ascii=False)),
+            )
+        for user, rating, text in (("alice", 5, "Отличный таймер"), ("bob", 3, "Нормально")):
+            db.execute(
+                "INSERT INTO web_reviews VALUES (?,?,?,?,?)",
+                ("mia.timer", ids[user], rating, text, time.time()),
+            )
+        db.commit()
     finally:
-        store.close()
-    return {"alice": alice["id"], "bob": bob["id"], "hub": hub["id"]}
+        db.close()
+    return ids
 
 
 def copy_of(source: Path, tmp_path: Path) -> Path:
