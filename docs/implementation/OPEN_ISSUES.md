@@ -65,7 +65,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M20-002 | OPEN | Android assistant | Заглушка RecognitionService в VIS | заглушка до M22 | M22 |
 | OI-M20-003 | RESOLVED | Android assistant | ROLE_ASSISTANT запрашивается диалогом? | нет в One UI; открываются Настройки | resolved in M20 |
 | OI-M21-001 | OPEN | Android STT | Калиброванная уверенность STT | эвристика | M22 |
-| OI-M21-002 | OPEN | Android STT | Политика загрузки модели ~225 МБ | явное действие, Wi-Fi по умолчанию | M22 / release (product decision) |
+| OI-M21-002 | DECIDED | Android STT | Политика загрузки модели ~225 МБ | предлагать загрузку по согласию пользователя в любой сети, без требования Wi-Fi | M22; Play Asset Delivery — до релиза |
 | OI-M21-003 | OPEN | Android STT | Названия сервисов в смешанной речи RU/EN | как есть; словарь алиасов предложен | M22 |
 | OI-M21-004 | OPEN | Android STT | WER на живой речи | измерено только на синтезе | M22 device gate |
 | OI-M21-005 | OPEN | Android STT | Какие ABI упаковывать | только arm64-v8a | release AAB |
@@ -1322,7 +1322,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M21-002 — Политика загрузки модели STT (~225 МБ)
 
-- Status: OPEN
+- Status: DECIDED
 - Source session: M21
 - Component: Android STT / UX
 - Question: когда и с чьего согласия качать модель: только Wi-Fi, явный запрос, фоновая загрузка (WorkManager)? Для релиза — Play Asset Delivery?
@@ -1332,6 +1332,8 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) в MVP; (c) рассмотреть перед публикацией в Play (зеркало вместо HuggingFace).
 - Affected future sessions: M22, M24, M62
 - Revisit trigger/deadline: M22 (экран голоса) / до публичного релиза.
+- Resolution: решение пользователя 2026-10-09 (MW1 integration): вариант (a) — Mia предлагает скачать модель распознавания по явному согласию пользователя, **в любой сети, Wi-Fi не требуется** (размер ~225 МБ показывается в предложении). Автозагрузка без согласия не делается. Play Asset Delivery / зеркало вместо HuggingFace — пересмотреть перед публикацией в Play.
+- Evidence: решение пользователя в MW1 integration session; [M21](handoffs/M21.md).
 
 ### OI-M21-003 — Смешанная речь RU/EN и названия сервисов
 
