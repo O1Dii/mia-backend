@@ -8,7 +8,7 @@
     "deviceToolName": {
       "type": "string",
       "pattern": "^(device|telegram)\\.[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
-      "description": "Namespaced device tool, e.g. device.contacts.search, device.alarm.set, telegram.share"
+      "description": "Namespaced device tool, e.g. device.contacts.search, device.alarm.set, telegram.handoff"
     },
     "DeviceToolDeclaration": {
       "type": "object",

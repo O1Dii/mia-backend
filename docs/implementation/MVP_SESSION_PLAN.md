@@ -1024,7 +1024,7 @@ backend.
 **Objective:** «Что у меня сегодня?» с календарём. Выполнять, если остаётся
 ёмкость; M60 не ждёт эту сессию.
 
-**Write scope:** `plugins/google-calendar/**`, `tests/plugins/google-calendar/**`.
+**Write scope:** `plugins/google-calendar/**`, `tests/plugins/google_calendar/**`.
 
 **Work:** read-only события дня через Google Calendar API (OAuth, sensitive
 scope, testing mode); плитка «Сегодня»; `voice: true`.

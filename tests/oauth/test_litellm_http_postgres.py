@@ -19,6 +19,7 @@ from tests.runs.conftest import requires_postgres
 pytestmark = requires_postgres
 PORT = int(os.environ.get("MIA_M50_TEST_PORT", "8150"))
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+os.environ["LITELLM_MODE"] = "PRODUCTION"  # never load_dotenv() on import
 
 
 @pytest.fixture

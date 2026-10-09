@@ -1,6 +1,11 @@
 """Shared tests fixtures."""
 
+import os
 from collections.abc import Generator
+
+# LiteLLM (M50 test dependency) calls ``load_dotenv()`` on import unless it runs in
+# production mode; that would pull a developer ``.env`` into the test process.
+os.environ["LITELLM_MODE"] = "PRODUCTION"
 
 import pytest
 from app.core.config import Settings

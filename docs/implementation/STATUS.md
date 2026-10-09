@@ -194,6 +194,59 @@ MW4 стартовала 2026-10-09: M30, M25, M40, M41, M50 параллель�
 - телефон SM-S938B (`R5CY12AMHLY`) — общий ресурс M25 и M41: device gate только под lock-каталогом
   (`mkdir` атомарен), `adb reverse` — на свой порт (M25 8125, M41 8141), после прогона lock снимается;
 - реальные сообщения людям не отправляются; живые OAuth/голос/бот-токен — в handoff как кандидаты в `USER_CHECKS.md`.
+- поправка диспетчера: в Redis только DB 0–15, назначенные номера 30–50 недопустимы — сессии подняли свои контейнеры Redis.
+
+**MW4 integrated 2026-10-09** (integrator: Opus 5.5 high вместо Sonnet 5.5 high по правилу «более сильная модель»). Backend
+merge: M40 → `9a91960`, M42 → `cd6762f`, M30 → `e86bc7b`, M41 → `30ceac5`, M50 → `293fc8f`, coordination M25 → `8d27ab0`,
+integration commit поверх. Android main: M25 → `fbc3e1a`, без конфликтов. Конфликты только ожидаемые (M50 против M30/M41):
+`app/core/config.py` (`TELEGRAM_*` + `OAUTH_*`/`APPS_*`), `migrations/env.py`, `error-codes.json` (86 кодов, без дублей),
+`web/vite.config.ts` (блок `input` M30 + entry `oauth` M50); `composition.py` и `openapi.yaml` слились автоматически, `uv.lock`
+перегенерирован. Миграции в линейную цепочку `20261009_m17_memory → m30_connection_binding → m41_telegram → m50_oauth` (head).
+Integrator:
+- **граница секретов:** LiteLLM (dev-зависимость M50) при импорте вызывает `load_dotenv()` и в основном checkout подтягивал
+  `.env` в процесс pytest (падали `tests/test_config.py`; в worktree сессий `.env` нет). Исправлено: `LITELLM_MODE=PRODUCTION` до
+  импорта (`tests/conftest.py`, тесты `tests/oauth`);
+- `tests/plugins/google-calendar` → `tests/plugins/google_calendar`: дефис ломал `mypy` по проекту;
+- запросы сессий: `KNOWN_EVENTS` + события M50/M41; ADR-0013 §4 — оба OpenAI-совместимых endpoint без `Idempotency-Key`;
+  контрактный пример `device-tools/registration.json` и описания схем — `telegram.handoff` вместо `telegram.share`;
+- OI-M15-003 RESOLVED для web (M30), OI-WEB-005 RESOLVED (M50); индекс OPEN_ISSUES дополнен OI-M25/M30/M40/M41/M42/M50,
+  неснятые хвосты, адресованные M30/M40/M50, перенацелены;
+- gate-тест `tests/integration/test_mw4_gate.py`: bot link/webhook M41, AS/apps/OpenAI-compat/`/mcp` M50 в одном продакшн-приложении,
+  анонимный вызов получает challenge `resource_metadata`; пакеты Linear и Google Calendar проходят проверки публикации.
+
+Gate MW4:
+- web на новом API: PASS (M30: чат на `/v1/runs` + `/v1/feed`, магазин, подключения моделей; Playwright 28 passed — 23 M30 + 5
+  согласие M50; install → OAuth → вызов в чате → подтверждение → результат; add-by-URL);
+- Linear и Telegram в магазине: PASS офлайн (M40 — публикация и вызов на записанных ответах; M41 — `builtin.telegram`, e2e «две Яны»
+  → подтверждение → handoff; device-цепочка на SM-S938B до `telegram.handoff`); живые проверки — UC-M40-1, UC-M41-1/2;
+- OpenAI SDK работает через Mia: PASS (M50: OpenAI Python SDK, LiteLLM in-process и по сокету, SDK Python/JS; лимит расходов;
+  `memory.context` без `memory.read` не отдаёт факты);
+- чат на web и Android с голосовым вводом и озвучкой, в стиле M33: PASS (web — фейковые `SpeechRecognition`/`speechSynthesis`,
+  экраны 390/768/1440 без горизонтального скролла; Android — device gate M25 на SM-S938B: диктовка → ответ в ленте озвучен,
+  «Озвучить», голосовой режим и обратно); ощущение UI — UC-M25-1, UC-M30-1.
+
+Проверки integrator: ruff, `ruff format --check`, mypy (444 файла), `validate_contracts.py` (mvp/v1: 106 operations, 86 error
+codes) PASS; pytest с PostgreSQL+Redis 1294 passed / 5 skipped / 0 failed; alembic upgrade → downgrade `20261009_m17_memory` →
+upgrade, `alembic check` без drift; web `tsc`, `npm run build` (entries `main` + `oauth`), Prettier PASS; Android `lint test
+assembleDebug` PASS (377 тестов, 0 failed, 2 skipped — прежние).
+
+Сессии PARTIAL только по живым проверкам: M40 (smoke с аккаунтом Linear), M41 (черновик Telegram на разблокированном телефоне,
+реальный бот), M42 optional (нет преднастроенного Google OAuth-клиента — OI-M42-001, сервер не размещён — OI-M42-002). Для M60
+они не блокируют MW5; закрываются UC-M40-1/UC-M41-1/UC-M41-2 до M60.
+
+User checks MW4 — UC-M25-1…3, UC-M30-1…3, UC-M40-1, UC-M41-1/2, UC-M42-1, UC-M50-1/2 в [USER_CHECKS.md](USER_CHECKS.md); UC-MW2-4
+теперь выполнима (действие с подтверждением — `builtin.telegram.send_message`).
+
+Follow-ups MW4 (не блокируют MW5):
+- Codex cross-review `app/modules/oauth/**` и `app/api/mcp_server.py` (рекомендация плана для M50) — не выполнен;
+- в ленте нет `speech` (OI-M25-003/OI-M30-004) — аддитивное поле M18;
+- M31 удаляет старый web POC (`lib/legacyApi.ts`, `workspace.tsx`, `Dashboard`, `plugins/**`, `app/web_poc`; список в handoff M30)
+  и заменяет устаревший `design/scripts/capture_screenshots.mjs --seed` на `web/tests/screens.spec.ts`;
+- карточка магазина `showcase.py` для `builtin.telegram` не добавлена;
+- на телефоне скрипт gate M25 оставил ночной режим `auto` (прежнее значение неизвестно).
+
+**Gate MW4 — PASS** (2026-10-09). Готовы к старту (волна MW5): M31, M24, M43, M51 (M51 начинает с вопроса пользователю о `git init`
+MindWeaver).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -213,16 +266,16 @@ MW4 стартовала 2026-10-09: M30, M25, M40, M41, M50 параллель�
 | M23 | MW3 | COMPLETED | M13,M22 | Sonnet 5.5 high | [M23](handoffs/M23.md) | `8cb886d` / Android `1450389`, gate `f4be59b` | 4 device tools + backend endpoints; device gate PASS на SM-S938B после интеграции (UC-MW3-2) |
 | M18 | MW3 | COMPLETED | M12 | Sonnet 5.5 high | [M18](handoffs/M18.md) | `9079c21` | `GET /v1/feed` (bearer+cookie, keyset); fix deadlock `open_turn` |
 | M33 | MW3 | COMPLETED | M00 | Sonnet 5.5 high | [M33](handoffs/M33.md) | `294b1d9` / Android `3565859` | токены W3C → web+Android, MiaTheme, style-страница; ревью UC-MW3-1 |
-| M30 | MW4 | IN_PROGRESS | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
-| M25 | MW4 | IN_PROGRESS | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
-| M40 | MW4 | IN_PROGRESS | M15 | Sonnet 5.5 medium | — | — | Linear |
-| M41 | MW4 | IN_PROGRESS | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
-| M42 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
-| M50 | MW4 | IN_PROGRESS | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
-| M24 | MW5 | PENDING | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
-| M31 | MW5 | PENDING | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
-| M43 | MW5 | PENDING | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
-| M51 | MW5 | PENDING | M15,M50 | Sonnet 5.5 high | — | — | MindWeaver ↔ Mia; preflight git |
+| M30 | MW4 | COMPLETED | M15,M18,M33 | Sonnet 5.5 high | [M30](handoffs/M30.md) | `e86bc7b` | web на `/v1`: чат+лента, голос, подтверждения, магазин, модели; OAuth-привязка к браузеру; миграция `m30_connection_binding` |
+| M25 | MW4 | COMPLETED | M18,M22,M33 | Sonnet 5.5 high | [M25](handoffs/M25.md) | `8d27ab0` / Android `fbc3e1a` | чат на runs+лента, диктовка, озвучка, UI M33; device gate PASS на SM-S938B |
+| M40 | MW4 | PARTIAL | M15 | Sonnet 5.5 medium | [M40](handoffs/M40.md) | `9a91960` | Linear remote MCP + плитка; живой smoke — UC-M40-1 (OI-M40-001) |
+| M41 | MW4 | PARTIAL | M15,M16,M17,M23 | Sonnet 5.5 high | [M41](handoffs/M41.md) | `30ceac5` | `builtin.telegram` + бот; миграция `m41_telegram`; черновик/бот вживую — UC-M41-1/2 |
+| M42 | MW4 | PARTIAL | M15 | Sonnet 5.5 medium | [M42](handoffs/M42.md) | `cd6762f` | optional; пакет и тесты готовы; smoke ждёт OI-M42-001/002 |
+| M50 | MW4 | COMPLETED | M11,M12,M13,M17 | Opus 5.5 high | [M50](handoffs/M50.md) | `293fc8f` | OAuth 2.1 AS + CIMD, OpenAI-compat, `/mcp`, SDK; миграция `m50_oauth`; Codex review рекомендован |
+| M24 | MW5 | READY | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
+| M31 | MW5 | READY | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
+| M43 | MW5 | READY | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
+| M51 | MW5 | READY | M15,M50 | Sonnet 5.5 high | — | — | MindWeaver ↔ Mia; preflight git |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; заменяет S33 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |

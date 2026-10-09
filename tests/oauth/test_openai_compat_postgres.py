@@ -34,6 +34,7 @@ from tests.tools.helpers import build_world
 pytestmark = requires_postgres
 
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+os.environ["LITELLM_MODE"] = "PRODUCTION"  # never load_dotenv() on import
 
 
 def answer(*chunks: str, cost: float | None = None, tokens: tuple[int, int] = (12, 4)) -> list[Any]:

@@ -29,7 +29,7 @@ DeviceToolErrorCode = Literal[
 @dataclass(frozen=True, slots=True)
 class DeviceToolDeclaration:
     name: str
-    """Namespaced name, e.g. ``device.contacts.search``, ``telegram.share``."""
+    """Namespaced name, e.g. ``device.contacts.search``, ``telegram.handoff``."""
     description: str
     input_schema: JsonObject
     risk: Risk

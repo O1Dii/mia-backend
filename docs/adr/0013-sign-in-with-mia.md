@@ -38,10 +38,12 @@ by-product.
 
 4. APIs for apps: OpenAI-compatible `POST /v1/chat/completions` with
    `model: "mia:default"` and Mia extensions (`mia.context`, `mia.tools`,
-   `mia.budget`); `POST /v1/runs` + SSE events; `/v1/jobs`;
-   `/v1/memory/context`; `/v1/notify`; and Mia as an MCP server at `/mcp`
-   under the same scopes. The OpenAI-compatible endpoint is the only
-   mutation exempt from `Idempotency-Key` (`x-mia-idempotency: exempt`).
+   `mia.budget`), and `POST /v1/responses` (M50); `POST /v1/runs` + SSE
+   events; `/v1/jobs`; `/v1/memory/context`; `/v1/notify`; and Mia as an MCP
+   server at `/mcp` under the same scopes. The two OpenAI-compatible
+   endpoints (`/v1/chat/completions`, `/v1/responses`) are the only `/v1`
+   mutations exempt from `Idempotency-Key` (`x-mia-idempotency: exempt`):
+   OpenAI SDKs do not send one (amended at MW4 integration).
 5. Mia always proxies inference: apps never receive provider keys, so budget,
    context and revocation keep working. Runs from apps use profile `app`.
 6. «Подключённые приложения» lists grants, spend and memory access log, and

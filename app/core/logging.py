@@ -28,6 +28,11 @@ KNOWN_EVENTS = frozenset(
         "provider_circuit_recovered",
         "realtime_session_expired",
         "model_failover",
+        "app_run_finished",
+        "app_usage_record_failed",
+        "oauth_purge_failed",
+        "telegram_send_failed",
+        "telegram_update_failed",
     }
 )
 # Server-generated IDs and UUID-shaped client IDs are content-free and logged as-is.

@@ -51,14 +51,14 @@ Integration session обновляет этот индекс после merge.
 | OI-M01-002 | OPEN | Model gateway / terms | Можно ли использовать план в многопользовательской MIA? | только локально/у владельца; нужна заявка OpenAI и ручное чтение terms | before hosted pilot (M62) |
 | OI-M01-003 | OPEN | Model gateway latency | Safety buffering и более быстрая модель (`gpt-6-luna`)? | не проверено | M11, M61 |
 | OI-WEB-001 | RESOLVED | Accounts / credentials | Постоянные web-идентичности и подключения моделей | M10 identity + M11 vault | resolved in MW1 integration |
-| OI-WEB-005 | OPEN | Workspace / app identity | Постоянное состояние установок и identity приложений | состояние — M10 (resolved); SDK grants — M50 | M50 |
+| OI-WEB-005 | RESOLVED | Workspace / app identity | Постоянное состояние установок и identity приложений | установки — M10; identity приложений и grants SDK — M50 (Postgres, CIMD) | resolved in MW4 integration |
 | OI-M10-001 | OPEN | Web data migration | Как перенести hub-аккаунты POC без Google `sub`? | скрипт пропускает их; нужна `--identity-map` | до M31/M62 |
-| OI-M10-002 | OPEN | Web cookie | Настраивать ли `Secure` и trusted origins cookie из Settings? | same-origin деплой | M30/M62 |
+| OI-M10-002 | OPEN | Web cookie | Настраивать ли `Secure` и trusted origins cookie из Settings? | same-origin деплой (M30 не менял) | M62 |
 | OI-M11-001 | OPEN | Model gateway | Принимает ли план structured output (`text.format`)? | нет; M12 делит ответ эвристикой | M61 |
 | OI-M11-002 | OPEN | Model gateway | Вход в ChatGPT, когда сервер удалённый? | вход только на хосте backend | M62 |
 | OI-M11-003 | OPEN | Credentials | Custody master key / KMS | ключи в секрет-менеджере деплоя → env | before public beta |
 | OI-M12-001 | RESOLVED | Runs | Retention `runs`/`run_events` | retention по настройке пользователя (M17) | resolved in MW3 integration |
-| OI-M12-002 | OPEN | Runs / web | Черновик текста в structured mode | без черновиков | M30 |
+| OI-M12-002 | OPEN | Runs / web | Черновик текста в structured mode | без черновиков (в M30 не менялось) | M31 |
 | OI-M12-003 | OPEN | Runs runtime | Runs при нескольких backend-инстансах | один инстанс | with OI-S18-002 |
 | OI-M12-004 | DECIDED | Voice | Язык и форма `speech.ack` | клиент озвучивает серверный текст, задержка 1500 мс | живой замер MW2 |
 | OI-M20-001 | RESOLVED | Android assistant | Отдельная activity для ассистента? | `MainActivity` в отдельной assistant-задаче | resolved in M20 device gate |
@@ -74,7 +74,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M13-003 | OPEN | Tools / voice | Фильтр voice: `voice: true` и `read`? | только флаг `voice` | M15 / M60 |
 | OI-M13-004 | RESOLVED | Tools / catalog | Digest каталога = `compute_tools_digest` | builtin-каталог MW2 так и считает | resolved in MW2 integration; правило для M15 |
 | OI-M13-005 | OPEN | Tools | Skills удалённых плагинов не загружаются | только упакованные `SKILL.md` | M15 |
-| OI-M13-006 | OPEN | Approvals | Retention и отмена pending approvals завершённых run | approvals удаляются с runs по retention (M17); отмена pending — M30 | M30 |
+| OI-M13-006 | OPEN | Approvals | Retention и отмена pending approvals завершённых run | retention — M17; отмена pending при завершении run не сделана в M30 | M31 / M60 |
 | OI-M14-001 | RESOLVED | Plugin contract | Скрытый app-only `get_state` у декларативных | валидатор допускает `get_state` (M15); скрытие — OI-M15-005 | resolved in MW3 integration |
 | OI-M14-002 | RESOLVED | Plugin permissions | Разрешение «любая публичная HTTPS-страница» | `permissions.publicWeb` + grant `network.public_web` (M15) | resolved in MW3 integration |
 | OI-M14-003 | OPEN | Plugins | `mia.clock` и v2 id, начинающиеся с цифры | не перенесены | M15 |
@@ -88,10 +88,10 @@ Integration session обновляет этот индекс после merge.
 | OI-M22-004 | OPEN | Android voice | Модель STT остаётся в памяти процесса | держится | M60 |
 | OI-M22-005 | OPEN | Android UI | `display.kind = app` на Android | текстовая карточка | M24 |
 | OI-WEB-002 | RESOLVED | Jobs | Напоминания без открытого браузера | воркер M16 + inbox + push | resolved in MW3 integration |
-| OI-M15-001 | OPEN | Tools / store | Роутер не сверяет `installations.grants` | grants только при установке; нужен backfill | до M40 / беты |
+| OI-M15-001 | OPEN | Tools / store | Роутер не сверяет `installations.grants` | grants только при установке; нужен backfill (в MW4 не сделан) | до беты (M60/M62) |
 | OI-M15-002 | OPEN | Store / custom MCP | Свой MCP по URL: все tools `write_external` | риск по умолчанию максимальный | M60 |
-| OI-M15-003 | OPEN | Connections / security | OAuth `state` не привязан к браузеру (login-CSRF) | без привязки; шаг complete в сессии | M30 |
-| OI-M15-004 | OPEN | Connections | Нет преднастроенных OAuth-клиентов; публикация из checkout | DCR/CIMD или 422 | M40 |
+| OI-M15-003 | RESOLVED | Connections / security | OAuth `state` не привязан к браузеру (login-CSRF) | web: Lax-cookie `mia_oauth_binding` (M30); Android — OI-M30-002 | resolved in MW4 integration (web) |
+| OI-M15-004 | OPEN | Connections | Нет преднастроенных OAuth-клиентов; публикация из checkout | DCR/CIMD или 422; блокирует живой smoke Google (OI-M42-001) | M51 / до smoke M42 |
 | OI-M15-005 | OPEN | Tools | Роутер показывает модели app-only `get_state` | не скрывается | M31 |
 | OI-M15-006 | OPEN | Accounts | Токены провайдеров не отзываются при удалении аккаунта | только при удалении установки | before beta |
 | OI-M15-007 | OPEN | Store | Нет rate limit на probe/connect | без лимитов | M62 |
@@ -99,7 +99,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M15-009 | OPEN | Connections | `server.auth: mia_token` без источника токена | `connection_required` | M51 |
 | OI-M15-010 | RESOLVED | Tests | Часы теста approvals застыли на 12:00Z | часы от реального времени | resolved in M15 |
 | OI-M16-001 | OPEN | Jobs / voice | Сводка «пока вас не было» — в следующий интерактивный run | не строго голосовой | M60 |
-| OI-M16-002 | OPEN | Jobs | `max_steps`/`max_cost_usd` per job не применяются | лимиты профиля `job` | M50 |
+| OI-M16-002 | OPEN | Jobs | `max_steps`/`max_cost_usd` per job не применяются | лимиты профиля `job`; M50 сделал лимит только для приложений | M60 |
 | OI-M16-003 | RESOLVED | Tests | Падение теста approvals M13 по дате | исправлено M15 | resolved in MW3 integration |
 | OI-M16-004 | OPEN | Push | Payload и семантика доставки для M24 | открытие по `inbox_item_id` | M24 |
 | OI-M16-005 | OPEN | Jobs | Retention jobs/inbox/deliveries | до удаления пользователя | M62 |
@@ -107,16 +107,40 @@ Integration session обновляет этот индекс после merge.
 | OI-M17-002 | OPEN | Memory / privacy | Retention «none» удаляет на следующем проходе | проход раз в 15 мин | M31 |
 | OI-M17-003 | RESOLVED | Memory / device tools | Формат результата `device.contacts.search` | `matches` с именами, без номеров | resolved in MW3 integration |
 | OI-M17-004 | OPEN | Accounts | Нет публичного удаления аккаунта | `shred_account` готов, endpoint нет | M62 |
-| OI-M17-005 | OPEN | Memory / jobs | `scope: automation` не учитывается в job-runs | job видит ту же память | M50 |
+| OI-M17-005 | OPEN | Memory / jobs | `scope: automation` не учитывается в job-runs | job видит ту же память (M50 не трогал) | M60 |
 | OI-M18-001 | RESOLVED | Feed | Deadlock `open_turn` при параллельных runs | блокировка строки ленты первой | resolved in M18 |
 | OI-M18-002 | RESOLVED | Contracts | `cookieAuth` в openapi | добавлен M15, глобальный security | resolved in MW3 integration |
-| OI-M23-001 | OPEN | Android device tools | Заполняет ли Telegram поле из `text` в `tg://resolve` | текст ещё и в буфере обмена | UC-MW3-2 / M41 |
+| OI-M23-001 | OPEN | Android device tools | Заполняет ли Telegram поле из `text` в `tg://resolve` | текст ещё и в буфере обмена; M41 не увидел черновик за keyguard | UC-M41-1 |
 | OI-M23-002 | OPEN | Android device tools | Samsung Clock: нет удаления будильника без UI | `verified` — эвристика | M60 |
 | OI-M23-003 | RESOLVED | Tests | То же, что OI-M16-003 | исправлено M15 | resolved in MW3 integration |
 | OI-M33-001 | DECIDED | Design / Android | Шрифт Manrope на Android | системный шрифт принят на ревью UC-MW3-1 | decided 2026-10-09 (UC-MW3-1 PASS) |
 | OI-M33-002 | DECIDED | Design / Android | Настоящий backdrop blur на Android | приближение принято на ревью UC-MW3-1 | decided 2026-10-09 (UC-MW3-1 PASS) |
-| OI-M33-003 | OPEN | Design / web | Переключатель темы, тосты, браузеры 2024+ | следует системе | M30 |
-| OI-M33-004 | OPEN | Design / web | Унаследованные цвета `light-dark()` в `styles.css` | не подбирались вручную | UC-MW3-1 / M30 |
+| OI-M33-003 | OPEN | Design / web | Переключатель темы, тосты, браузеры 2024+ | следует системе (M30 не менял) | M31 |
+| OI-M33-004 | OPEN | Design / web | Унаследованные цвета `light-dark()` в `styles.css` | M30 перевёл экраны на `styles/app.css` с токенами M33; старый `styles.css` — у M31 при удалении POC | M31 |
+| OI-M25-001 | OPEN | Android UI | Баннер роли ассистента не в стиле M33 | `feature/assistant` вне scope M25 | M24 |
+| OI-M25-002 | OPEN | Android chat | Ссылки в Markdown ответа не нажимаются | текст без ссылок | M24 / M60 |
+| OI-M25-003 | OPEN | Feed / speech | Элемент ленты без `speech`: «Озвучить» читает текст карточки | полный текст | аддитивное поле в M18-R / M60 |
+| OI-M25-004 | OPEN | Android | Устаревший стек разговоров нужен только скрытому Live | оставлен | бэклог Live |
+| OI-M25-005 | OPEN | Android chat | Подтверждения runs не из этого чата (job, web, другое устройство) | ждут push M24 | M24 |
+| OI-M30-001 | OPEN | Web auth | Google client ID web задаётся при сборке (`VITE_GOOGLE_CLIENT_ID`) | build-time | M62 |
+| OI-M30-002 | OPEN | Connections / security | Привязка OAuth-подключения к браузеру только для web | Android-поток без привязки | M24 |
+| OI-M30-003 | OPEN | Approvals | `summary` подтверждения технический | текст ядра | M31 / M60 |
+| OI-M30-004 | OPEN | Feed / speech | То же, что OI-M25-003, на web | полный текст | вместе с OI-M25-003 |
+| OI-M30-005 | OPEN | Web | Нет экрана SDK-приложений и входа ChatGPT по подписке | вход ChatGPT на хосте | M31 |
+| OI-M40-001 | OPEN | Plugins / Linear | Набор tools официального сервера Linear не проверен вживую | 14 имён по памяти; расхождение = `tools_mismatch` | UC-M40-1 |
+| OI-M40-002 | OPEN | MCP Apps | Отдаёт ли реальный Linear `structuredContent` для `list_issues` | плитка читает только `structuredContent` | UC-M40-1 |
+| OI-M41-001 | OPEN | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
+| OI-M41-002 | OPEN | Notifications | Telegram не входит в каналы доставки по умолчанию | явный `delivery.channels` | M31 / M60 |
+| OI-M41-003 | OPEN | Android device tools | `telegram.handoff` успешен на заблокированном телефоне | M23-R: `device_locked` при keyguard (опц.) | M60 |
+| OI-M41-004 | OPEN | Telegram bot | Webhook вне `/v1`, регистрация вручную | `python -m app.modules.notifications.telegram_webhook set` | M62 |
+| OI-M42-001 | OPEN | Connections / Google | Google OAuth без DCR/CIMD — нет преднастроенного клиента | smoke ждёт OI-M15-004 | M51 / по ёмкости |
+| OI-M42-002 | OPEN | Plugins / Calendar | MCP-сервер календаря не размещён; URL в манифесте — заглушка | сервер в `plugins/google-calendar/server/` | M62 / по ёмкости |
+| OI-M50-001 | OPEN | Web / OAuth | Возврат на страницу согласия после входа в Mia | ручной повторный переход | M31 |
+| OI-M50-002 | OPEN | OAuth scopes | `jobs`, `notify`, `mia.install` пока ничего не открывают | scopes выдаются, API нет | M51 / M60 |
+| OI-M50-003 | OPEN | OAuth / API | Токены приложений на `/v1/runs` и `/v1/memory/context` | только completions/responses и `/mcp` | M51 |
+| OI-M50-004 | OPEN | Apps budget | Оценка расходов и перерасход при параллельных запросах | оценка по токенам, возможен небольшой перерасход | M61 |
+| OI-M50-005 | OPEN | Deploy / OAuth | Issuer с path-префиксом, rate limits на `/oauth/*` | корневой issuer, без лимитов | M62 |
+| OI-M50-006 | OPEN | Memory / apps | Модель может пересказать внедрённую память приложению | `memory.context` без сырых фактов; пересказ возможен | M60 |
 
 ## Record template
 
@@ -1003,7 +1027,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-WEB-005 — Durable installation state and app identity after runtime POC
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: WEB-P1-R1
 - Component: Plugin runtime / SDK / persistence
 - Question: как переносить локальную установку и привязанные приложения в постоянный аккаунт?
@@ -1012,8 +1036,8 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: продолжить WEB-P2: явная миграция локальных данных, PostgreSQL/vault и production PKCE/device grants. Не переносить временные bearer tokens автоматически.
 - Affects sessions: WEB-P2, WEB-P6.
 - Revisit trigger/by: до хранения важных пользовательских данных и подключения устройств.
-- Resolution: MW1 integration (2026-10-09): часть «постоянное состояние» RESOLVED в M10 (installations, plugin state, раскладка с `expected_version`, отзывы в PostgreSQL, перенос из SQLite). Часть «app identity / SDK grants» остаётся OPEN для M50.
-- Evidence: [WEB-P1-R1](handoffs/WEB-P1-R1.md), [M10](handoffs/M10.md).
+- Resolution: MW1 integration (2026-10-09): часть «постоянное состояние» RESOLVED в M10 (installations, plugin state, раскладка с `expected_version`, отзывы в PostgreSQL, перенос из SQLite). Часть «app identity / SDK grants» остаётся OPEN для M50. MW4 integration (2026-10-09): часть «identity приложений и SDK grants» RESOLVED в M50 — OAuth 2.1 AS с CIMD, grants/коды/токены в Postgres (хэши), отзыв и ротация refresh.
+- Evidence: [WEB-P1-R1](handoffs/WEB-P1-R1.md), [M10](handoffs/M10.md)., [M50](handoffs/M50.md), `tests/oauth/`
 
 ### OI-WEB-006 — Shared-server VPN/SSH access
 
@@ -1746,7 +1770,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M15-003 — OAuth `state` is not bound to the initiating browser
 
-- Status: OPEN
+- Status: RESOLVED (web); Android — OI-M30-002
 - Source session: M15
 - Component: Connections / OAuth
 - Question: как защититься от привязки чужого аккаунта провайдера к установке атакующего (login CSRF)?
@@ -1756,8 +1780,8 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (c) для Android и (a) для web в M30: колбэк только сохраняет код, `POST /v1/connections/{id}/complete` под сессией пользователя
 - Affects sessions: M30, M25, M24
 - Revisit trigger/by: до M30 (UI подключения)
-- Resolution:
-- Evidence: 
+- Resolution: MW4 integration (2026-10-09): M30 выбрал вариант (b) — Lax-cookie `mia_oauth_binding` (HttpOnly, Path колбэка, значение от user + Idempotency-Key), колбэк веб-потока без неё отклоняется; контракт колбэка Android не менялся. Остаток для Android — OI-M30-002.
+- Evidence: [M30](handoffs/M30.md), `tests/catalog/test_connection_binding_postgres.py`
 
 ### OI-M15-004 — No pre-registered OAuth clients; publication needs `contracts/`
 
