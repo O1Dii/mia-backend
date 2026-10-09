@@ -141,7 +141,7 @@ def build_memory_router(
     async def create_fact(
         request: Request, body: Annotated[FactCreate, Body()], idempotency_key: IdempotencyKey
     ) -> JSONResponse:
-        fact, created = await guard(
+        fact, _created = await guard(
             service.create_fact(
                 user_id=await user(request),
                 text=body.text,
@@ -149,7 +149,7 @@ def build_memory_router(
                 idempotency_key=idempotency_key,
             )
         )
-        return JSONResponse(fact.contract(), status_code=201 if created else 200)
+        return JSONResponse(fact.contract(), status_code=201)  # a replay answers the same
 
     @router.patch("/facts/{fact_id}")
     async def update_fact(
@@ -191,7 +191,7 @@ def build_memory_router(
     async def create_person(
         request: Request, body: Annotated[PersonCreate, Body()], idempotency_key: IdempotencyKey
     ) -> JSONResponse:
-        person, created = await guard(
+        person, _created = await guard(
             service.create_person(
                 user_id=await user(request),
                 data=PersonInput(
@@ -204,7 +204,7 @@ def build_memory_router(
                 idempotency_key=idempotency_key,
             )
         )
-        return JSONResponse(person.contract(), status_code=201 if created else 200)
+        return JSONResponse(person.contract(), status_code=201)
 
     @router.patch("/people/{person_id}")
     async def update_person(

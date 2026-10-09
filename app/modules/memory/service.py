@@ -373,13 +373,14 @@ class MemoryService:
                         break
                     add(row)
             for person in people[:people_slots]:
-                line = f"{person.model_ref}: {person.display_name}"
+                # Only the name and relation are minimized: the reference itself is an id.
+                line = f"{person.model_ref}: {minimize(person.display_name)}"
                 if person.relation:
-                    line += f" ({person.relation})"
+                    line += f" ({minimize(person.relation)})"
                 chosen.append(
                     FactRecord(
                         id=str(person.id),
-                        text=minimize(line),
+                        text=line,
                         category="other",
                         status="active",
                         sensitivity=person.sensitivity,

@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -118,7 +117,3 @@ async def mem() -> AsyncIterator[MemoryWorld]:
     vault = KeyVault(KEYRING)
     yield MemoryWorld(factory, users, vault, MemoryService(factory, MemoryCipher(vault)))
     await factory.kw["bind"].dispose()
-
-
-def utc(*args: int) -> datetime:
-    return datetime(*args, tzinfo=UTC)  # type: ignore[misc]

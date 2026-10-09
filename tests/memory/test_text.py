@@ -45,8 +45,13 @@ def test_minimize_removes_identifiers(text: str, leak: str) -> None:
 
 
 def test_minimize_keeps_ordinary_text() -> None:
-    text = "Пьёт кофе без сахара, встаёт в 7:30, дочке 5 лет"
-    assert minimize(text) == text
+    for text in (
+        "Пьёт кофе без сахара, встаёт в 7:30, дочке 5 лет",
+        "День рождения 12.05.1990, годовщина 2019-06-01",
+        "Квартира 15, этаж 3, код 1234",
+    ):
+        assert minimize(text) == text
+        assert not contains_identifier(text)
 
 
 @pytest.mark.parametrize(
@@ -117,3 +122,9 @@ def test_contacts_cache_is_per_run_and_expires() -> None:
         cache.put(user_id="u", run_id=run, contacts=[Contact(run, {})])
     assert cache.get(user_id="u", run_id="a", ref="contact:1") is None
     assert cache.get(user_id="u", run_id="c", ref="contact:1") == Contact("c", {})
+
+
+def test_minimize_on_names_never_touches_person_refs() -> None:
+    # A UUID like this one contains a phone-like run of digits; refs are built after minimize.
+    ref = "person:d017a0b1-4973-4972-bd9b-2a13b4d571b0"
+    assert minimize(ref) != ref

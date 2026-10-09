@@ -9,6 +9,7 @@ from app.core.config import Settings
 from app.main import create_app
 from app.modules.runs.errors import RUN_CODES
 from app.modules.tools.composition import ToolStack, host_allowlist
+from app.modules.tools.core_tools import RESERVED_NAMESPACES
 from app.modules.tools.errors import ROUTER_CODES
 from app.modules.tools.router import McpToolRouter
 
@@ -40,7 +41,8 @@ def test_application_wires_router_approvals_and_device_channel() -> None:
         "/v1/approvals/{approval_id}",
         "/v1/approvals/{approval_id}/decision",
     } <= paths
-    assert stack.core_tools.tools() == []  # background.*/memory.* are M16/M17 extension points
+    # Core tools are registered by M16/M17 only inside the reserved namespaces.
+    assert all(t.name.split(".")[0] in RESERVED_NAMESPACES for t in stack.core_tools.tools())
 
 
 def test_host_allowlist_setting() -> None:

@@ -48,12 +48,6 @@ PHONE = re.compile(r"(?<![\w+])\+?\d[\d\s().-]{5,}\d(?!\w)")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.UNICODE)
 HANDLE = re.compile(r"(?<![\w@])@[A-Za-z0-9_]{4,32}\b")
 LONG_ID = re.compile(r"(?<!\w)\d{6,}(?!\w)")
-_REDACTIONS = (
-    (EMAIL, "[email скрыт]"),
-    (PHONE, "[номер скрыт]"),
-    (HANDLE, "[ник скрыт]"),
-    (LONG_ID, "[id скрыт]"),
-)
 
 
 def normalize(value: str) -> str:
@@ -95,15 +89,30 @@ def search_terms(text: str, *, limit: int = 256) -> list[str]:
     return list(seen)
 
 
+_DATE = re.compile(r"^(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})$")
+
+
+def _phone_like(candidate: str) -> bool:
+    digits = sum(ch.isdigit() for ch in candidate)
+    return digits >= 7 and not _DATE.match(candidate.strip())
+
+
+def _redact_phone(match: re.Match[str]) -> str:
+    return "[номер скрыт]" if _phone_like(match.group(0)) else match.group(0)
+
+
 def minimize(text: str) -> str:
     """Remove identifiers before text leaves the core for a model provider."""
-    for pattern, replacement in _REDACTIONS:
-        text = pattern.sub(replacement, text)
-    return text
+    text = EMAIL.sub("[email скрыт]", text)
+    text = PHONE.sub(_redact_phone, text)
+    text = HANDLE.sub("[ник скрыт]", text)
+    return LONG_ID.sub("[id скрыт]", text)
 
 
 def contains_identifier(text: str) -> bool:
-    return any(pattern.search(text) for pattern, _ in _REDACTIONS)
+    if EMAIL.search(text) or HANDLE.search(text) or LONG_ID.search(text):
+        return True
+    return any(_phone_like(m.group(0)) for m in PHONE.finditer(text))
 
 
 @dataclass(frozen=True, slots=True)
