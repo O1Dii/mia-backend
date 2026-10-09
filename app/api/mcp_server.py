@@ -40,7 +40,7 @@ from mcp_types import (
 )
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import Receive, Scope, Send
 
 from app.core.ports.approval_service import ApprovalService
 from app.core.ports.memory_provider import MemorySource
@@ -271,23 +271,16 @@ def build_mcp_server(tools: MiaMcpTools) -> Server[Any]:
 class MiaMcpEndpoint:
     """ASGI app for ``/mcp``: authenticate the app token, then hand over to the MCP SDK."""
 
-    def __init__(
-        self,
-        tools: MiaMcpTools,
-        apps: AppAuthenticator,
-        *,
-        allowed_hosts: list[str] | None = None,
-    ) -> None:
+    def __init__(self, tools: MiaMcpTools, apps: AppAuthenticator) -> None:
         self.apps = apps
+        # Every request carries a bearer token checked above, so there are no ambient
+        # credentials for DNS rebinding to abuse; a Host allow-list would also break behind
+        # a reverse proxy that rewrites Host.
         self.manager = StreamableHTTPSessionManager(
             app=build_mcp_server(tools),
             json_response=True,
             stateless=True,
-            security_settings=(
-                TransportSecuritySettings(allowed_hosts=allowed_hosts)
-                if allowed_hosts
-                else TransportSecuritySettings(enable_dns_rebinding_protection=False)
-            ),
+            security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
 
     @asynccontextmanager
@@ -314,7 +307,3 @@ class MiaMcpEndpoint:
             return
         scope[SCOPE_KEY] = access
         await self.manager.handle_request(scope, receive, send)
-
-
-def mcp_asgi(endpoint: MiaMcpEndpoint) -> ASGIApp:
-    return endpoint

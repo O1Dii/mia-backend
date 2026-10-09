@@ -7,7 +7,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from decimal import Decimal
-from urllib.parse import urlsplit
 
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -86,12 +85,7 @@ def build_oauth_stack(
         ),
     )
     apps = AppAuthenticator(service)
-    host = urlsplit(service.config.issuer).netloc
-    endpoint = MiaMcpEndpoint(
-        MiaMcpTools(router=router, approvals=approvals, memory=memory),
-        apps,
-        allowed_hosts=[host] if settings.app_env in {"staging", "production"} and host else None,
-    )
+    endpoint = MiaMcpEndpoint(MiaMcpTools(router=router, approvals=approvals, memory=memory), apps)
     return OAuthStack(
         service=service,
         apps=apps,

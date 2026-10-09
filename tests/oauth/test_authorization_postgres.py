@@ -616,3 +616,14 @@ async def test_tokens_are_bound_to_their_resource(world: OAuthWorld) -> None:
         )
     assert query(bad.headers["location"])["error"] == "invalid_target"
     assert response.status_code == 401
+
+
+async def test_expired_rows_are_purged(world: OAuthWorld) -> None:
+    async with world.http() as http:
+        await world.login(http)
+    world.stack.service.clock = lambda: utc_now() + timedelta(days=40)
+    await world.stack.service.purge_expired()
+    async with world.factory() as session:
+        assert (await session.scalars(select(OAuthToken))).all() == []
+        assert (await session.scalars(select(OAuthCode))).all() == []
+        assert len((await session.scalars(select(OAuthGrant))).all()) == 1  # grants stay

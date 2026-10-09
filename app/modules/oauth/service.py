@@ -21,6 +21,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import logging
+import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -29,7 +31,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Final, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.ports.memory_provider import MemoryCategory
@@ -53,6 +55,7 @@ from app.modules.oauth.scopes import (
 )
 from app.modules.users.models import User
 
+logger = logging.getLogger(__name__)
 MAX_STATE: Final = 1024
 MAX_NONCE: Final = 512
 
@@ -222,6 +225,25 @@ class AuthorizationService:
     config: OAuthConfig
     subject_key: bytes
     clock: Callable[[], datetime] = field(default=utc_now)
+    purge_every_s: float = 600.0
+    _purged_at: float = field(default=0.0, init=False, repr=False)
+
+    async def purge_expired(self) -> None:
+        """Drop requests, codes and tokens expired for more than a day (bounded tables)."""
+        cutoff = self.clock() - timedelta(days=1)
+        async with self.sessions() as session, session.begin():
+            for model in (OAuthAuthorizationRequest, OAuthCode, OAuthToken):
+                await session.execute(delete(model).where(model.expires_at < cutoff))
+
+    async def _maybe_purge(self) -> None:
+        now = time.monotonic()
+        if now - self._purged_at < self.purge_every_s:
+            return
+        self._purged_at = now
+        try:
+            await self.purge_expired()
+        except Exception:
+            logger.warning("oauth_purge_failed")
 
     # -- identity ----------------------------------------------------------------
 
@@ -281,6 +303,7 @@ class AuthorizationService:
             raise fail("invalid_target", "Unknown resource.")
         if params.nonce is not None and len(params.nonce) > MAX_NONCE:
             raise fail("invalid_request", "nonce is too long.")
+        await self._maybe_purge()
         handle = creds.new_secret("request")
         now = self.clock()
         async with self.sessions() as session, session.begin():
