@@ -40,9 +40,7 @@ from tests.models.test_plan_postgres import settled, store_for
 MakeUser = Callable[[], Awaitable[uuid.UUID]]
 
 
-def hosted(
-    factory: SessionFactory, keyring: MasterKeyring, world: AuthWorld
-) -> SignInCoordinator:
+def hosted(factory: SessionFactory, keyring: MasterKeyring, world: AuthWorld) -> SignInCoordinator:
     return SignInCoordinator(
         session_factory=factory,
         store=store_for(factory, keyring, world, lambda: 1_000.0),
@@ -125,7 +123,8 @@ async def test_denied_consent_pasted_back_fails_without_a_connection(
     coordinator = hosted(session_factory, keyring, world)
     attempt = await coordinator.start(await make_user())
     query = authorize_query(attempt)
-    url = f"{query['redirect_uri']}?{urlencode({'error': 'access_denied', 'state': query['state']})}"
+    denied = urlencode({"error": "access_denied", "state": query["state"]})
+    url = f"{query['redirect_uri']}?{denied}"
     done = await coordinator.submit_callback(attempt, url)
     assert (done.status, done.error_code) == ("failed", "authorization_denied")
     async with session_factory() as session:

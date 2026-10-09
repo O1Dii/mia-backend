@@ -110,7 +110,7 @@ async def build_harness(*, public_base_url: str | None = None) -> AsyncIterator[
         auth_nonce_rate_limit=1000,
         auth_exchange_rate_limit=1000,
         auth_authenticated_rate_limit=5000,
-        **({"public_base_url": public_base_url} if public_base_url else {}),
+        public_base_url=public_base_url or Settings.model_fields["public_base_url"].default,
     )
     cache = RedisAuthCache(FakeRedis())
     service = AuthService(
