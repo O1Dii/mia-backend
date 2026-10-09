@@ -1,5 +1,6 @@
 import { ChevronRight, Cpu, Layers3, ShieldHalf } from 'lucide-react'
 import { Link } from '../lib/router'
+import { AndroidAppRow } from './AndroidApp'
 
 const items = [
   {
@@ -44,6 +45,9 @@ export function More() {
             </Link>
           </li>
         ))}
+        <li>
+          <AndroidAppRow />
+        </li>
       </ul>
     </section>
   )

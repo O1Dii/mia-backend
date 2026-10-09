@@ -1,9 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Cpu, KeyRound, LoaderCircle, Plus, Trash2, Zap } from 'lucide-react'
+import {
+  Check,
+  Cpu,
+  ExternalLink,
+  KeyRound,
+  LoaderCircle,
+  LogIn,
+  Plus,
+  Trash2,
+  Zap,
+} from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type ModelConnection, type ModelProvider } from '../lib/api'
+import {
+  api,
+  type ChatGptSignIn,
+  type ChatGptSignInStatus,
+  type ModelConnection,
+  type ModelProvider,
+} from '../lib/api'
 import { errorText } from '../lib/errors'
-import { messageOf } from '../lib/http'
+import { ApiError, messageOf } from '../lib/http'
 import { providers, type ProviderInfo } from '../lib/providers'
 import { Dialog } from './Dialog'
 
@@ -13,10 +29,25 @@ const statusText: Record<ModelConnection['status'], string> = {
   needs_reauth: 'Нужен новый ключ',
 }
 
+const CHATGPT = 'chatgpt-plan'
+const CHATGPT_NAME = 'ChatGPT (подписка)'
+
+function providerName(provider: string): string {
+  if (provider === CHATGPT) return CHATGPT_NAME
+  return providers.find((p) => p.id === provider)?.name ?? provider
+}
+
+function statusOf(connection: ModelConnection): string {
+  if (connection.provider === CHATGPT && connection.status === 'needs_reauth')
+    return 'Нужно войти снова'
+  return statusText[connection.status]
+}
+
 export function Models() {
   const [items, setItems] = useState<ModelConnection[] | null>(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState<ProviderInfo | null>(null)
+  const [signingIn, setSigningIn] = useState(false)
   const [busy, setBusy] = useState('')
 
   const reload = useCallback(async () => {
@@ -79,8 +110,7 @@ export function Models() {
             <div className="mw-model__body">
               <h3>{connection.label}</h3>
               <p className="mw-muted">
-                {providers.find((p) => p.id === connection.provider)?.name ?? connection.provider} ·{' '}
-                {connection.model}
+                {providerName(connection.provider)} · {connection.model}
                 {connection.key_last4 ? ` · ключ …${connection.key_last4}` : ''}
               </p>
               <p>
@@ -90,7 +120,7 @@ export function Models() {
                 <span
                   className={`mia-chip ${connection.status === 'active' ? 'mia-chip--success' : 'mia-chip--warning'}`}
                 >
-                  {statusText[connection.status]}
+                  {statusOf(connection)}
                 </span>{' '}
                 {connection.capability === 'chat_only' && (
                   <span className="mia-chip">Только чат</span>
@@ -109,6 +139,11 @@ export function Models() {
               </p>
             </div>
             <div className="mw-model__actions">
+              {connection.provider === CHATGPT && connection.status === 'needs_reauth' && (
+                <button className="mia-btn mia-btn--primary" onClick={() => setSigningIn(true)}>
+                  <LogIn size={16} /> Войти снова
+                </button>
+              )}
               {!connection.is_primary && (
                 <button
                   className="mia-btn mia-btn--secondary"
@@ -189,6 +224,13 @@ export function Models() {
 
       <h2 className="mw-section">Добавить модель</h2>
       <ul className="mw-grid mw-grid--small">
+        <li>
+          <button className="mia-glass mw-provider" onClick={() => setSigningIn(true)}>
+            <LogIn size={18} aria-hidden="true" />
+            <strong>{CHATGPT_NAME}</strong>
+            <small>Вход в ChatGPT</small>
+          </button>
+        </li>
         {providers.map((provider) => (
           <li key={provider.id}>
             <button className="mia-glass mw-provider" onClick={() => setAdding(provider)}>
@@ -199,6 +241,16 @@ export function Models() {
           </li>
         ))}
       </ul>
+      {signingIn && (
+        <ChatGptSignInDialog
+          onClose={() => setSigningIn(false)}
+          onDone={async () => {
+            setSigningIn(false)
+            toast.success('ChatGPT подключён')
+            await reload()
+          }}
+        />
+      )}
       {adding && (
         <AddModel
           provider={adding}
@@ -333,6 +385,189 @@ function AddModel({
           >
             {busy && <LoaderCircle size={16} className="spin" />} Сохранить подключение
           </button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+// Why a ChatGPT sign-in attempt ended (SignInAttempt.error_code of the backend).
+const signInErrors: Record<string, string> = {
+  authorization_denied: 'Вход отменён на странице ChatGPT.',
+  state_mismatch: 'Адрес относится к другой попытке входа. Начните заново.',
+  client_not_registered: 'ChatGPT не зарегистрировал Мию. Начните заново.',
+  token_exchange_failed: 'ChatGPT не принял код: он одноразовый и живёт недолго. Начните заново.',
+  scope_missing: 'Подписка не даёт доступ к моделям для приложений.',
+  id_token_invalid: 'Ответ ChatGPT не прошёл проверку подписи.',
+  timeout: 'Время на вход вышло. Начните заново.',
+  too_many_attempts: 'Слишком много неверных адресов. Начните заново.',
+  superseded: 'Открыта новая попытка входа.',
+  cancelled: 'Вход отменён.',
+}
+
+function ChatGptSignInDialog({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void
+  onDone: () => Promise<void>
+}) {
+  const [attempt, setAttempt] = useState<ChatGptSignIn | null>(null)
+  const [state, setState] = useState<ChatGptSignInStatus['status'] | 'starting'>('starting')
+  const [address, setAddress] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [run, setRun] = useState(0)
+
+  // A fresh attempt each time the dialog opens or «Начать заново» is pressed. Starting it before
+  // the click lets the sign-in link be a real link (no popup blocker).
+  useEffect(() => {
+    let alive = true
+    setAttempt(null)
+    setState('starting')
+    setError('')
+    setAddress('')
+    api.chatgptSignIn().then(
+      (started) => {
+        if (!alive) return
+        setAttempt(started)
+        setState('pending')
+      },
+      (e: unknown) => {
+        if (!alive) return
+        setState('failed')
+        setError(messageOf(e, 'Не удалось начать вход в ChatGPT.'))
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [run])
+
+  const settle = useCallback(
+    async (status: ChatGptSignInStatus) => {
+      setState(status.status)
+      if (status.status === 'completed') await onDone()
+      else if (status.status === 'failed')
+        setError(signInErrors[status.error_code ?? ''] ?? 'Не удалось войти. Начните заново.')
+    },
+    [onDone],
+  )
+
+  // A local backend completes by itself (its loopback listener); a hosted one after the paste.
+  useEffect(() => {
+    if (!attempt || state !== 'pending') return
+    const timer = window.setInterval(() => {
+      api.chatgptSignInStatus(attempt.attempt_id).then(
+        (status) => {
+          if (status.status !== 'pending') void settle(status)
+        },
+        () => undefined,
+      )
+    }, 2500)
+    return () => window.clearInterval(timer)
+  }, [attempt, state, settle])
+
+  async function submit() {
+    if (!attempt) return
+    setBusy(true)
+    setError('')
+    try {
+      await settle(await api.chatgptSignInCallback(attempt.attempt_id, address.trim()))
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.code === 'sign_in_callback_invalid'
+          ? 'Это не тот адрес. Скопируйте адрес страницы, которая открылась после входа: он начинается с http://127.0.0.1:1455/auth/callback'
+          : messageOf(e, 'Не удалось завершить вход.'),
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog
+      title="Войти в ChatGPT"
+      description="Мия будет отвечать моделями вашей подписки ChatGPT (Plus или Pro). Пароль Мия не видит."
+      onClose={busy ? () => undefined : onClose}
+    >
+      <form
+        className="mw-form"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void submit()
+        }}
+      >
+        {state === 'starting' && (
+          <p className="mw-muted" role="status">
+            <LoaderCircle size={16} className="spin" /> Готовим вход…
+          </p>
+        )}
+        {attempt && state === 'pending' && (
+          <>
+            <p>
+              1.{' '}
+              <a
+                className="mia-btn mia-btn--primary"
+                href={attempt.authorize_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={16} /> Открыть вход ChatGPT
+              </a>
+            </p>
+            <p className="mw-muted">
+              2. Войдите и разрешите доступ. В конце браузер откроет страницу, которая не
+              загрузится, — это нормально. Её адрес начинается с{' '}
+              <code>http://127.0.0.1:1455/auth/callback</code>.
+              {attempt.listening
+                ? ' Если Мия запущена на этом компьютере, вход завершится сам.'
+                : ''}
+            </p>
+            <label>
+              <span>3. Скопируйте этот адрес из адресной строки и вставьте сюда</span>
+              <input
+                value={address}
+                autoComplete="off"
+                spellCheck={false}
+                inputMode="url"
+                maxLength={4096}
+                placeholder="http://127.0.0.1:1455/auth/callback?code=…"
+                onChange={(event) => setAddress(event.target.value)}
+              />
+            </label>
+          </>
+        )}
+        {error && (
+          <p className="mw-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="mw-dialog__actions">
+          <button
+            type="button"
+            className="mia-btn mia-btn--secondary"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Отмена
+          </button>
+          {state === 'failed' ? (
+            <button
+              type="button"
+              className="mia-btn mia-btn--primary"
+              onClick={() => setRun((n) => n + 1)}
+            >
+              Начать заново
+            </button>
+          ) : (
+            <button
+              className="mia-btn mia-btn--primary"
+              disabled={busy || state !== 'pending' || !address.trim()}
+            >
+              {busy && <LoaderCircle size={16} className="spin" />} Подключить
+            </button>
+          )}
         </div>
       </form>
     </Dialog>

@@ -41,3 +41,39 @@ test('the chat nudges to connect a model only while there is none', async ({ pag
   await page.getByRole('link', { name: 'Подключить модель' }).click()
   await expect(page).toHaveURL(/\/models$/)
 })
+
+test('ChatGPT subscription signs in by pasting the address the browser landed on', async ({
+  page,
+}) => {
+  await signIn(page)
+  // The fake auth.openai.com consents at once and sends the browser to the loopback address,
+  // which does not open on the user's device (hosted Mia, M62-T1).
+  let landed = ''
+  await page.context().route('https://auth.openai.com/**', async (route) => {
+    const url = new URL(route.request().url())
+    const answer = await page.request.get(`/__e2e/chatgpt-authorize${url.search}`)
+    landed = ((await answer.json()) as { location: string }).location
+    await route.fulfill({ status: 200, contentType: 'text/html', body: 'ChatGPT' })
+  })
+  await page.goto('/models')
+  await page.getByRole('button', { name: /ChatGPT \(подписка\)/ }).click()
+  const dialog = page.getByRole('dialog')
+  const popup = page.waitForEvent('popup')
+  await dialog.getByRole('link', { name: 'Открыть вход ChatGPT' }).click()
+  await (await popup).close()
+  expect(landed).toMatch(/^http:\/\/127\.0\.0\.1:1455\/auth\/callback\?code=/)
+
+  const field = dialog.getByLabel(/Скопируйте этот адрес/)
+  await field.fill('http://127.0.0.1:1455/auth/callback?code=x&state=someone-else')
+  await dialog.getByRole('button', { name: 'Подключить' }).click()
+  await expect(dialog.getByText('Это не тот адрес.', { exact: false })).toBeVisible()
+
+  await field.fill(landed)
+  await dialog.getByRole('button', { name: 'Подключить' }).click()
+  await expect(page.getByText('ChatGPT подключён')).toBeVisible()
+  await expect(dialog).toHaveCount(0)
+  const card = page.locator('[data-model="ChatGPT plan"]')
+  await expect(card.getByText(/ChatGPT \(подписка\)/)).toBeVisible()
+  await expect(card.getByText('Основная')).toBeVisible()
+  expect(await page.content()).not.toContain('e2e-code')
+})

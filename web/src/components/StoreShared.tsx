@@ -55,7 +55,9 @@ export function useStoreState() {
 export async function connectAccount(installationId: string, returnTo: string): Promise<void> {
   const started = await api.startConnection(installationId, returnTo)
   if (!started.authorization_url) {
-    location.assign(`${returnTo}${returnTo.includes('?') ? '&' : '?'}connection=ok`)
+    // `returnTo` is an app path; the page itself may live under a prefix (/mia, M62-T1).
+    const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+    location.assign(`${base}${returnTo}${returnTo.includes('?') ? '&' : '?'}connection=ok`)
     return
   }
   location.assign(started.authorization_url)

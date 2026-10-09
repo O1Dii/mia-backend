@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { LoaderCircle, ShieldCheck, Sparkles } from 'lucide-react'
 import { api, type User } from './api'
 import { ApiError, messageOf } from './http'
+import { AndroidAppLink } from '../components/AndroidApp'
 
 type AuthContext = { user: User; logout: () => Promise<void> }
 const Context = createContext<AuthContext | null>(null)
@@ -151,6 +152,7 @@ function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
           </span>
         </div>
         <div id="google-signin" />
+        <AndroidAppLink />
         {error && (
           <p className="mw-error" role="alert">
             {error}
