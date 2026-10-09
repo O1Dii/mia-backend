@@ -1115,7 +1115,62 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M11 inbox
 
-- Нет записей.
+### Resolution update — OI-W6-013
+
+- OI-W6-013 (нужен ли непрозрачный provider-токен в нейтральном контракте): RESOLVED. Выбран вариант (a): контракт M00 уже содержит `ModelToolCall.provider_state` / `ModelMessage.provider_state`; адаптеры M11 кладут туда reasoning-items Responses API с `encrypted_content` (`responses_reasoning_items`) и `reasoning_content` GLM и воспроизводят их дословно из сообщения. Run engine (M12) обязан сохранять `provider_state` вместе с tool call и возвращать его в `ModelMessage.tool_calls`; клиентам поле не показывается.
+- Evidence: `app/modules/models/adapters/responses.py`, `adapters/chat_completions.py`; `tests/models/test_responses_adapter.py::test_encrypted_reasoning_is_kept_in_provider_state_and_replayed_verbatim`, `tests/models/test_chat_adapters.py::test_glm_tool_loop_replays_reasoning_content_from_provider_state`.
+
+### Resolution update — OI-WEB-001
+
+- OI-WEB-001 (hosting/vault для постоянных BYOK-подключений): RESOLVED для MVP. Постоянные подключения хранятся в PostgreSQL приложения; секреты запечатаны AES-256-GCM под per-user DEK, DEK обёрнут master key из конфигурации (`CREDENTIALS_MASTER_KEYS`), поддержаны ротация master key и crypto-shred при удалении DEK/пользователя. API не возвращает ключ (только последние 4 символа). Управляемый KMS/HSM и локальный companion connector остаются будущими опциями: custody master key вынесена в OI-M11-003.
+- Evidence: `app/core/crypto.py`, `app/modules/models/vault.py`, `tests/models/test_vault_postgres.py`, `tests/models/test_api_postgres.py`.
+
+### Progress notes — OI-M01-001, OI-M01-003
+
+- OI-M01-001 (лимиты Plus): остаётся OPEN. Реализовано поведение из рекомендации: `subscription_sharing_usage_limit_exceeded` (HTTP 429 и событие в потоке) ставит подключение на паузу (Retry-After или `MODEL_USAGE_PAUSE_SECONDS`) и переключает шаг `mia:default` на запасного провайдера, если поток ещё ничего не отдал. Реальный 429 не наблюдался (живой smoke не запускался).
+- OI-M01-003 (задержка, `gpt-6-luna`): остаётся OPEN, M11 не измерял; `python -m app.modules.models.smoke --model <slug>` пригоден для замеров в M61.
+
+### OI-M11-001 — Structured output (speech/display JSON) on the plan endpoint
+
+- Status: OPEN
+- Source session: M11
+- Component: Model Gateway / `chatgpt-plan`
+- Question: принимает ли Responses-эндпоинт плана `text.format` (json_schema) для `assistant-response.schema.json`?
+- Why non-blocking: шлюз не запрашивает structured output и отдаёт `supports_structured_output=false`; run engine использует splitter из ADR-0011.
+- Current assumption: параметр может быть отвергнут (`subscription_sharing_unsupported_capability`), поэтому не отправляется.
+- Options: проверить `text.format` живым запросом; оставить splitter.
+- Recommendation: проверить в M12/M61, включить флаг в `ModelInfo` только после живой проверки.
+- Affects sessions: M12, M61.
+- Revisit trigger/by: контрактные тесты второй модели (M61).
+- Resolution: —
+
+### OI-M11-002 — Sign in with ChatGPT works only on the backend host
+
+- Status: OPEN
+- Source session: M11
+- Component: Model Gateway / sign-in
+- Question: как входить в ChatGPT, когда сервер MIA удалённый, а браузер пользователя на другой машине?
+- Why non-blocking: redirect URI обязан быть `http://127.0.0.1:<port>/auth/callback` на машине с браузером; для владельца, который сам размещает сервер, это работает; для остальных есть ключи API (DeepInfra и др.).
+- Current assumption: пилот — один оператор (OI-M01-002); состояние попытки входа хранится в памяти одного процесса.
+- Options: локальный companion connector, который выполняет вход у пользователя и передаёт токены серверу; только BYOK для остальных.
+- Recommendation: companion connector, если потребуется многопользовательский режим после решения OI-M01-002.
+- Affects sessions: M30, M62.
+- Revisit trigger/by: до приглашения пользователей (M62).
+- Resolution: —
+
+### OI-M11-003 — Master key custody and KMS
+
+- Status: OPEN
+- Source session: M11
+- Component: crypto / operations
+- Question: где хранить master keys и как автоматизировать ротацию (KMS/секрет-менеджер вместо переменной окружения)?
+- Why non-blocking: `CREDENTIALS_MASTER_KEYS` из окружения процесса работает и обязательна в staging/production; ротация выполняется вручную через `KeyVault.rotate_master_key`.
+- Current assumption: оператор хранит ключи в секрет-менеджере деплоя и подставляет в окружение.
+- Options: облачный KMS как источник master key (envelope уже его допускает); плановая ротация jobs-сессией.
+- Recommendation: KMS до публичной беты; ротацию добавить в операционный runbook.
+- Affects sessions: M62.
+- Revisit trigger/by: перед публичной бетой.
+- Resolution: —
 
 ## M12 inbox
 

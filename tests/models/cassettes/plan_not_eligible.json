@@ -1,0 +1,28 @@
+{
+ "name": "plan_not_eligible",
+ "note": "Account not eligible.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 403,
+    "headers": {},
+    "json": {
+     "error": {
+      "code": "subscription_sharing_user_not_eligible"
+     }
+    }
+   }
+  }
+ ]
+}

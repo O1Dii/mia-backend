@@ -1,0 +1,48 @@
+{
+ "name": "plan_incomplete_length",
+ "note": "Length-limited answer.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": "response.output_text.delta",
+      "data": {
+       "type": "response.output_text.delta",
+       "delta": "long"
+      }
+     },
+     {
+      "event": "response.incomplete",
+      "data": {
+       "type": "response.incomplete",
+       "response": {
+        "status": "incomplete",
+        "incomplete_details": {
+         "reason": "max_output_tokens"
+        },
+        "usage": {
+         "input_tokens": 5,
+         "output_tokens": 100
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

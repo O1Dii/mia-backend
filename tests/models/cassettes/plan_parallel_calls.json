@@ -1,0 +1,131 @@
+{
+ "name": "plan_parallel_calls",
+ "note": "Two function_call items in one response.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": "response.created",
+      "data": {
+       "type": "response.created",
+       "response": {
+        "status": "in_progress"
+       }
+      }
+     },
+     {
+      "event": "response.output_item.added",
+      "data": {
+       "type": "response.output_item.added",
+       "item": {
+        "type": "function_call",
+        "id": "fc_call_p1",
+        "call_id": "call_p1",
+        "name": "get_time",
+        "arguments": "",
+        "status": "completed"
+       }
+      }
+     },
+     {
+      "event": "response.function_call_arguments.delta",
+      "data": {
+       "type": "response.function_call_arguments.delta",
+       "delta": "{\"time"
+      }
+     },
+     {
+      "event": "response.function_call_arguments.delta",
+      "data": {
+       "type": "response.function_call_arguments.delta",
+       "delta": "zone\": \"UTC\"}"
+      }
+     },
+     {
+      "event": "response.output_item.done",
+      "data": {
+       "type": "response.output_item.done",
+       "item": {
+        "type": "function_call",
+        "id": "fc_call_p1",
+        "call_id": "call_p1",
+        "name": "get_time",
+        "arguments": "{\"timezone\": \"UTC\"}",
+        "status": "completed"
+       }
+      }
+     },
+     {
+      "event": "response.output_item.added",
+      "data": {
+       "type": "response.output_item.added",
+       "item": {
+        "type": "function_call",
+        "id": "fc_call_p2",
+        "call_id": "call_p2",
+        "name": "add_todo",
+        "arguments": "",
+        "status": "completed"
+       }
+      }
+     },
+     {
+      "event": "response.function_call_arguments.delta",
+      "data": {
+       "type": "response.function_call_arguments.delta",
+       "delta": "{\"titl"
+      }
+     },
+     {
+      "event": "response.function_call_arguments.delta",
+      "data": {
+       "type": "response.function_call_arguments.delta",
+       "delta": "e\": \"x\"}"
+      }
+     },
+     {
+      "event": "response.output_item.done",
+      "data": {
+       "type": "response.output_item.done",
+       "item": {
+        "type": "function_call",
+        "id": "fc_call_p2",
+        "call_id": "call_p2",
+        "name": "add_todo",
+        "arguments": "{\"title\": \"x\"}",
+        "status": "completed"
+       }
+      }
+     },
+     {
+      "event": "response.completed",
+      "data": {
+       "type": "response.completed",
+       "response": {
+        "status": "completed",
+        "usage": {
+         "input_tokens": 30,
+         "output_tokens": 15
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

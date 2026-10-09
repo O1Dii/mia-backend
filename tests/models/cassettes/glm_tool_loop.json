@@ -1,0 +1,367 @@
+{
+ "name": "glm_tool_loop",
+ "note": "DeepInfra GLM: reasoning_content must be echoed on later turns.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.deepinfra.com/v1/openai/chat/completions",
+    "forbid_body_keys": []
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "role": "assistant",
+          "reasoning_content": "I should"
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "reasoning_content": " call get_time first."
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "tool_calls": [
+           {
+            "index": 0,
+            "id": "t1",
+            "type": "function",
+            "function": {
+             "name": "get_time",
+             "arguments": "{\"time"
+            }
+           }
+          ]
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "tool_calls": [
+           {
+            "index": 0,
+            "function": {
+             "arguments": "zone\": \"UTC\"}"
+            }
+           }
+          ]
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {},
+         "finish_reason": "tool_calls"
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [],
+       "usage": {
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "estimated_cost": 2.5e-05
+       }
+      }
+     },
+     {
+      "event": null,
+      "data": "[DONE]"
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.deepinfra.com/v1/openai/chat/completions",
+    "forbid_body_keys": []
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "role": "assistant",
+          "reasoning_content": "Now add "
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "reasoning_content": "the todo item."
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "tool_calls": [
+           {
+            "index": 0,
+            "id": "t2",
+            "type": "function",
+            "function": {
+             "name": "add_todo",
+             "arguments": "{\"titl"
+            }
+           }
+          ]
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "tool_calls": [
+           {
+            "index": 0,
+            "function": {
+             "arguments": "e\": \"Call Anna\"}"
+            }
+           }
+          ]
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {},
+         "finish_reason": "tool_calls"
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [],
+       "usage": {
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "estimated_cost": 2.5e-05
+       }
+      }
+     },
+     {
+      "event": null,
+      "data": "[DONE]"
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.deepinfra.com/v1/openai/chat/completions",
+    "forbid_body_keys": []
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "role": "assistant",
+          "reasoning_content": "short thought"
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "content": "Done, "
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {
+          "content": "todo added."
+         },
+         "finish_reason": null
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [
+        {
+         "index": 0,
+         "delta": {},
+         "finish_reason": "stop"
+        }
+       ]
+      }
+     },
+     {
+      "event": null,
+      "data": {
+       "id": "chatcmpl-x",
+       "object": "chat.completion.chunk",
+       "model": "zai-org/GLM-5.3-Flash",
+       "choices": [],
+       "usage": {
+        "prompt_tokens": 120,
+        "completion_tokens": 9
+       }
+      }
+     },
+     {
+      "event": null,
+      "data": "[DONE]"
+     }
+    ]
+   }
+  }
+ ]
+}

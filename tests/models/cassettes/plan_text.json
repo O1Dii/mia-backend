@@ -1,0 +1,72 @@
+{
+ "name": "plan_text",
+ "note": "Plain streamed answer, no tools.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "events": [
+     {
+      "event": "response.created",
+      "data": {
+       "type": "response.created",
+       "response": {
+        "status": "in_progress"
+       }
+      }
+     },
+     {
+      "event": "response.output_item.added",
+      "data": {
+       "type": "response.output_item.added",
+       "item": {
+        "type": "message",
+        "role": "assistant"
+       }
+      }
+     },
+     {
+      "event": "response.output_text.delta",
+      "data": {
+       "type": "response.output_text.delta",
+       "delta": "Hello, "
+      }
+     },
+     {
+      "event": "response.output_text.delta",
+      "data": {
+       "type": "response.output_text.delta",
+       "delta": "world!"
+      }
+     },
+     {
+      "event": "response.completed",
+      "data": {
+       "type": "response.completed",
+       "response": {
+        "status": "completed",
+        "usage": {
+         "input_tokens": 12,
+         "output_tokens": 7,
+         "total_tokens": 19
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

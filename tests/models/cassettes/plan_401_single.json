@@ -1,0 +1,26 @@
+{
+ "name": "plan_401_single",
+ "note": "One 401; the refresh behind it fails.",
+ "interactions": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "forbid_body_keys": [
+     "temperature",
+     "max_output_tokens",
+     "previous_response_id",
+     "metadata",
+     "user"
+    ]
+   },
+   "response": {
+    "status": 401,
+    "headers": {},
+    "json": {
+     "detail": "UPSTREAM-401-TEXT"
+    }
+   }
+  }
+ ]
+}
