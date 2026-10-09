@@ -1,0 +1,16 @@
+{
+  "kind": "fact",
+  "id": "0e8b7c6d-5a4f-4e3d-9c2b-1a0f9e8d7c6b",
+  "text": "Предпочитает короткие ответы голосом",
+  "category": "profile",
+  "source": {
+    "type": "turn",
+    "ref": "turn-81"
+  },
+  "status": "suggested",
+  "sensitivity": "normal",
+  "scope": "user",
+  "created_at": "2026-10-09T10:00:00Z",
+  "updated_at": "2026-10-09T10:00:00Z",
+  "last_used_at": null
+}

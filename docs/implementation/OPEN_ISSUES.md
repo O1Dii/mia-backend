@@ -969,7 +969,50 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M00 inbox
 
-- Нет записей.
+### OI-M00-001 — Реестр кодов ошибок для mvp/v1
+
+- Status: OPEN
+- Source session: M00
+- Component: Contracts / errors
+- Question: где регистрировать новые публичные коды ошибок MVP (`approval_args_mismatch`, `approval_expired`, `model_not_configured`, `unsupported_tool` и т. п.)?
+- Why non-blocking: `common.schema.json#/$defs/publicError` и `ErrorEnvelope` в `openapi.yaml` принимают любой код `^[a-z][a-z0-9_]{1,63}$`; коды перечислены в Literal-типах `app/core/ports/*`.
+- Current assumption: старый реестр `contracts/errors/v1` не меняется; новые коды фиксируются в handoff сессии, которая их вводит.
+- Options: аддитивно расширить `errors/v1/error-codes.json`; завести `contracts/mvp/v1/error-codes.json` и проверять его валидатором; оставить pattern.
+- Recommendation: M12 заводит `contracts/mvp/v1/error-codes.json` (аддитивно, с проверкой в валидаторе), M13/M50 дописывают свои коды.
+- Affects sessions: M12, M13, M16, M17, M50.
+- Revisit trigger/by: первая сессия MW1, отдающая ошибки через `/v1/*`.
+- Resolution:
+- Evidence:
+
+### OI-M00-002 — Категории памяти и `scope` фактов предварительные
+
+- Status: OPEN
+- Source session: M00
+- Component: Memory Ledger
+- Question: окончательный набор категорий (`profile`, `work`, `home`, `health`, `finance`, `interests`, `other`) и значения `Fact.scope` (`user`, `automation`).
+- Why non-blocking: набор закреплён в `memory.schema.json` и `MemoryCategory`; расширение аддитивно, scopes приложений `memory.read:<category>` следуют ему.
+- Current assumption: категории как в схеме; `automation` готовит «профиль автоматизаций» V2 (Review §7.3).
+- Options: оставить; переименовать до первых данных; сделать категории пользовательскими.
+- Recommendation: M17 подтверждает или аддитивно расширяет до миграции данных.
+- Affects sessions: M17, M50, M31.
+- Revisit trigger/by: начало M17.
+- Resolution:
+- Evidence:
+
+### OI-M00-003 — Версия Python окружения разработки
+
+- Status: OPEN
+- Source session: M00
+- Component: Backend tooling
+- Question: какую версию Python закрепить для `uv sync`?
+- Why non-blocking: при `uv sync --python 3.13` все проверки проходят; Docker-образы уже на 3.13.
+- Current assumption: на машине разработчика `uv sync` без флага выбирает Python 3.14, и SQLAlchemy 2.0.40 падает на импорте (`TypeError` в `make_union_type`) — весь pytest не собирается.
+- Options: добавить `.python-version` с `3.13`; сузить `requires-python` до `>=3.12,<3.14`; обновить SQLAlchemy.
+- Recommendation: integrator MW0 добавляет `.python-version` (`3.13`) в корень — общий файл вне scope M00.
+- Affects sessions: все backend-сессии MW1+ (M10, M11, M12, M13…).
+- Revisit trigger/by: интеграция MW0.
+- Resolution:
+- Evidence: локальный прогон M00 (handoff M00, раздел Verification).
 
 ## M01 inbox
 

@@ -1,0 +1,10 @@
+{
+  "call_id": "call_3",
+  "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+  "device_id": "a1b2c3d4-e5f6-4789-8abc-def012345678",
+  "tool": "device.contacts.search",
+  "arguments": {
+    "query": "Яна"
+  },
+  "deadline_at": "2026-10-09T10:00:04Z"
+}

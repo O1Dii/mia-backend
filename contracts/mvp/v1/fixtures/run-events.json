@@ -1,0 +1,206 @@
+[
+  {
+    "event_id": "00000000-0000-4000-8000-000000000001",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 1,
+    "cursor": "c000001",
+    "type": "run.started",
+    "at": "2026-10-09T10:00:01Z",
+    "payload": {
+      "profile": "voice",
+      "model": "deepinfra/glm-5.3-flash",
+      "conversation_id": "4d5e6f7a-8b9c-4d0e-8f1a-2b3c4d5e6f7a"
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000002",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 2,
+    "cursor": "c000002",
+    "type": "message.delta",
+    "at": "2026-10-09T10:00:02Z",
+    "payload": {
+      "text": "Сейчас посмотрю"
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000003",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 3,
+    "cursor": "c000003",
+    "type": "device_tool.call",
+    "at": "2026-10-09T10:00:03Z",
+    "payload": {
+      "call": {
+        "call_id": "call_3",
+        "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+        "device_id": "a1b2c3d4-e5f6-4789-8abc-def012345678",
+        "tool": "device.contacts.search",
+        "arguments": {
+          "query": "Яна"
+        },
+        "deadline_at": "2026-10-09T10:00:04Z"
+      }
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000004",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 4,
+    "cursor": "c000004",
+    "type": "tool.call.started",
+    "at": "2026-10-09T10:00:04Z",
+    "payload": {
+      "tool_call_id": "call_2",
+      "tool": "team.telegram.send_message",
+      "plugin_id": "team.telegram",
+      "risk": "write_external",
+      "executor": "server"
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000005",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 5,
+    "cursor": "c000005",
+    "type": "approval.requested",
+    "at": "2026-10-09T10:00:05Z",
+    "payload": {
+      "approval": {
+        "id": "6c1d2e3f-4a5b-4c6d-8e7f-90a1b2c3d4e5",
+        "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+        "tool_call_id": "call_2",
+        "plugin_id": "team.telegram",
+        "tool": "team.telegram.send_message",
+        "risk": "write_external",
+        "summary": "Отправить Яне Петровой в Telegram: «Надо купить молоко»",
+        "arguments": {
+          "to": "person:7c9e6679-7425-40de-944b-e07fc1f90ae7",
+          "text": "Надо купить молоко"
+        },
+        "args_hash": "sha256:d2940d487c172b94a75ca891430a030569ec7450f9188b69081cf1ef29629b4d",
+        "status": "pending",
+        "created_at": "2026-10-09T10:00:05Z",
+        "expires_at": "2026-10-09T10:02:05Z",
+        "decision": null
+      }
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000006",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 6,
+    "cursor": "c000006",
+    "type": "approval.resolved",
+    "at": "2026-10-09T10:00:06Z",
+    "payload": {
+      "approval_id": "6c1d2e3f-4a5b-4c6d-8e7f-90a1b2c3d4e5",
+      "status": "approved"
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000007",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 7,
+    "cursor": "c000007",
+    "type": "tool.call.completed",
+    "at": "2026-10-09T10:00:07Z",
+    "payload": {
+      "tool_call_id": "call_2",
+      "status": "succeeded",
+      "structured_content": {
+        "message_id": 991
+      }
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000008",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 8,
+    "cursor": "c000008",
+    "type": "memory.suggested",
+    "at": "2026-10-09T10:00:08Z",
+    "payload": {
+      "fact_id": "0e8b7c6d-5a4f-4e3d-9c2b-1a0f9e8d7c6b",
+      "text": "Яна — жена",
+      "category": "home"
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000009",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 9,
+    "cursor": "c000009",
+    "type": "job.created",
+    "at": "2026-10-09T10:00:09Z",
+    "payload": {
+      "job_id": "5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e",
+      "goal": "Построить карту по статье из Telegram"
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000010",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 10,
+    "cursor": "c000010",
+    "type": "response.final",
+    "at": "2026-10-09T10:00:10Z",
+    "payload": {
+      "response": {
+        "speech": "Сегодня три встречи, первая в 10:00 с Олегом. Просроченных задач две.",
+        "display": {
+          "kind": "card",
+          "title": "Сегодня",
+          "markdown": "- 10:00 Олег\n- 13:00 Команда\n- 17:30 Врач\n\n**Просрочено:** 2 задачи",
+          "source_tool_call_id": "call_1"
+        },
+        "followups": [
+          "Перенести просроченные на завтра?"
+        ]
+      }
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000011",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 11,
+    "cursor": "c000011",
+    "type": "run.completed",
+    "at": "2026-10-09T10:00:11Z",
+    "payload": {
+      "steps": 3,
+      "tool_calls": 2,
+      "usage": {
+        "input_tokens": 2400,
+        "output_tokens": 180,
+        "cost_usd": 0.0012
+      }
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000012",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 12,
+    "cursor": "c000012",
+    "type": "run.failed",
+    "at": "2026-10-09T10:00:12Z",
+    "payload": {
+      "error": {
+        "code": "provider_timeout",
+        "message": "Model provider did not answer in time",
+        "retryable": true
+      }
+    }
+  },
+  {
+    "event_id": "00000000-0000-4000-8000-000000000013",
+    "run_id": "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b",
+    "sequence": 13,
+    "cursor": "c000013",
+    "type": "run.cancelled",
+    "at": "2026-10-09T10:00:13Z",
+    "payload": {
+      "reason": "user"
+    }
+  }
+]

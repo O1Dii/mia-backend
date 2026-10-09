@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/approval.schema.json",
+  "title": "MIA MVP v1 approval",
+  "description": "Approval of an exact tool call, Review §5.3. The decision is bound to args_hash; any argument change requires a new approval. Root document is an Approval.",
+  "$ref": "#/$defs/Approval",
+  "$defs": {
+    "Approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "run_id",
+        "tool_call_id",
+        "tool",
+        "risk",
+        "summary",
+        "arguments",
+        "args_hash",
+        "status",
+        "created_at",
+        "expires_at",
+        "decision"
+      ],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "run_id": { "$ref": "common.schema.json#/$defs/id" },
+        "tool_call_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "plugin_id": { "$ref": "common.schema.json#/$defs/pluginId" },
+        "tool": { "$ref": "common.schema.json#/$defs/qualifiedToolName" },
+        "risk": { "$ref": "common.schema.json#/$defs/risk" },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Human-readable action, e.g. «Отправить Яне Петровой в Telegram: „Надо купить молоко“». Rendered by the core, never by the model alone"
+        },
+        "arguments": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "args_hash": { "$ref": "common.schema.json#/$defs/argsHash" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "denied", "expired", "cancelled"]
+        },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "decision": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ApprovalDecision" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["approved", "denied"] } } },
+          "then": { "properties": { "decision": { "$ref": "#/$defs/ApprovalDecision" } } },
+          "else": { "properties": { "decision": { "type": "null" } } }
+        }
+      ]
+    },
+    "ApprovalDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "decided_at", "channel"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["approve", "deny"] },
+        "decided_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "channel": {
+          "type": "string",
+          "enum": ["web", "android", "voice_trusted"],
+          "description": "voice_trusted only for contacts the user marked as trusted (Review §7.5); otherwise an unlocked screen is required"
+        },
+        "device_id": { "$ref": "common.schema.json#/$defs/id" }
+      }
+    },
+    "ApprovalDecisionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "args_hash"],
+      "description": "Body of POST /v1/approvals/{id}/decision. args_hash echoes what the client displayed; a mismatch is rejected",
+      "properties": {
+        "decision": { "type": "string", "enum": ["approve", "deny"] },
+        "args_hash": { "$ref": "common.schema.json#/$defs/argsHash" }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "call_id": "call_4",
+  "status": "uncertain",
+  "error": {
+    "code": "timeout",
+    "message": "Device did not answer before the deadline",
+    "retryable": false
+  }
+}

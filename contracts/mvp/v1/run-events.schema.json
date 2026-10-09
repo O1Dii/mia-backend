@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/run-events.schema.json",
+  "title": "MIA MVP v1 run event",
+  "description": "One event of GET /v1/runs/{run_id}/events (SSE), ADR-0011. sequence starts at 1 and increases by exactly 1 per run; cursor is opaque and resumes the stream after this event (SSE id / Last-Event-ID / ?cursor=). Terminal events: run.completed, run.failed, run.cancelled.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "run_id", "sequence", "cursor", "type", "at", "payload"],
+  "properties": {
+    "event_id": { "$ref": "common.schema.json#/$defs/id" },
+    "run_id": { "$ref": "common.schema.json#/$defs/id" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "type": { "type": "string" },
+    "at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "payload": { "type": "object" }
+  },
+  "oneOf": [
+    { "properties": { "type": { "const": "run.started" }, "payload": { "$ref": "#/$defs/runStarted" } } },
+    { "properties": { "type": { "const": "message.delta" }, "payload": { "$ref": "#/$defs/messageDelta" } } },
+    { "properties": { "type": { "const": "tool.call.started" }, "payload": { "$ref": "#/$defs/toolCallStarted" } } },
+    { "properties": { "type": { "const": "tool.call.completed" }, "payload": { "$ref": "#/$defs/toolCallCompleted" } } },
+    { "properties": { "type": { "const": "approval.requested" }, "payload": { "$ref": "#/$defs/approvalRequested" } } },
+    { "properties": { "type": { "const": "approval.resolved" }, "payload": { "$ref": "#/$defs/approvalResolved" } } },
+    { "properties": { "type": { "const": "device_tool.call" }, "payload": { "$ref": "#/$defs/deviceToolCall" } } },
+    { "properties": { "type": { "const": "memory.suggested" }, "payload": { "$ref": "#/$defs/memorySuggested" } } },
+    { "properties": { "type": { "const": "job.created" }, "payload": { "$ref": "#/$defs/jobCreated" } } },
+    { "properties": { "type": { "const": "response.final" }, "payload": { "$ref": "#/$defs/responseFinal" } } },
+    { "properties": { "type": { "const": "run.completed" }, "payload": { "$ref": "#/$defs/runCompleted" } } },
+    { "properties": { "type": { "const": "run.failed" }, "payload": { "$ref": "#/$defs/runFailed" } } },
+    { "properties": { "type": { "const": "run.cancelled" }, "payload": { "$ref": "#/$defs/runCancelled" } } }
+  ],
+  "$defs": {
+    "toolCallId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "runStarted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "model"],
+      "properties": {
+        "profile": { "$ref": "common.schema.json#/$defs/runProfile" },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Model reference actually used, e.g. mia:default resolved to <provider>/<model>"
+        },
+        "conversation_id": { "$ref": "common.schema.json#/$defs/id" }
+      }
+    },
+    "messageDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "description": "Streaming draft text (chat profile). Clients replace it with response.final",
+      "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 8000 } }
+    },
+    "toolCallStarted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_call_id", "tool", "risk", "executor"],
+      "properties": {
+        "tool_call_id": { "$ref": "#/$defs/toolCallId" },
+        "tool": { "$ref": "common.schema.json#/$defs/qualifiedToolName" },
+        "plugin_id": { "$ref": "common.schema.json#/$defs/pluginId" },
+        "risk": { "$ref": "common.schema.json#/$defs/risk" },
+        "executor": { "type": "string", "enum": ["server", "device"] }
+      }
+    },
+    "toolCallCompleted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_call_id", "status"],
+      "properties": {
+        "tool_call_id": { "$ref": "#/$defs/toolCallId" },
+        "status": {
+          "type": "string",
+          "enum": ["succeeded", "failed", "denied", "expired", "uncertain", "cancelled"],
+          "description": "uncertain = an external write may or may not have happened; never retried automatically"
+        },
+        "structured_content": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "ui_resource_uri": { "$ref": "common.schema.json#/$defs/uiResourceUri" },
+        "error": { "$ref": "common.schema.json#/$defs/publicError" }
+      }
+    },
+    "approvalRequested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval"],
+      "properties": { "approval": { "$ref": "approval.schema.json#/$defs/Approval" } }
+    },
+    "approvalResolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_id", "status"],
+      "properties": {
+        "approval_id": { "$ref": "common.schema.json#/$defs/id" },
+        "status": { "type": "string", "enum": ["approved", "denied", "expired", "cancelled"] }
+      }
+    },
+    "deviceToolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["call"],
+      "properties": { "call": { "$ref": "device-tools.schema.json#/$defs/DeviceToolCall" } }
+    },
+    "memorySuggested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fact_id", "text", "category"],
+      "properties": {
+        "fact_id": { "$ref": "common.schema.json#/$defs/id" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "category": { "$ref": "memory.schema.json#/$defs/category" }
+      }
+    },
+    "jobCreated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "goal"],
+      "properties": {
+        "job_id": { "$ref": "common.schema.json#/$defs/id" },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    },
+    "responseFinal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["response"],
+      "properties": { "response": { "$ref": "assistant-response.schema.json" } }
+    },
+    "runCompleted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "tool_calls"],
+      "properties": {
+        "steps": { "type": "integer", "minimum": 0 },
+        "tool_calls": { "type": "integer", "minimum": 0 },
+        "usage": { "$ref": "common.schema.json#/$defs/usage" }
+      }
+    },
+    "runFailed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": { "error": { "$ref": "common.schema.json#/$defs/publicError" } }
+    },
+    "runCancelled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason"],
+      "properties": {
+        "reason": { "type": "string", "enum": ["user", "client_disconnected", "budget_exceeded", "superseded"] }
+      }
+    }
+  }
+}

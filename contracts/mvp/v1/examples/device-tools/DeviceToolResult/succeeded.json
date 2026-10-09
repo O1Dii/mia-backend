@@ -1,0 +1,15 @@
+{
+  "call_id": "call_3",
+  "status": "succeeded",
+  "content": "Найдено 2 контакта: Яна Петрова, Яна (работа)",
+  "structured_content": {
+    "matches": [
+      {
+        "name": "Яна Петрова"
+      },
+      {
+        "name": "Яна (работа)"
+      }
+    ]
+  }
+}

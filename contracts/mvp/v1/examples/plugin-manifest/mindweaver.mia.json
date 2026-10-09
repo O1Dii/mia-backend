@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "team.mindweaver",
+  "version": "0.1.0",
+  "name": "MindWeaver",
+  "listing": {
+    "description": "Ментальные карты по статьям и файлам; карта на дашборде и в ответе",
+    "category": "knowledge",
+    "icon": "assets/icon.png",
+    "downloads": [
+      {
+        "platform": "web",
+        "url": "https://mindweaver.example.com",
+        "label": "Открыть MindWeaver"
+      }
+    ]
+  },
+  "server": {
+    "kind": "remote",
+    "url": "https://mindweaver.example.com/mcp",
+    "auth": "mia_token",
+    "protocolVersion": "2026-07-28"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "list_maps": {
+      "risk": "read",
+      "voice": true
+    },
+    "get_map": {
+      "risk": "read"
+    },
+    "build_map": {
+      "risk": "write_reversible",
+      "task": true,
+      "timeoutSeconds": 300
+    },
+    "delete_map": {
+      "risk": "write_external"
+    }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "map",
+        "title": "Карта",
+        "resourceUri": "ui://team.mindweaver/map",
+        "sizes": [
+          "2x2",
+          "4x4"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "list_maps",
+          "everySeconds": 600
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [
+      "mindweaver.example.com"
+    ],
+    "llm": {
+      "viaHost": true,
+      "monthlyBudgetUsd": 5
+    },
+    "memory": [
+      "context"
+    ],
+    "notify": true
+  }
+}

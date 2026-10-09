@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/device-tools.schema.json",
+  "title": "MIA MVP v1 device tools",
+  "description": "Tools executed by a first-party client (Android), Review §5.4.2 and §7.5, ADR-0010. The client registers declarations; the core sends a DeviceToolCall through the run event stream (device_tool.call) and the client posts a DeviceToolResult. Root document is a DeviceToolRegistration.",
+  "$ref": "#/$defs/DeviceToolRegistration",
+  "$defs": {
+    "deviceToolName": {
+      "type": "string",
+      "pattern": "^(device|telegram)\\.[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+      "description": "Namespaced device tool, e.g. device.contacts.search, device.alarm.set, telegram.share"
+    },
+    "DeviceToolDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "input_schema", "risk", "voice", "requires_unlocked", "timeout_ms"],
+      "properties": {
+        "name": { "$ref": "#/$defs/deviceToolName" },
+        "description": { "type": "string", "minLength": 5, "maxLength": 1000 },
+        "input_schema": {
+          "type": "object",
+          "required": ["type"],
+          "properties": { "type": { "const": "object" } },
+          "description": "JSON Schema of arguments, same dialect as MCP tool inputSchema"
+        },
+        "output_schema": { "type": "object" },
+        "risk": { "$ref": "common.schema.json#/$defs/risk" },
+        "voice": { "type": "boolean", "description": "Exposed in the voice profile" },
+        "requires_unlocked": { "type": "boolean" },
+        "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 60000 }
+      }
+    },
+    "DeviceToolRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device_id", "platform", "app_version", "tools"],
+      "description": "Body of PUT /v1/devices/{device_id}/tools. Replaces the device's previous declaration set",
+      "properties": {
+        "device_id": { "$ref": "common.schema.json#/$defs/id" },
+        "platform": { "type": "string", "enum": ["android"] },
+        "app_version": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "tools": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/DeviceToolDeclaration" }
+        }
+      }
+    },
+    "DeviceToolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["call_id", "run_id", "device_id", "tool", "arguments", "deadline_at"],
+      "properties": {
+        "call_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "run_id": { "$ref": "common.schema.json#/$defs/id" },
+        "device_id": { "$ref": "common.schema.json#/$defs/id" },
+        "tool": { "$ref": "#/$defs/deviceToolName" },
+        "arguments": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "deadline_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "approval_id": {
+          "$ref": "common.schema.json#/$defs/id",
+          "description": "Present when the call was approved; the device must not execute an unapproved write_external call"
+        }
+      }
+    },
+    "DeviceToolResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["call_id", "status"],
+      "description": "Body of POST /v1/runs/{run_id}/device-tool-results",
+      "properties": {
+        "call_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "status": { "type": "string", "enum": ["succeeded", "failed", "uncertain"] },
+        "content": {
+          "type": "string",
+          "maxLength": 8000,
+          "description": "Compact summary for the model (Review §5.2(c))"
+        },
+        "structured_content": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "error": { "$ref": "#/$defs/DeviceToolError" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "succeeded" } } },
+          "then": { "required": ["content"], "not": { "required": ["error"] } },
+          "else": { "required": ["error"] }
+        }
+      ]
+    },
+    "DeviceToolError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "unsupported_tool",
+            "invalid_arguments",
+            "os_permission_denied",
+            "device_locked",
+            "user_cancelled",
+            "timeout",
+            "execution_failed"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "retryable": { "type": "boolean" }
+      }
+    }
+  }
+}

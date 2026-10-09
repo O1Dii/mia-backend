@@ -1,0 +1,21 @@
+{
+  "name": "device.contacts.search",
+  "description": "Найти контакт телефона по имени; результат не сохраняется на сервере",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "maxLength": 100
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "additionalProperties": false
+  },
+  "risk": "read",
+  "voice": true,
+  "requires_unlocked": false,
+  "timeout_ms": 3000
+}

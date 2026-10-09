@@ -1,0 +1,12 @@
+{
+  "goal": "Построить карту по статье из Telegram",
+  "inputs": {
+    "file": "tg-file-123"
+  },
+  "delivery": {
+    "channels": [
+      "push",
+      "inbox"
+    ]
+  }
+}
