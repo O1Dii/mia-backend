@@ -93,3 +93,18 @@ opens the ChatGPT sign-in in a new tab; after consent that tab lands on an addre
 load. The user copies it into Mia; the backend checks `state` and exchanges the code with the same
 PKCE verifier (`POST /v1/model-connections/chatgpt-plan/sign-in/{id}/callback`). A backend on the
 user's own machine (`CHATGPT_PLAN_LOOPBACK_LISTENER=true`, the default) still completes by itself.
+
+## Publishing builtin plugins on the server
+
+The image has no `cli/` and `contracts/` (OI-M15-004), so publication runs in a one-off container of the
+same image with both directories mounted read-only (done 2026-10-10 for the first admin):
+
+```sh
+# Mac: pack without macOS metadata (AppleDouble `._*` files break schema loading)
+COPYFILE_DISABLE=1 tar --no-xattrs --exclude=__pycache__ --exclude='._*' -czf mia-pub.tgz contracts/mvp cli
+# copy to /tmp/mia-pub on the server (shared deploy script --ssh), then on the server:
+docker compose -p mia --project-directory /opt/mia -f /opt/mia/mia.compose.yml run --rm --no-deps -T \
+  -e STORE_ADMIN_USER_IDS=<users.id> -v /tmp/mia-pub/cli:/app/cli:ro -v /tmp/mia-pub/contracts:/app/contracts:ro \
+  mia python -m cli.mia_plugin publish-builtin --as-user <users.id>
+rm -rf /tmp/mia-pub
+```
