@@ -1,3 +1,5 @@
+# ruff: noqa: E501, I001
+# mypy: ignore-errors
 """M41 device-gate backend: «Напиши Яне Гейтовой в телеграм, что надо купить молоко».
 
 Run by ``run_gate.sh`` from a mia-helper checkout containing M41 (``PYTHONPATH=.``). It is the REAL
@@ -120,13 +122,18 @@ class GateGateway:
         text = messages[last_user].content.strip().lower()
         offered = {spec.name for spec in request.tools}
         results = [m for m in messages[last_user + 1 :] if m.role == "tool"]
-        print(f"gate: model step {len(results)} for '{text}' (offered {len(offered)} tools)", flush=True)
+        print(
+            f"gate: model step {len(results)} for '{text}' (offered {len(offered)} tools)",
+            flush=True,
+        )
 
         def call(name: str, arguments: dict[str, object]) -> list[ModelEvent]:
             print(f"gate: model calls {name}", flush=True)
             return [
                 ToolCallRequested(
-                    ModelToolCall(call_id=f"call_{uuid.uuid4().hex[:12]}", name=name, arguments=arguments)
+                    ModelToolCall(
+                        call_id=f"call_{uuid.uuid4().hex[:12]}", name=name, arguments=arguments
+                    )
                 ),
                 ModelDone("tool_calls"),
             ]
@@ -138,7 +145,10 @@ class GateGateway:
         if "телеграм" in text and len(results) == 1:
             body = json.loads(results[-1].content)
             match = re.search(r'"ref": "(contact:\d+)"', str(body.get("content")))
-            print(f"gate: people.resolve -> {body.get('status')}: {str(body.get('content'))[:200]}", flush=True)
+            print(
+                f"gate: people.resolve -> {body.get('status')}: {str(body.get('content'))[:200]}",
+                flush=True,
+            )
             if match and SEND in offered:
                 asyncio.get_running_loop().create_task(auto_approve())
                 for event in call(SEND, {"to": match.group(1), "text": TEXT}):
@@ -147,7 +157,10 @@ class GateGateway:
         if results:
             body = json.loads(results[-1].content)
             ok = body.get("status") == "succeeded"
-            print(f"gate: tool result {body.get('status')}: {str(body.get('content'))[:300]}", flush=True)
+            print(
+                f"gate: tool result {body.get('status')}: {str(body.get('content'))[:300]}",
+                flush=True,
+            )
             speech = (
                 "Открыла Telegram с черновиком, нажмите отправить."
                 if ok
@@ -181,22 +194,34 @@ async def seed_user() -> None:
             if await session.get(User, USER_ID) is None:
                 session.add(
                     User(
-                        id=USER_ID, google_sub="m41-gate-user", email="m41-gate@example.test",
-                        email_verified=True, locale="ru", timezone="Europe/Minsk",
+                        id=USER_ID,
+                        google_sub="m41-gate-user",
+                        email="m41-gate@example.test",
+                        email_verified=True,
+                        locale="ru",
+                        timezone="Europe/Minsk",
                     )
                 )
                 await session.flush()
                 session.add(
                     Device(
-                        id=DEVICE_ID, user_id=USER_ID, platform="android", app_version="m41-gate",
-                        capabilities={}, last_seen_at=now,
+                        id=DEVICE_ID,
+                        user_id=USER_ID,
+                        platform="android",
+                        app_version="m41-gate",
+                        capabilities={},
+                        last_seen_at=now,
                     )
                 )
                 await session.flush()
                 session.add(
                     AuthSession(
-                        id=uuid.uuid4(), family_id=FAMILY_ID, user_id=USER_ID, device_id=DEVICE_ID,
-                        refresh_token_hash=secrets.token_hex(32), expires_at=now + timedelta(days=1),
+                        id=uuid.uuid4(),
+                        family_id=FAMILY_ID,
+                        user_id=USER_ID,
+                        device_id=DEVICE_ID,
+                        refresh_token_hash=secrets.token_hex(32),
+                        expires_at=now + timedelta(days=1),
                     )
                 )
     finally:
@@ -206,7 +231,9 @@ async def seed_user() -> None:
 def telegram_digest() -> tuple[str, str]:
     plugin = BuiltinManifestSource().get(PLUGIN)
     assert plugin is not None
-    server = build_inprocess_server(plugin.manifest, Path(plugin.directory), services=HostServices())
+    server = build_inprocess_server(
+        plugin.manifest, Path(plugin.directory), services=HostServices()
+    )
     return plugin.version, compute_tools_digest(asyncio.run(list_server_tools(server)))
 
 
@@ -232,8 +259,12 @@ def install_plugin(token: str) -> None:
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             print(f"gate: installed {PLUGIN} -> HTTP {response.status}", flush=True)
-    except Exception as error:  # status line only; the response may hold nothing secret but stay short
-        print(f"gate: install failed: {type(error).__name__} {getattr(error, 'code', '')}", flush=True)
+    except (
+        Exception
+    ) as error:  # status line only; the response may hold nothing secret but stay short
+        print(
+            f"gate: install failed: {type(error).__name__} {getattr(error, 'code', '')}", flush=True
+        )
 
 
 def main() -> None:
@@ -241,9 +272,9 @@ def main() -> None:
     from app.main import create_app
 
     asyncio.run(seed_user())
-    token, _ = TokenManager(os.environ["AUTH_JWT_SECRET"], access_ttl_seconds=2 * 3600).issue_access(
-        USER_ID, FAMILY_ID
-    )
+    token, _ = TokenManager(
+        os.environ["AUTH_JWT_SECRET"], access_ttl_seconds=2 * 3600
+    ).issue_access(USER_ID, FAMILY_ID)
     fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as handle:
         handle.write(token)
