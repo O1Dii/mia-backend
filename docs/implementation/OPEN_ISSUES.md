@@ -973,7 +973,52 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M01 inbox
 
-- Нет записей.
+### OI-M01-001 — Numeric ChatGPT Plus limits for SIWC plan usage
+
+- Status: OPEN
+- Source session: M01
+- Component: Model Gateway / `chatgpt-plan`
+- Question: каковы численные лимиты Plus (окно общее с ChatGPT) и как рано их обнаруживать?
+- Why non-blocking: ответы API не содержат заголовков лимитов (только `x-codex-turn-state`, `x-codex-safety-buffering-*`); исчерпание сообщается ошибкой `subscription_sharing_usage_limit_exceeded` (429 в `response.failed`), есть запасной провайдер GLM.
+- Current assumption: хватает для одного разработчика; при 429 адаптер ставит паузу и переключается на GLM.
+- Options: наблюдать на практике в M11/M61; показывать пользователю ссылку на ChatGPT settings → Usage.
+- Recommendation: обработка 429 как паузы в M11, замер реального расхода в M61.
+- Affects sessions: M11, M61.
+- Revisit trigger/by: первый 429 в разработке / до публичной beta.
+- Resolution: —
+
+### OI-M01-002 — SIWC terms for a multi-user hosted MIA
+
+- Status: OPEN
+- Source session: M01
+- Component: Product / legal
+- Question: допустим ли SIWC plan usage, когда сервер MIA обслуживает не только владельца?
+- Why non-blocking: документация покрывает open-source и локально размещённые приложения; текст условий (openai.com/policies/sign-in-with-chatgpt-terms) не удалось прочитать автоматически (HTTP 403). План используется только для подключённого приложения, без универсального API-доступа третьим сторонам.
+- Current assumption: владелец сам хостит сервер и входит своим Plus; для платного/удалённого облака нужна заявка (interest form).
+- Options: прочитать условия человеком; подать заявку OpenAI; для многопользовательского режима использовать BYOK/GLM.
+- Recommendation: до любого многопользовательского запуска прочитать условия и подать заявку.
+- Affects sessions: M11, M61.
+- Revisit trigger/by: до приглашения других пользователей.
+- Resolution: —
+
+### OI-M01-003 — GPT-plan latency and safety buffering
+
+- Status: OPEN
+- Source session: M01
+- Component: Model Gateway / performance
+- Question: можно ли снизить first-token p50 (2.4 с на `gpt-6.1-sol`) выбором модели (`gpt-6-luna`)?
+- Why non-blocking: задержка приемлема для чата; заголовки `x-codex-safety-buffering-enabled: true` и `…-faster-model: gpt-6-luna` намекают на буферизацию стрима; проверена одна модель, n=5.
+- Current assumption: разница модели/буферизации даёт долю секунды-секунду.
+- Options: прогнать `--model gpt-6-luna --model gpt-5.6-luna`; отдельный быстрый путь для голоса.
+- Recommendation: замерить в M61 перед настройкой голосового пути.
+- Affects sessions: M11, M61.
+- Revisit trigger/by: M61.
+- Resolution: —
+
+### Resolution update — OI-WEB-004
+
+- OI-WEB-004 (live verification of web provider accounts): частично закрыт для двух провайдеров. Живой прогон 2026-10-09: `zai-org/GLM-5.3-Flash` на DeepInfra доступен (tools и `reasoning_content` работают) и ChatGPT-plan `gpt-6.1-sol` доступен через SIWC (список из 7 видимых моделей в `spikes/m01/results/gpt-plan-20261009T014154Z.json`). Остальные провайдеры не проверялись. Статус OI-WEB-004 остаётся OPEN до managed smoke suite; закрывающее решение вносит интегратор по карте §8 плана.
+- Evidence: `spikes/m01/DECISION.md`, `spikes/m01/results/`, `docs/implementation/handoffs/M01.md`.
 
 ## M10 inbox
 
