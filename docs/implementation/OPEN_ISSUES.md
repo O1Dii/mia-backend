@@ -2047,7 +2047,57 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M33 inbox
 
-- Нет записей.
+### OI-M33-001 — Шрифт Manrope на Android
+
+- Status: OPEN
+- Source session: M33
+- Component: Android design system
+- Question: нужно ли встроить Manrope в приложение?
+- Why non-blocking: токен шрифта есть, но Android использует системный sans (Roboto); внешний вид близок, ширина текста чуть отличается от web.
+- Current assumption: системный шрифт.
+- Options: (a) оставить системный; (b) добавить Manrope (OFL, ~100 KB на начертание) в `res/font` и подключить в `MiaTokens.Type`.
+- Recommendation: (b) в M25, если на ревью дизайна (UC-MW3-1) важно совпадение с web.
+- Affected future sessions: M25.
+- Revisit trigger/deadline: результат UC-MW3-1.
+
+### OI-M33-002 — Настоящее размытие фона (backdrop blur) на Android
+
+- Status: OPEN
+- Source session: M33
+- Component: Android `GlassSurface`
+- Question: достаточно ли приближения (размытый тонированный слой внутри поверхности) вместо размытия того, что лежит за поверхностью?
+- Why non-blocking: Compose без библиотеки не размывает содержимое позади; на API < 31 используется непрозрачный запасной вариант.
+- Current assumption: приближение подходит; контраст текста проверен на наихудших фонах.
+- Options: (a) оставить; (b) подключить библиотеку backdrop-blur (например Haze) аддитивно в `libs.versions.toml`.
+- Recommendation: (a), пересмотреть после ревью на телефоне.
+- Affected future sessions: M25.
+- Revisit trigger/deadline: результат UC-MW3-1.
+
+### OI-M33-003 — Управление темой на web, тосты, версии браузеров
+
+- Status: OPEN
+- Source session: M33
+- Component: Web shell (`App.tsx`, `main.tsx`)
+- Question: нужен ли переключатель темы и какие браузеры поддерживаем?
+- Why non-blocking: тема следует системной (`prefers-color-scheme`, при отсутствии предпочтения тёмная), принудительно через `<html data-theme>`; `Toaster` в `main.tsx` остаётся `theme="dark"`, цвета тостов переопределены CSS-переменными. Нужны `light-dark()` и `color-mix()` (Chrome 123+, Safari 17.5+, Firefox 120+).
+- Current assumption: переключателя нет, браузеры 2024+.
+- Options: (a) оставить; (b) M30 добавляет переключатель (system/dark/light, хранение в localStorage) и ставит `theme="system"` у Toaster.
+- Recommendation: (b) в M30.
+- Affected future sessions: M30.
+- Revisit trigger/deadline: M30.
+
+### OI-M33-004 — Унаследованные цвета в `styles.css`
+
+- Status: OPEN
+- Source session: M33
+- Component: Web styles
+- Question: когда заменить автоматически выведенные пары `light-dark(<светлая>, <исходная>)` (около 90 значений для плагин-специфичных оттенков) на токены?
+- Why non-blocking: светлая тема читается на всех экранах (скриншоты), но эти оттенки не подобраны вручную.
+- Current assumption: заменяются по мере переписывания экранов в M30.
+- Options: (a) по мере M30; (b) отдельная repair-сессия M33 по итогам ревью.
+- Recommendation: (a).
+- Affected future sessions: M30.
+- Revisit trigger/deadline: ревью UC-MW3-1.
 
 ## M25 inbox
 
