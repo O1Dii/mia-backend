@@ -8,12 +8,15 @@ export function Dialog({
   children,
   onClose,
   wide = false,
+  tall = false,
 }: {
   title: string
   description: string
   children: ReactNode
   onClose: () => void
   wide?: boolean
+  /** On a phone the dialog takes almost the whole screen (long content such as a consent). */
+  tall?: boolean
 }) {
   return (
     <DialogPrimitive.Root
@@ -24,7 +27,9 @@ export function Dialog({
     >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="dialog-overlay" />
-        <DialogPrimitive.Content className={`dialog mw-dialog ${wide ? 'dialog-wide' : ''}`}>
+        <DialogPrimitive.Content
+          className={`dialog mw-dialog ${wide ? 'dialog-wide' : ''} ${tall ? 'mw-dialog--tall' : ''}`}
+        >
           <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
           <DialogPrimitive.Description>{description}</DialogPrimitive.Description>
           <DialogPrimitive.Close className="mia-icon-btn dialog-close" aria-label="Закрыть">

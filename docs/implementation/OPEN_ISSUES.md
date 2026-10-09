@@ -2671,6 +2671,50 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Revisit trigger/by: security review
 - Resolution:
 
+## M24-R1 inbox
+
+### OI-M24-R1-001 — Web-вёрстка всё ещё опирается на `vh`/`dvh` вне диалогов
+
+- Status: OPEN
+- Source session: M24-R1
+- Component: web `web/src/styles/app.css` (`.mw-chat` `height: calc(100dvh − …)`, `min-height: 100dvh` у оболочки, входа, `.mw-center`), `web/src/styles.css` (legacy `100vh`)
+- Question: убирать ли зависимость остальных экранов от единиц viewport, как у диалогов?
+- Why non-blocking: корневая причина UC-M24-2 устранена в приложении — WebView получает `MATCH_PARENT`, `100dvh` = высота WebView (проверено на SM-S938B); диалоги дополнительно больше не зависят от `vh`/`dvh` (`max-height` в % от fixed containing block)
+- Current assumption: другие хосты, которые встраивают web в WebView с WRAP_CONTENT, сломают чат (высота 0) и `min-height` оболочки; в репозитории такой хост один (`feature/web`), он исправлен
+- Options: (a) оставить; (b) при работе над OI-UX-001 («встроенный» режим web в приложении) перевести высоту чата на flex-раскладку от `.mw-app`
+- Recommendation: (b), вместе с решением OI-UX-001
+- Affects sessions: OI-UX-001 follow-up, M60
+- Revisit trigger/by: OI-UX-001 decision
+- Resolution:
+
+### OI-M24-R1-002 — Точка-индикатор под обложкой плагина видна поверх диалога в WebView
+
+- Status: OPEN
+- Source session: M24-R1
+- Component: web страница плагина (индикатор под обложкой), Android WebView (Chromium)
+- Question: почему маленькая зелёная точка под обложкой (индикатор обложки; не выяснено, точка страницы или overlay-индикатор прокрутки WebView) остаётся видна поверх затемнения и окна согласия в WebView?
+- Why non-blocking: косметика, видна и до исправления (скриншоты M24 `03-consent.png`, M24-R1 `consent-*`), на размеры и действия не влияет
+- Current assumption: не трогать
+- Options: (a) выяснить источник и поправить слой в web; (b) если это индикатор прокрутки WebView — `isHorizontalScrollBarEnabled = false`; (c) оставить
+- Recommendation: (a) при следующей правке страницы плагина
+- Affects sessions: M60 (дизайн-ревью)
+- Revisit trigger/by: UC-R-0110 / дизайн-ревью
+- Resolution:
+
+### OI-M24-R1-003 — Нестабильный Playwright-тест «a server added by URL» в полном прогоне journey
+
+- Status: OPEN
+- Source session: M24-R1
+- Component: web `web/tests/journey.spec.ts:131`, чат/подтверждения (M30), e2e-сервер
+- Question: почему после «Покажи список задач» карточка подтверждения иногда не появляется в чате (бейдж «Подтверждения ожидают: 1» при этом есть, лента показывает стартовый экран)?
+- Why non-blocking: воспроизводится и без изменений M24-R1 (`journey.spec.ts --repeat-each=3` на исходных `web/src`: 2 failed / 16 passed); один тест `journey.spec.ts:131 --repeat-each=4` проходит 4/4 и с изменениями, и без; к диалогам не относится
+- Current assumption: зависит от порядка/общего состояния e2e-мира между тестами файла
+- Options: (a) разобрать гонку отправки сообщения и ленты чата в M30-коде; (b) изолировать мир e2e на тест
+- Recommendation: (a) владельцем web-чата перед M60
+- Affects sessions: M60, MW5-integrator (полный Playwright)
+- Revisit trigger/by: следующий полный прогон web
+- Resolution:
+
 ## M31 inbox
 
 ### OI-M31-001 — Хост MCP Apps: изоляция без отдельного origin, без `_meta.ui.csp` и `ui/message`
