@@ -610,11 +610,17 @@ paths:
     post:
       tags: [Background]
       operationId: cancelJob
+      description: >-
+        A queued job is cancelled at once; a running job gets a cancel request that its
+        worker forwards to the job run. The response is the job after the request (M16).
       parameters: [*idem]
       responses:
         '202':
           description: Cancellation requested
           headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Job'}
         default: *error
   /v1/schedules:
     get:
@@ -685,6 +691,21 @@ paths:
           description: Deleted
           headers: *rid
         default: *error
+  /v1/schedules/{schedule_id}/run:
+    parameters: [{$ref: '#/components/parameters/ScheduleId'}]
+    post:
+      tags: [Background]
+      operationId: runScheduleNow
+      summary: Run the schedule's goal once now; its timing is unchanged (M16, schedule.run_now)
+      parameters: [*idem]
+      responses:
+        '202':
+          description: Job queued
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Job'}
+        default: *error
   /v1/inbox:
     get:
       tags: [Background]
@@ -737,8 +758,11 @@ paths:
                 channels: {type: array, items: {type: string, enum: [push, telegram, inbox]}}
       responses:
         '202':
-          description: Queued
+          description: Queued; the stored inbox item (M16)
           headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InboxItem'}
         default: *error
   /v1/devices/push-token:
     put:
