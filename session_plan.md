@@ -49,6 +49,7 @@ Codex получает этот workflow через `AGENTS.md`, а Claude Code 
 - Внутренний context-packet template: [docs/implementation/SESSION_PROMPT_TEMPLATE.md](docs/implementation/SESSION_PROMPT_TEMPLATE.md)
 - Прогон на физическом устройстве: [docs/implementation/DEVICE_GATE.md](docs/implementation/DEVICE_GATE.md)
 - Handoffs: [docs/implementation/handoffs](docs/implementation/handoffs)
+- Проверки за пользователем: [docs/implementation/USER_CHECKS.md](docs/implementation/USER_CHECKS.md) — спросите «какие проверки за мной».
 
 ## MVP: M-сессии и волны (актуальный план с 2026-10-09)
 

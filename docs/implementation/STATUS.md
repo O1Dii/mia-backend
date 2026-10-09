@@ -112,7 +112,16 @@ Follow-ups MW2 (не блокируют MW3):
 - Устройства: `PUT /v1/devices/{id}/tools` и `POST /v1/runs/{id}/device-tool-results` — M23 (канал M13 и клиент M22 готовы).
 - `GatewayHostLlm` без бюджета на установку (OI-M14-005).
 
-Готовы к старту: M15, M16, M17, M23 (волна MW3, параллельно; по умолчанию четыре активные).
+Ручные проверки пользователя MW2 перенесены в [USER_CHECKS.md](USER_CHECKS.md) (UC-MW2-1…5, UC-MW1-1).
+
+**Изменение scope 2026-10-09 (после MW2, решение пользователя):** голосовой режим M22 остаётся отдельной функцией; обычный
+чат на web и Android получает голосовой ввод по кнопке и озвучку ответов; web и Android — общая дизайн-система
+(иммерсивный объёмный отзывчивый стиль). Добавлены M18 (лента, API, MW3), M33 (дизайн-система web + Android, MW3), M25
+(Android: чат на runs, голос, UI, MW4); M30 расширен голосом и дизайном, M60 зависит от M25. Карточки — в
+[MVP_SESSION_PLAN.md](MVP_SESSION_PLAN.md).
+
+Готовы к старту: M15, M16, M17, M23, M18, M33 (волна MW3, параллельно; не больше пяти активных — шестая стартует, когда
+освободится слот).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -130,7 +139,10 @@ Follow-ups MW2 (не блокируют MW3):
 | M16 | MW3 | READY | M12,M13 | Opus 5.5 high | — | — | jobs/расписания/уведомления |
 | M17 | MW3 | READY | M10,M11,M12,M13 | Opus 5.5 high | — | — | Memory Ledger |
 | M23 | MW3 | READY | M13,M22 | Sonnet 5.5 high | — | — | Android device tools |
-| M30 | MW4 | PENDING | M15 | Sonnet 5.5 high | — | — | web: чат/подтверждения/магазин |
+| M18 | MW3 | READY | M12 | Sonnet 5.5 high | — | — | лента `GET /v1/feed` (голос + чат) |
+| M33 | MW3 | READY | M00 | Sonnet 5.5 high | — | — | дизайн-система web + Android, style-страница |
+| M30 | MW4 | PENDING | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
+| M25 | MW4 | PENDING | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
 | M40 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Linear |
 | M41 | MW4 | PENDING | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
 | M42 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
@@ -139,7 +151,7 @@ Follow-ups MW2 (не блокируют MW3):
 | M31 | MW5 | PENDING | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
 | M43 | MW5 | PENDING | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
 | M51 | MW5 | PENDING | M15,M50 | Sonnet 5.5 high | — | — | MindWeaver ↔ Mia; preflight git |
-| M60 | MW6 | PENDING | M24,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; заменяет S33 |
+| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; заменяет S33 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 

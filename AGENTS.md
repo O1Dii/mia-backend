@@ -30,4 +30,5 @@ For `Выполни все готовые сессии wave Wn параллел�
 - Current readiness/integration state: `docs/implementation/STATUS.md`
 - Non-blocking questions: `docs/implementation/OPEN_ISSUES.md`
 - Session handoffs: `docs/implementation/handoffs/`
+- Manual checks that need the user (phone, live voice, interactive sign-in, design review): `docs/implementation/USER_CHECKS.md`. When the user asks which checks are on them («какие проверки за мной», «что мне проверить»), answer from its «Открытые» table; record reported results there and in `STATUS.md`.
 
