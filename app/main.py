@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from app.api.errors import internal_error, service_unavailable
+from app.api.web_app import install_downloads, install_web_app
 from app.composition import install_runtime_api
 from app.core.config import Settings, get_settings
 from app.core.correlation import CorrelationMiddleware
@@ -73,6 +74,9 @@ def create_app(settings: Settings | None = None, *, install_modules: bool = True
                 METRICS.render(), media_type="text/plain; version=0.0.4; charset=utf-8"
             )
 
+    install_downloads(app, resolved_settings)
+    # Last: the web app's SPA fallback catches every path no API route claimed (M62-T1).
+    install_web_app(app, resolved_settings)
     return app
 
 
