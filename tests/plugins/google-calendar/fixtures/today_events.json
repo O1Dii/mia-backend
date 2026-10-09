@@ -1,0 +1,11 @@
+{
+  "structuredContent": {
+    "date": "2026-10-09",
+    "timezone": "Europe/Warsaw",
+    "events": [
+      {"id": "ev1", "title": "День рождения Ани", "start": "2026-10-09", "end": "2026-10-10", "all_day": true, "location": null, "attendees": 0, "link": null},
+      {"id": "ev2", "title": "(без названия)", "start": "2026-10-09T09:00:00+02:00", "end": "2026-10-09T09:15:00+02:00", "all_day": false, "location": null, "attendees": 0, "link": null},
+      {"id": "ev3", "title": "Планёрка", "start": "2026-10-09T15:30:00+02:00", "end": "2026-10-09T16:00:00+02:00", "all_day": false, "location": "Переговорная 2", "attendees": 2, "link": "https://www.google.com/calendar/event?eid=ev3"}
+    ]
+  }
+}

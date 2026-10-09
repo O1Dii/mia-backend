@@ -1,0 +1,17 @@
+{
+  "kind": "calendar#events",
+  "summary": "ann@example.test",
+  "timeZone": "Europe/Warsaw",
+  "items": [
+    {"id": "ev3", "status": "confirmed", "summary": "Планёрка", "location": "Переговорная 2",
+     "htmlLink": "https://www.google.com/calendar/event?eid=ev3",
+     "start": {"dateTime": "2026-10-09T15:30:00+02:00"}, "end": {"dateTime": "2026-10-09T16:00:00+02:00"},
+     "attendees": [{"email": "a@example.test"}, {"email": "b@example.test"}]},
+    {"id": "ev1", "status": "confirmed", "summary": "День рождения Ани",
+     "start": {"date": "2026-10-09"}, "end": {"date": "2026-10-10"}},
+    {"id": "ev2", "status": "confirmed",
+     "start": {"dateTime": "2026-10-09T09:00:00+02:00"}, "end": {"dateTime": "2026-10-09T09:15:00+02:00"}},
+    {"id": "ev4", "status": "cancelled", "summary": "Отменённая встреча",
+     "start": {"dateTime": "2026-10-09T11:00:00+02:00"}, "end": {"dateTime": "2026-10-09T12:00:00+02:00"}}
+  ]
+}

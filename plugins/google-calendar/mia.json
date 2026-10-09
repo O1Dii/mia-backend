@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "team.google-calendar",
+  "version": "0.1.0",
+  "name": "Google Календарь",
+  "listing": {
+    "description": "События Google Календаря на сегодня и на любой период: только чтение, в чате, голосе и на дашборде",
+    "category": "work",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "remote",
+    "url": "https://calendar-mcp.mia.example/mcp",
+    "auth": "oauth"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "today_events": { "risk": "read", "voice": true },
+    "list_events": { "risk": "read", "voice": true }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "today",
+        "title": "Сегодня",
+        "resourceUri": "ui://team.google-calendar/today",
+        "bundled": "ui/today.html",
+        "sizes": ["2x2", "4x2"],
+        "mobile": "card",
+        "refresh": { "tool": "today_events", "everySeconds": 300 }
+      }
+    ]
+  },
+  "permissions": {
+    "network": ["calendar-mcp.mia.example"],
+    "llm": { "viaHost": false },
+    "memory": [],
+    "notify": false
+  }
+}

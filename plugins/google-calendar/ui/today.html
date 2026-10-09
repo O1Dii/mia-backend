@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сегодня</title>
+<!--mia:bridge-->
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px system-ui, sans-serif; background: #15171c; color: #e3e6ee; margin: 12px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .eyebrow { color: #8b93a7; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  button { padding: 4px 10px; border-radius: 8px; border: 0; background: #4285f4; color: #fff; cursor: pointer; font: inherit; }
+  button[disabled] { opacity: .5; cursor: default; }
+  ul { list-style: none; padding: 0; margin: 8px 0 0; }
+  li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #262a33; }
+  .time { color: #8b93a7; font-size: 12px; white-space: nowrap; min-width: 5.5em; }
+  .title { flex: 1; overflow-wrap: anywhere; }
+  .place { color: #aab2c5; font-size: 12px; }
+  .empty { color: #8b93a7; margin-top: 8px; } .error { color: #f28b82; margin: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow" id="meta">Сегодня</div>
+  <button id="reload" type="button">Обновить</button>
+</header>
+<p class="error" id="error" role="alert"></p>
+<ul id="list"></ul>
+<div class="empty" id="empty">Загрузка…</div>
+<script>
+(function () {
+  var list = document.getElementById('list'), empty = document.getElementById('empty');
+  var errorBox = document.getElementById('error'), meta = document.getElementById('meta');
+  var reload = document.getElementById('reload');
+  function zone() {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
+  }
+  function eventsOf(data) {
+    if (!data) return null;
+    if (Array.isArray(data)) return data;
+    return Array.isArray(data.events) ? data.events : null;
+  }
+  // dateTime strings carry the local wall time of the event: HH:MM sits at 11..16.
+  function hhmm(value) { return typeof value === 'string' && value.length >= 16 ? value.slice(11, 16) : ''; }
+  function cell(cls, value) {
+    var el = document.createElement('span'); el.className = cls; el.textContent = value; return el;
+  }
+  function render(items) {
+    list.textContent = '';
+    items.slice(0, 20).forEach(function (event) {
+      var li = document.createElement('li');
+      li.appendChild(cell('time', event.all_day ? 'весь день' : hhmm(event.start)));
+      li.appendChild(cell('title', String(event.title || '')));
+      li.appendChild(cell('place', event.location ? String(event.location) : ''));
+      list.appendChild(li);
+    });
+    empty.textContent = items.length ? '' : 'Сегодня событий нет';
+    meta.textContent = 'Сегодня · ' + items.length;
+    errorBox.textContent = '';
+  }
+  function onResult(data) {
+    var items = eventsOf(data);
+    if (items) render(items);
+  }
+  window.mia.onData(function (data, tool) {
+    if (tool === null || tool === 'today_events' || tool === undefined) onResult(data);
+  });
+  function load() {
+    reload.disabled = true;
+    window.mia.ready.then(function () {
+      return window.mia.call('today_events', { timezone: zone() });
+    }).then(onResult, function (e) {
+      errorBox.textContent = e && e.message ? e.message : 'Не удалось загрузить события';
+      empty.textContent = list.firstChild ? '' : 'Нет данных';
+    }).then(function () { reload.disabled = false; });
+  }
+  reload.addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>
