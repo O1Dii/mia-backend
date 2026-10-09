@@ -1288,7 +1288,70 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M21 inbox
 
-- Нет записей.
+### OI-M21-001 — Уверенность STT без оценок модели
+
+- Status: OPEN
+- Source session: M21
+- Component: Android STT (`:core:stt`)
+- Question: как получить калиброванную уверенность распознавания?
+- Why non-blocking: `SttResult.Transcript.confidence` заполняется эвристикой (`TranscriptConfidence`, букв в секунду), помечена `ConfidenceSource.HEURISTIC`; годится как порог «повторите».
+- Current assumption: sherpa-onnx 1.13.8 считает `ys_log_probs` только для NeMo transducer в C++, Kotlin/JNI их не отдаёт; у CTC их нет.
+- Options: (a) оставить эвристику; (b) upstream-PR в sherpa-onnx (JNI `ysLogProbs`) и перейти на RNNT; (c) собственная JNI-сборка.
+- Recommendation: (a) в MVP, (b) при первом реальном шуме ложных срабатываний.
+- Affected future sessions: M22, M60
+- Revisit trigger/deadline: device gate M22 на реальной речи.
+
+### OI-M21-002 — Политика загрузки модели STT (~225 МБ)
+
+- Status: OPEN
+- Source session: M21
+- Component: Android STT / UX
+- Question: когда и с чьего согласия качать модель: только Wi-Fi, явный запрос, фоновая загрузка (WorkManager)? Для релиза — Play Asset Delivery?
+- Why non-blocking: `SttModelInstaller.install()` вызывает потребитель; до установки `readiness = ModelMissing`, голос может уйти в fallback.
+- Current assumption: загрузка с HuggingFace (pinned commit + SHA-256) по явному действию пользователя, по умолчанию Wi-Fi.
+- Options: (a) явная кнопка «Скачать распознавание (225 МБ)»; (b) авто на Wi-Fi + зарядке; (c) install-time asset pack в Play.
+- Recommendation: (a) в MVP; (c) рассмотреть перед публикацией в Play (зеркало вместо HuggingFace).
+- Affected future sessions: M22, M24, M62
+- Revisit trigger/deadline: M22 (экран голоса) / до публичного релиза.
+
+### OI-M21-003 — Смешанная речь RU/EN и названия сервисов
+
+- Status: OPEN
+- Source session: M21
+- Component: Android STT / run layer
+- Question: как надёжно распознавать «Linear», «Slack», «Notion» и т. п.?
+- Why non-blocking: имена людей распознаются хорошо (CTC 46/54 сущностей), а бренды CTC пишет кириллицей или теряет; punct-модели пишут латиницу, но хуже имена.
+- Current assumption: дефолт CTC (кириллица); текст «гугл календарь», «телеграм» идёт в модель как есть — LLM обычно понимает.
+- Options: (a) словарь алиасов (кириллица → бренд) в ядре/клиенте; (b) hotwords (только transducer + modified_beam_search); (c) RNNT-punct.
+- Recommendation: (a) в M22/M13, замерить (b)/(c) на реальной речи.
+- Affected future sessions: M22, M13, M41
+- Revisit trigger/deadline: device gate M22.
+
+### OI-M21-004 — WER на реальной речи
+
+- Status: OPEN
+- Source session: M21
+- Component: Android STT / evaluation
+- Question: каков WER на живых голосах (не синтез)?
+- Why non-blocking: M21 замерил 30 фраз, синтезированных macOS `say` (Milena, чистый звук): WER 6.9 %, задержка ~0.1 с; этого достаточно для выбора CTC и бюджета задержки.
+- Current assumption: на реальной речи WER выше; задержка не изменится.
+- Options: записать те же 30 фраз (`core/stt/benchmark/phrases.json`) 3–5 голосами в шуме и прогнать `device_bench.sh`-схему с этими WAV.
+- Recommendation: сделать в device gate M22.
+- Affected future sessions: M22, M60
+- Revisit trigger/deadline: M22.
+
+### OI-M21-005 — ABI нативной части STT
+
+- Status: OPEN
+- Source session: M21
+- Component: Android build
+- Question: упаковывать ли armeabi-v7a/x86_64 (каждый ABI +20–30 МБ)?
+- Why non-blocking: пакуется только arm64-v8a (`mia.stt.abis`); прочие ABI получают `NATIVE_RUNTIME_MISSING` и fallback.
+- Current assumption: пилотные устройства arm64.
+- Options: (a) только arm64; (b) ABI splits / App Bundle; (c) добавить x86_64 для эмулятора в debug.
+- Recommendation: (a) в MVP, (b) при публикации AAB.
+- Affected future sessions: M22, M62
+- Revisit trigger/deadline: сборка релизного AAB.
 
 ## M13 inbox
 
