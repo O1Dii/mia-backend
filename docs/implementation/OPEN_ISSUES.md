@@ -1759,6 +1759,53 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Реализовано по решению пользователя: экран голоса показывает «Download 225 MB» (размер из каталога), загрузка только по нажатию, в любой сети; «Not now» оставляет голос выключенным с подсказкой про Gemini Live. Код: `SpeechModelDownloader`, `CascadePhase.NeedsSpeechModel`.
 - Evidence: [M22](handoffs/M22.md), `CascadeVoiceControllerTest` (consent/decline).
 
+## M22-R1 inbox
+
+### Resolution update — OI-M22-001 (эхо TTS и barge-in без AEC)
+
+- Proposed status: RESOLVED для самоперебивания; перебивание человеком — OI-M22-R1-001 (UC-R-0110).
+- Resolution: голосовой режим идёт по communication-пути: `MODE_IN_COMMUNICATION` + громкая связь, захват `VOICE_COMMUNICATION` с `AcousticEchoCanceler`, TTS синтезирует системный движок, а играет свой `AudioTrack` с `USAGE_VOICE_COMMUNICATION` (`CommunicationSpeechSynthesizer`); режим и маршрут восстанавливаются при выходе. Поверх — защита VAD независимо от AEC: 400 мс без barge-in в начале ответа, 500 мс «хвост» после ответа в режиме воспроизведения, barge-in = 4 кадра (160 мс) ≥ max(0.04, 2× измеренное эхо). На SM-S938B с реальным динамиком: 6 ответов — 0 ложных перебиваний, 0 ложных стартов речи, 0 фантомных ходов; старый путь на том же стенде — 100 ложных перебиваний за 2 ответа. Речь, подмешанная в реальный сигнал микрофона во время ответа, останавливает его 3/3 (VAD → стоп 161–171 мс, от начала речи 282–289 мс). STT через динамик → микрофон: 19/20 точно (WER 2,3 %), старый путь 14/20.
+- Evidence: [M22-R1](handoffs/M22-R1.md), Android `feature/voice/device-gate/results-m22r1/*.json`, `EchoDeviceGateTest`, `AcousticProbeTest`.
+
+### OI-M22-R1-001 — Перебивание голосом поверх ответа на communication-пути
+
+- Status: OPEN
+- Source session: M22-R1
+- Component: Android voice (cascade) / платформенный AEC Samsung
+- Question: пропускает ли VoIP-обработка Samsung (подавитель эха) живую речь пользователя, пока играет ответ (double talk), и насколько быстро ответ останавливается?
+- Why non-blocking: самоперебивание (blocker UC-MW2-3) устранено; кнопка Stop и barge-in между ответами работают; логика VAD/контроллера проверена подмешанной речью поверх реального эха (282–289 мс).
+- Current assumption: человек проходит (его голоса нет в опорном сигнале AEC). Автоматически проверить нельзя: в `MODE_IN_COMMUNICATION` опорный сигнал — всё, что играет динамик телефона (тишина в голосовом потоке уже полностью гасит фразу, сыгранную как media), поэтому любой «второй источник» с телефона гасится как эхо (`reference-probe.json`).
+- Options: (a) оставить; (b) если не проходит — голосовое перебивание только между ответами, во время ответа Stop/тап; (c) свой эхоподавитель (NLMS/AEC3 с опорой на собственный PCM TTS) на `VOICE_RECOGNITION` в `MODE_NORMAL`; (d) уменьшить громкость ответа (gain трека), чтобы облегчить double talk.
+- Recommendation: (a), по итогам UC-R-0110 п. 2; при провале — (b) сразу, (c) отдельной сессией.
+- Affected future sessions: MW5 integrator, M60.
+- Revisit trigger/deadline: UC-R-0110.
+
+### OI-M22-R1-002 — Громкость ответа в голосовом режиме = громкость разговора
+
+- Status: OPEN
+- Source session: M22-R1
+- Component: Android voice / TTS
+- Question: устраивает ли, что в голосовом режиме ответ звучит с громкостью разговора (`STREAM_VOICE_CALL`, на SM-S938B на динамике 15/15), а не мультимедиа/ассистента (5/15)?
+- Why non-blocking: уровень ответа на микрофоне почти тот же (p90 0,38 против 0,31 RMS); клавиши громкости в голосовом режиме меняют громкость разговора; чат («Озвучить») по-прежнему через системный TTS.
+- Current assumption: оставить; gain трека 1.0.
+- Options: (a) оставить; (b) понизить gain трека (`CommunicationSpeechSynthesizer(volume = …)`); (c) подсказка про клавиши громкости.
+- Recommendation: (a), пересмотреть по UC-R-0110 п. 3.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: UC-R-0110.
+
+### OI-M22-R1-003 — Гарнитуры и другие устройства
+
+- Status: OPEN
+- Source session: M22-R1
+- Component: Android audio routing
+- Question: как ведёт себя communication-путь с проводной/BT-гарнитурой и на других телефонах (поведение AEC в `MODE_IN_COMMUNICATION` зависит от вендора)?
+- Why non-blocking: на гарнитуре эха нет; маршрут выбирается как в звонке (гарнитура, иначе динамик), A2DP в звонке не используется; без рабочего AEC адаптивный порог 2× эха не даёт ответу перебить себя (ценой перебивания).
+- Current assumption: проверено только SM-S938B без гарнитуры.
+- Options: (a) device matrix M60 с `EchoDeviceGateTest`; (b) fallback на `RECOGNITION`, если `AcousticEchoCanceler.isAvailable() == false`.
+- Recommendation: (a), (b) — если найдётся устройство без AEC.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: M60 device gate.
+
 ## M15 inbox
 
 ### OI-M15-001 — The router does not enforce `installations.grants`
