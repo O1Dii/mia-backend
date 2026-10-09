@@ -96,7 +96,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M15-006 | OPEN | Accounts | Токены провайдеров не отзываются при удалении аккаунта | только при удалении установки | before beta |
 | OI-M15-007 | OPEN | Store | Нет rate limit на probe/connect | без лимитов | M62 |
 | OI-M15-008 | OPEN | Store | Отзывы без модерации | любой вошедший | открытая публикация |
-| OI-M15-009 | DECIDED | Connections | `server.auth: mia_token` без источника токена | M51: Mia выпускает 5-мин. токен из гранта для клиента плагина (R3, OI-M51-001), код Mia не изменён | до M60 |
+| OI-M15-009 | RESOLVED | Connections | `server.auth: mia_token` без источника токена | токен ≤5 мин из гранта клиента плагина | resolved in M51-R1 integration |
 | OI-M15-010 | RESOLVED | Tests | Часы теста approvals застыли на 12:00Z | часы от реального времени | resolved in M15 |
 | OI-M16-001 | OPEN | Jobs / voice | Сводка «пока вас не было» — в следующий интерактивный run | не строго голосовой | M60 |
 | OI-M16-002 | OPEN | Jobs | `max_steps`/`max_cost_usd` per job не применяются | лимиты профиля `job`; M50 сделал лимит только для приложений | M60 |
@@ -154,11 +154,14 @@ Integration session обновляет этот индекс после merge.
 | OI-M43-001 | RESOLVED | MCP Apps | Bundled HTML плиток не отдавался клиентам | отдаёт M31 | resolved in MW5 integration |
 | OI-M43-002 | OPEN | MCP Apps | `ui://` серверов плагинов не проксируется | для плиток решено M31; чат remote — открыт | M60 |
 | OI-M43-003 | OPEN | SDK | Распространение SDK: индекса пакетов нет | установка по пути/git | M62 |
-| OI-M43-004 | OPEN | Manifest | `auth: mia_token` не работает | то же, что OI-M15-009 / OI-M51-001 | вместе с OI-M51-001 |
-| OI-M51-001 | OPEN | OAuth / connections | В Mia нет resource indicators плагинов и источника `mia_token` (R1–R3) | add-by-URL MindWeaver не завершается; strict xfail | до M60 |
-| OI-M51-002 | OPEN | OAuth identity | Какому аккаунту MindWeaver принадлежит токен плагина от Mia | точный `sub` после R3; email — запасной | вместе с OI-M51-001 |
+| OI-M43-004 | RESOLVED | Manifest | `auth: mia_token` не работал | работает, `remoteServer.clientId` | resolved in M51-R1 integration |
+| OI-M51-001 | RESOLVED | OAuth / connections | В Mia не было resource indicators плагинов и источника `mia_token` (R1–R3) | реализовано M51-R1; E2E без xfail | resolved in M51-R1 integration |
+| OI-M51-002 | RESOLVED | OAuth identity | Какому аккаунту MindWeaver принадлежит токен плагина от Mia | тот же pairwise `sub` | resolved in M51-R1 integration |
 | OI-M51-003 | OPEN | MindWeaver MCP | `/mcp` только `2026-07-28`, без rate limit; стоимость стрима теряется в LiteLLM | unpriced в журнале | до деплоя MindWeaver |
 | OI-M51-004 | OPEN | Deploy | Деплой и публикация MindWeaver в магазин | вне scope | M62 |
+| OI-M51-R1-001 | RESOLVED | Web store | «Подключить» не знал ответа `mia_token` | дифф применён integrator-ом | resolved in M51-R1 integration |
+| OI-M51-R1-002 | OPEN | Connections UX | Add-by-URL сервера, у которого AS — Mia: согласие показывает «Mia» | общий грант клиента подключений Mia | UC-M51R1-2 / M60 |
+| OI-M51-R1-003 | OPEN | OAuth storage | Строка `oauth_tokens` на каждый вызов `mia_token` | выпуск на каждый вызов | M62 (retention/кэш) |
 
 ## Record template
 
@@ -1878,7 +1881,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M15-009 — `server.auth: mia_token` has no token source
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M15
 - Component: Connections / M50, M51
 - Question: кто выдаёт токены Mia для удалённых серверов с `auth: mia_token` (MindWeaver, свои приложения)?
@@ -1888,7 +1891,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) в M50/M51
 - Affects sessions: M50, M51
 - Revisit trigger/by: при старте M51
-- Resolution:
+- Resolution: M51-R1 integration (2026-10-09, `Merge M51-R1 into main`): `ConnectionService.headers(auth="mia_token")` — токен ≤5 мин без refresh, scopes ∩ грант, audience = `server.url`; без гранта `connection_required` / 409 `connection_sign_in_required`.
 - Evidence: 
 
 ### OI-M15-010 — Approval test clock was fixed to 2026-10-09T12:00Z
@@ -2739,7 +2742,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M43-004 — `auth: mia_token` не работает: токен не передаётся, подключения нет
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M43
 - Component: Plugins / подключения / схема манифеста
 - Question: нужен ли режим, в котором Mia передаёт токен пользователя Мии серверу плагина, и нужно ли оставлять значение `mia_token` в схеме?
@@ -2751,7 +2754,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a), если M51 не нужен обратный поток; иначе (b) отдельной сессией с согласием в Мии.
 - Affected future sessions: M51, M60.
 - Revisit trigger/by: M51 (решение перед кодом «Войти через Mia» на стороне MindWeaver).
-- Resolution:
+- Resolution: M51-R1 integration (2026-10-09, `Merge M51-R1 into main`): `mia_token` работает; `remoteServer.clientId` в схеме манифеста, раздел в `docs/PLUGIN_DEVELOPMENT.md`.
 - Evidence: `contracts/mvp/v1/plugin-manifest.schema.json` (`remoteServer.auth`), `app/modules/connections/oauth/service.py` (`headers`), `app/modules/plugins/install/consent.py` (`requires_connection`).
 
 
@@ -2771,7 +2774,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M51-001 — Plugin resource indicators and the `mia_token` source are missing in Mia
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M51
 - Component: OAuth AS (M50) / Connections (M15)
 - Question: как Mia выдаёт токен для MCP-сервера приложения (`auth: mia_token`) и принимает его `resource` (RFC 8707)?
@@ -2781,12 +2784,12 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a): минимум нового кода, отзыв гранта действует сразу.
 - Affects sessions: M60, M43, M62.
 - Revisit trigger/by: до M60 (сквозная приёмка).
-- Resolution:
+- Resolution: M51-R1 integration (2026-10-09, `Merge M51-R1 into main`): AS принимает server URL плагина как resource (из релизов магазина с `clientId` и add-by-URL, плюс `OAUTH_EXTRA_RESOURCES`), `/oauth/userinfo` отдаёт `aud`/`azp`, `mia_token` выпускается из гранта клиента плагина; E2E MindWeaver 7 passed без xfail.
 - Evidence: handoff M51, `app/modules/oauth/{service,principal,router}.py`, `app/modules/connections/oauth/service.py`.
 
 ### OI-M51-002 — Which MindWeaver account does a Mia-issued plugin token belong to
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M51
 - Component: OAuth / pairwise subject
 - Question: `sub` у Mia попарный (на клиента); токен, выпущенный не для `client_id` MindWeaver, даёт другой `sub`.
@@ -2796,7 +2799,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: клиент плагина, без email.
 - Affects sessions: M60, M43 (документация `mia_token`).
 - Revisit trigger/by: вместе с OI-M51-001.
-- Resolution:
+- Resolution: M51-R1 integration (2026-10-09, `Merge M51-R1 into main`): токен выпускается для клиента самого плагина → тот же pairwise `sub`; email — запасная ветка.
 - Evidence: `mia_auth.user_for_principal`, `test_a_verified_email_matching_an_account_is_accepted_but_unverified_is_not`.
 
 ### OI-M51-003 — Hosted `/mcp` limits and legacy clients
@@ -2857,7 +2860,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M51-R1-001 — Web «Подключить» не знает ответа `mia_token`
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M51-R1
 - Component: Web store (M30/M31)
 - Question: как web показывает подключение `mia_token` (без браузерного OAuth)?
@@ -2867,7 +2870,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: diff выше в M60/следующей web-сессии.
 - Affects sessions: M60, M62.
 - Revisit trigger/by: до проверки установки MindWeaver из web.
-- Resolution:
+- Resolution: M51-R1 integration (2026-10-09, `Merge M51-R1 into main`): integrator применил запрошенный дифф: `connectAccount` без `authorization_url` ведёт на `returnTo&connection=ok`, тип `startConnection`, текст `connection_sign_in_required`; Playwright `journey.spec.ts` «a mia_token plugin connects without a consent page».
 - Evidence: `web/src/components/StoreShared.tsx:52`, `contracts/mvp/v1/openapi.yaml` (`startConnection` 200).
 
 ### OI-M51-R1-002 — «Добавить по URL» сервер, у которого AS — сама Mia

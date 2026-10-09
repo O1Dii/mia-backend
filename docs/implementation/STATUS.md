@@ -309,6 +309,18 @@ Follow-ups MW5:
 M40, M41 (живые проверки UC-M40-1, UC-M41-1/2) и M51 (R1–R3) — PARTIAL, поэтому M60 остаётся PENDING. Следующий шаг — repair M51-R1
 и живые проверки M40/M41.
 
+**M51-R1 integrated 2026-10-09** (integrator: Opus 5.5 high). Merge M51-R1 → `823f33c`, MindWeaver → `857cc5b`, без конфликтов; новых
+миграций нет. Сделано: AS принимает server URL плагина как RFC 8707 resource (только из вычитанных данных: релиз магазина — для его
+`clientId` и клиента подключений Mia; add-by-URL — только для клиента подключений Mia; плюс `OAUTH_EXTRA_RESOURCES` для dev);
+`/oauth/userinfo` отдаёт `aud`/`azp`, собственные `/v1/*` и `/mcp` Mia токен с чужим audience отклоняют; `server.auth: mia_token` —
+токен ≤5 мин без refresh из гранта клиента плагина (`remoteServer.clientId`), отзыв гранта гасит выпущенные токены. MindWeaver:
+`clientId` в `mia/mia.json`, `/mcp` отклоняет токен другого приложения без `aud`. Integrator применил web-дифф OI-M51-R1-001
+(«Подключить» для `mia_token` без страницы согласия) + Playwright-тест.
+Проверки: ruff, format, mypy (449 файлов), контракты (110 operations, 89 error codes) PASS; pytest 1325 passed / 4 skipped / 0 failed;
+E2E Mia ↔ MindWeaver 7 passed (xfail снят); MindWeaver unittest OK; web `tsc`, Prettier, Playwright 55 passed.
+OI-M51-001/002, OI-M15-009, OI-M43-004, OI-M51-R1-001 RESOLVED. **M51 → COMPLETED.** Новые ручные проверки UC-M51R1-1/2.
+M60 теперь ждёт только живые проверки M40 и M41 (UC-M40-1, UC-M41-1/2), после них — `Выполни M60`.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -336,9 +348,9 @@ M40, M41 (живые проверки UC-M40-1, UC-M41-1/2) и M51 (R1–R3) —
 | M24 | MW5 | COMPLETED | M16,M22,M30 | Sonnet 5.5 high | [M24](handoffs/M24.md) | `39b317e` / Android `c23e2e5` | WebView + hand-off endpoint, FCM; device gate PASS; живой FCM — UC-M24-1 |
 | M31 | MW5 | COMPLETED | M16,M17,M30 | Sonnet 5.5 high | [M31](handoffs/M31.md) | `1c10c6c` | MCP Apps host, память, входящие, «Где данные»; `web_poc` удалён |
 | M43 | MW5 | COMPLETED | M15,M50 | Haiku 5.5 high | [M43](handoffs/M43.md) | `b623a41` | руководство, шаблон `plugins/_template` (публикация CLI в тесте), SDK quickstart |
-| M51 | MW5 | PARTIAL | M15,M50 | Sonnet 5.5 high | [M51](handoffs/M51.md) | `5d36258` / MM `7d84b6f` | DoD локально PASS; add-by-URL/публикация ждут Mia R1–R3 (OI-M51-001) |
-| M51-R1 | MW5 | READY | M51 | Opus 5.5 high | — | — | repair: Mia R1–R3 из handoff M51 (resource indicators плагинов, `/oauth/userinfo` `aud`/`azp`, источник `mia_token`); затем add-by-URL и публикация MindWeaver, strict xfail E2E → pass |
-| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт M51-R1 (R1–R3) и живые UC-M40-1, UC-M41-1/2 |
+| M51 | MW5 | COMPLETED | M15,M50 | Sonnet 5.5 high | [M51](handoffs/M51.md) | `5d36258` / MM `7d84b6f` | DoD локально PASS; add-by-URL и публикация — после M51-R1 |
+| M51-R1 | MW5 | COMPLETED | M51 | Opus 5.5 high | [M51-R1](handoffs/M51-R1.md) | `823f33c` / MM `857cc5b` | plugin resources (RFC 8707), userinfo `aud`/`azp`, `mia_token`; E2E 7/7; web-дифф OI-M51-R1-001 применён integrator-ом |
+| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт живые UC-M40-1 (M40) и UC-M41-1/2 (M41) |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 

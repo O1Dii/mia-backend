@@ -185,3 +185,17 @@ test('an update that asks for more shows the new permission and needs consent', 
   await dialog.getByRole('button', { name: 'Обновить' }).click()
   await expect(row.getByText('Версия 1.1.0')).toBeVisible()
 })
+
+test('a mia_token plugin connects without a consent page (M51-R1)', async ({ page }) => {
+  await signIn(page)
+  await fakeProvider(page)
+  // Mia signs the plugin's requests itself: the API answers "connected" with no authorization URL.
+  await page.route('**/v1/connections', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    await route.fulfill({ json: { connection_id: 'conn-mia-token', status: 'connected' } })
+  })
+  await page.goto('/store/plugin/team.tracker')
+  await page.getByRole('button', { name: 'Установить', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Установить', exact: true }).click()
+  await expect(page).toHaveURL(/\/store\/connected\?plugin=team\.tracker&connection=ok$/)
+})

@@ -48,9 +48,16 @@ export function useStoreState() {
   return { installations, connections, catalog, error, reload }
 }
 
-/** Open the provider's consent page; the callback brings the browser back to `returnTo`. */
+/**
+ * Open the provider's consent page; the callback brings the browser back to `returnTo`.
+ * A `mia_token` plugin connects at once (Mia signs its requests), so there is no consent page.
+ */
 export async function connectAccount(installationId: string, returnTo: string): Promise<void> {
   const started = await api.startConnection(installationId, returnTo)
+  if (!started.authorization_url) {
+    location.assign(`${returnTo}${returnTo.includes('?') ? '&' : '?'}connection=ok`)
+    return
+  }
   location.assign(started.authorization_url)
 }
 

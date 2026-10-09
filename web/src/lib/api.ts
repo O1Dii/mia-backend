@@ -396,9 +396,13 @@ export const api = {
     }),
   connections: () => http<{ items: Connection[] }>('GET', '/v1/connections'),
   startConnection: (installationId: string, returnTo: string) =>
-    http<{ connection_id: string; authorization_url: string }>('POST', '/v1/connections', {
-      body: { installation_id: installationId, return_to: returnTo },
-    }),
+    http<{ connection_id: string; authorization_url?: string; status?: 'connected' }>(
+      'POST',
+      '/v1/connections',
+      {
+        body: { installation_id: installationId, return_to: returnTo },
+      },
+    ),
   disconnect: (id: string) => http<void>('DELETE', `/v1/connections/${enc(id)}`),
 
   // ---- models

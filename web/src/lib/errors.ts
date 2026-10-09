@@ -39,6 +39,8 @@ const messages: Record<string, string> = {
   connection_oauth_unsupported: 'Мия пока не поддерживает способ входа этого сервера.',
   connection_oauth_failed: 'Сервер не завершил вход. Попробуйте ещё раз.',
   connection_flow_invalid: 'Ссылка входа устарела или открыта не в том браузере. Начните заново.',
+  connection_sign_in_required:
+    'Сначала войдите в это приложение через Mia, затем подключите плагин.',
   connection_not_found: 'Подключение не найдено.',
   invalid_connection: 'Проверьте настройки подключения модели.',
   connection_conflict: 'Такое подключение уже есть.',
