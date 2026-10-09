@@ -387,7 +387,8 @@ class MemoryService:
                         source=person.source,
                     )
                 )
-            await self._log(session, user, actor="run", action="context", count=len(chosen))
+            if chosen:
+                await self._log(session, user, actor="run", action="context", count=len(chosen))
         return chosen
 
     def _active_facts(self, user: uuid.UUID) -> Select[tuple[MemoryFact]]:
