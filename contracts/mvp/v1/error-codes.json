@@ -285,5 +285,12 @@
     "retryable": false,
     "public_message": "The device could not complete the action.",
     "owner": "M13"
+  },
+  {
+    "code": "device_call_not_pending",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "No device tool call is waiting for this result.",
+    "owner": "M23"
   }
 ]
