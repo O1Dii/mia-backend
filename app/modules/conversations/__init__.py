@@ -5,6 +5,14 @@ from app.modules.conversations.cursors import (
     EntryCursor,
     InvalidCursorError,
 )
+from app.modules.conversations.feed import (
+    ExtractiveFeedSummarizer,
+    FeedContext,
+    FeedMessage,
+    FeedService,
+    FeedSummarizer,
+    FeedTurn,
+)
 from app.modules.conversations.models import (
     Conversation,
     DeliveryStatus,
@@ -47,6 +55,12 @@ __all__ = [
     "EntryKind",
     "EntryPage",
     "EntryRole",
+    "ExtractiveFeedSummarizer",
+    "FeedContext",
+    "FeedMessage",
+    "FeedService",
+    "FeedSummarizer",
+    "FeedTurn",
     "IdempotencyConflictError",
     "IdempotentResult",
     "IdempotencyRecord",

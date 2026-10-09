@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +35,10 @@ def _enum_values(enum: type[StrEnum]) -> list[str]:
 class TurnSource(StrEnum):
     ANDROID_TEXT = "android_text"
     ANDROID_VOICE = "android_voice"
+    RUN_VOICE = "run_voice"
+    RUN_CHAT = "run_chat"
+    RUN_JOB = "run_job"
+    RUN_APP = "run_app"
 
 
 class TurnStatus(StrEnum):
@@ -76,6 +82,12 @@ class Conversation(Base):
     __table_args__ = (
         CheckConstraint("next_sequence >= 1", name="ck_conversations_next_sequence_positive"),
         Index("ix_conversations_user_updated", "user_id", "updated_at", "id"),
+        Index(
+            "uq_conversations_primary_feed",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_primary_feed"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -84,6 +96,12 @@ class Conversation(Base):
     )
     title: Mapped[str | None] = mapped_column(String(200))
     summary: Mapped[str | None] = mapped_column(Text)
+    summary_until_sequence: Mapped[int | None] = mapped_column(BigInteger)
+    """Entries with ``sequence <= summary_until_sequence`` are covered by ``summary``."""
+    is_primary_feed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    """The user's single continuous feed (Review §5.2(f)); voice always writes here."""
     next_sequence: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=1, server_default="1"
     )
