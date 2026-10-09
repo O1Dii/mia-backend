@@ -54,6 +54,25 @@ class Settings(BaseSettings):
     model_stream_deadline_seconds: float = Field(default=120.0, gt=0)
     model_usage_pause_seconds: int = Field(default=3600, ge=60, le=86400)
 
+    # Run engine profiles (M12, ADR-0011 §1). Steps are model calls per run.
+    run_voice_max_steps: int = Field(default=3, ge=1, le=10)
+    run_voice_max_tool_calls: int = Field(default=2, ge=0, le=10)
+    run_voice_timeout_seconds: float = Field(default=25.0, gt=0, le=120)
+    run_voice_speech_max_chars: int = Field(default=250, ge=40, le=300)
+    run_voice_ack_delay_ms: int = Field(default=1500, ge=0, le=10000)
+    run_speech_ack_text: str = Field(default="Секунду.", min_length=1, max_length=120)
+    run_chat_max_steps: int = Field(default=12, ge=1, le=50)
+    run_chat_max_tool_calls: int = Field(default=24, ge=0, le=100)
+    run_chat_timeout_seconds: float = Field(default=150.0, gt=0, le=600)
+    run_job_max_steps: int = Field(default=40, ge=1, le=200)
+    run_job_max_tool_calls: int = Field(default=80, ge=0, le=500)
+    run_job_timeout_seconds: float = Field(default=1800.0, gt=0, le=1800)
+    run_app_max_steps: int = Field(default=8, ge=1, le=50)
+    run_app_max_tool_calls: int = Field(default=8, ge=0, le=100)
+    run_app_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
+    run_context_recent_entries: int = Field(default=20, ge=2, le=200)
+    run_feed_summary_batch: int = Field(default=20, ge=1, le=500)
+
     @field_validator("log_level")
     @classmethod
     def normalize_log_level(cls, value: str) -> str:

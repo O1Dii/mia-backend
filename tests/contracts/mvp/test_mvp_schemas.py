@@ -34,7 +34,7 @@ def test_mvp_validation_passes(contracts: ModuleType) -> None:
     examples, events, operations = contracts.validate_mvp()
 
     assert examples >= 20
-    assert events == 13
+    assert events == 14
     assert operations >= 40
 
 

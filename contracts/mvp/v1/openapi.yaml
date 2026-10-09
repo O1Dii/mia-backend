@@ -75,7 +75,10 @@ paths:
           schema: {type: string, minLength: 1, maxLength: 512}
       responses:
         '200':
-          description: SSE stream of run events (data = RunEvent JSON), ends after a terminal event
+          description: >-
+            SSE stream of run events (id = cursor, event = type, data = RunEvent JSON), ends
+            after a terminal event. Last-Event-ID wins over ?cursor=. Idle streams carry
+            ": keepalive" comments. A cursor of another run is rejected with invalid_cursor.
           headers: *rid
           content:
             text/event-stream:
@@ -89,8 +92,11 @@ paths:
       parameters: [*idem]
       responses:
         '202':
-          description: Cancellation requested; run.cancelled follows on the stream
+          description: Cancellation requested (status cancel_requested); run.cancelled follows on the stream
           headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
         default: *error
   /v1/runs/{run_id}/device-tool-results:
     parameters: [{$ref: '#/components/parameters/RunId'}]
@@ -1033,10 +1039,19 @@ components:
       properties:
         id: {type: string, format: uuid}
         profile: {type: string, enum: [voice, chat, job, app]}
-        status: {type: string, enum: [running, waiting_approval, completed, failed, cancelled]}
+        status:
+          type: string
+          enum: [running, waiting_approval, cancel_requested, completed, failed, cancelled]
         created_at: {type: string, format: date-time}
         events_url: {type: string}
         response: {$ref: '#/components/schemas/AssistantResponse'}
+        model: {type: string, description: Resolved model reference (M12)}
+        conversation_id: {type: string, format: uuid, description: Feed the run writes to; absent for incognito}
+        steps: {type: integer, minimum: 0}
+        tool_calls: {type: integer, minimum: 0}
+        error: {$ref: 'common.schema.json#/$defs/publicError'}
+        cancel_reason: {type: string, enum: [user, client_disconnected, budget_exceeded, superseded]}
+        finished_at: {type: string, format: date-time}
     CatalogEntry:
       type: object
       required: [plugin_id, version, manifest]

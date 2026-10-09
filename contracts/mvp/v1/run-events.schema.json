@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contracts.mia.local/mvp/v1/run-events.schema.json",
   "title": "MIA MVP v1 run event",
-  "description": "One event of GET /v1/runs/{run_id}/events (SSE), ADR-0011. sequence starts at 1 and increases by exactly 1 per run; cursor is opaque and resumes the stream after this event (SSE id / Last-Event-ID / ?cursor=). Terminal events: run.completed, run.failed, run.cancelled.",
+  "description": "One event of GET /v1/runs/{run_id}/events (SSE), ADR-0011. sequence starts at 1 and increases by exactly 1 per run; cursor is opaque and resumes the stream after this event (SSE id / Last-Event-ID / ?cursor=); speech.ack added additively by M12. Terminal events: run.completed, run.failed, run.cancelled.",
   "type": "object",
   "additionalProperties": false,
   "required": ["event_id", "run_id", "sequence", "cursor", "type", "at", "payload"],
@@ -17,6 +17,7 @@
   },
   "oneOf": [
     { "properties": { "type": { "const": "run.started" }, "payload": { "$ref": "#/$defs/runStarted" } } },
+    { "properties": { "type": { "const": "speech.ack" }, "payload": { "$ref": "#/$defs/speechAck" } } },
     { "properties": { "type": { "const": "message.delta" }, "payload": { "$ref": "#/$defs/messageDelta" } } },
     { "properties": { "type": { "const": "tool.call.started" }, "payload": { "$ref": "#/$defs/toolCallStarted" } } },
     { "properties": { "type": { "const": "tool.call.completed" }, "payload": { "$ref": "#/$defs/toolCallCompleted" } } },
@@ -45,6 +46,21 @@
           "description": "Model reference actually used, e.g. mia:default resolved to <provider>/<model>"
         },
         "conversation_id": { "$ref": "common.schema.json#/$defs/id" }
+      }
+    },
+    "speechAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "after_ms"],
+      "description": "Quick voice filler (M12): emitted at most once when response.final is not ready after the profile's delay. Clients may speak text or play an earcon; response.final follows unless the run ends otherwise",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^(?!.*https?://)[^\\r\\n*`#|\\[\\]<>]*$"
+        },
+        "after_ms": { "type": "integer", "minimum": 0, "description": "Delay after run start that triggered the filler" }
       }
     },
     "messageDelta": {
