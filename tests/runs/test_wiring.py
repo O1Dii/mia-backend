@@ -70,7 +70,8 @@ def test_application_mounts_runs_on_the_model_gateway() -> None:
     service = app.state.runs
     assert isinstance(service, RunService)
     assert service.engine.gateway is app.state.model_gateway
-    assert isinstance(service.engine.router, NoToolRouter)
+    assert service.engine.router is app.state.tools.router  # M13 router wired
+    assert service.engine.approvals is app.state.tools.approvals
 
 
 def test_install_runs_accepts_the_real_gateway() -> None:

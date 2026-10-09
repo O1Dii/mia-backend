@@ -24,6 +24,7 @@ from app.modules.realtime import (
 from app.modules.realtime.provider import RealtimeProviderFactory, RealtimeProviderSession
 from app.modules.runs.composition import install_runs
 from app.modules.tools import ToolExecutor, ToolRegistry, current_datetime_registry
+from app.modules.tools.composition import install_tools
 from app.modules.workspace.composition import install_workspace
 from app.providers.ai.base import TextAIProvider
 from app.providers.ai.fake import FakeAIProvider
@@ -124,13 +125,17 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     registry = current_datetime_registry()
     tool_executor = ToolExecutor(runtime.database.session_factory, registry)
     budget = DailyBudget(runtime.redis)
-    install_runs(
+    tools = install_tools(app, settings, runtime)
+    runs = install_runs(
         app,
         settings,
         runtime,
         authenticator=authenticator,
         model_gateway=models_stack.gateway,
+        tool_router=tools.router,
+        approvals=tools.approvals,
     )
+    tools.device_channel.bind_publisher(runs.publish)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
