@@ -162,6 +162,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M51-R1-001 | RESOLVED | Web store | «Подключить» не знал ответа `mia_token` | дифф применён integrator-ом | resolved in M51-R1 integration |
 | OI-M51-R1-002 | OPEN | Connections UX | Add-by-URL сервера, у которого AS — Mia: согласие показывает «Mia» | общий грант клиента подключений Mia | UC-M51R1-2 / M60 |
 | OI-M51-R1-003 | OPEN | OAuth storage | Строка `oauth_tokens` на каждый вызов `mia_token` | выпуск на каждый вызов | M62 (retention/кэш) |
+| OI-UX-001 | OPEN | Android / web IA | Где живут разделы в приложении: внутри «Дашборда» вся web-оболочка с вкладкой «Чат»; что уйти в настройки, что в верхние вкладки | пока как есть (не критично, решение пользователя 2026-10-10) | дизайн-решение до M60 / отдельная сессия |
 
 ## Record template
 
@@ -2903,6 +2904,23 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Revisit trigger/by: нагрузочный прогон.
 - Resolution:
 - Evidence: `AuthorizationService.mint_plugin_token`.
+
+## Live checks inbox (2026-10-10)
+
+### OI-UX-001 — Информационная архитектура Android-приложения и web внутри него
+
+- Status: OPEN
+- Source: живая проверка пользователя на стенде (UC-M24-2), 2026-10-10
+- Component: Android навигация (M24 `WebSurface`, M25 чат) и web-оболочка (M31 `App.tsx`)
+- Question: какие разделы — верхние вкладки приложения, какие — в настройках; показывать ли в WebView навигацию web (сейчас внутри «Дашборда» видна вся web-оболочка, включая вкладку «Чат», дублирующую нативный чат).
+- Why non-blocking: всё работает; пользователь: «надо будет это поменять, но пока не критично».
+- Current assumption: как есть — над чатом кнопки «Магазин», «Мои плагины», «Дашборд», «Что Мия знает», «Подключения», каждая открывает web-оболочку целиком.
+- Options: (a) верхние вкладки «Чат / Дашборд / Входящие», остальное (магазин, плагины, память, данные, модели) — в настройках; WebView в режиме встраивания без своей навигации; (b) нижняя навигация как на web; (c) оставить.
+- Recommendation: (a) — решение и макет с пользователем, затем одна Android+web сессия (режим встраивания web без шапки и вкладок).
+- Affects sessions: M24, M25, M31, M60.
+- Revisit trigger/by: до M60 (сквозная приёмка).
+- Resolution:
+- Evidence: `feature/web/.../WebSurface.kt`, `web/src/App.tsx` (`tabs`).
 
 ## M60 inbox
 

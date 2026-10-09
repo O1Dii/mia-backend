@@ -341,6 +341,11 @@ Repair (параллельно, write scopes не пересекаются):
   `VadConfig` ~1,2–1,6 с тишины, несколько сегментов до стопа, дочитать буфер при `finish()`, mic до `stt.prepare()`),
   `app/**` (`windowSoftInputMode=adjustResize`, одна обработка insets, из голосового экрана задачи ассистента — переход в чат),
   `feature/assistant/**` (интенты запуска). VAD-класс не меняет — только передаёт конфиг.
+- **M24-R1** — окно согласия установки плагина в WebView приложения высотой с поле ввода (UC-M24-2; Sonnet 5.5 high → Opus 5.5 high
+  по правилу эскалации repair). Scope: Android `feature/web/**` и web-стили диалогов (`web/src/styles/app.css`, `StoreConsent.tsx`) —
+  сначала воспроизвести в WebView и в мобильной эмуляции Playwright, понять, чья ошибка (WebView viewport/`dvh` или CSS диалога).
+- Структура разделов в приложении (вкладка «Чат» внутри «Дашборда», что в настройки, что во вкладки) — OI-UX-001, решение
+  пользователя позже, не критично.
 Повторная проверка — UC-R-0110.
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
@@ -374,6 +379,7 @@ Repair (параллельно, write scopes не пересекаются):
 | M51-R1 | MW5 | COMPLETED | M51 | Opus 5.5 high | [M51-R1](handoffs/M51-R1.md) | `823f33c` / MM `857cc5b` | plugin resources (RFC 8707), userinfo `aud`/`azp`, `mia_token`; E2E 7/7; web-дифф OI-M51-R1-001 применён integrator-ом |
 | M22-R1 | MW5 | READY | M22, UC-MW2-3 | Opus 5.5 high | — | — | repair: эхо TTS → самоперебивание (OI-M22-001 ESCALATED); scope `core/audio`, `core/tts`, `feature/voice` |
 | M25-R1 | MW5 | READY | M25, UC-M25-1/2 | Opus 5.5 high | — | — | repair: клавиатура перекрывает чат, диктовка обрывается, боковая кнопка не ведёт в чат; scope `feature/chat`, `app`, `feature/assistant` |
+| M24-R1 | MW5 | READY | M24, UC-M24-2 | Opus 5.5 high | — | — | repair: окно согласия в WebView высотой с input; scope `feature/web`, стили диалогов web |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт живые UC-M40-1 (M40) и UC-M41-1/2 (M41) |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
