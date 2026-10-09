@@ -12,6 +12,7 @@ from app.modules.auth.service import AuthService, InvalidCredentialsError
 from app.modules.auth.tokens import InvalidAccessTokenError
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
+from app.modules.models import install_models
 from app.modules.realtime import (
     AuthenticatedUser,
     FakeRealtimeProvider,
@@ -115,6 +116,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         redis=runtime.redis,
     )
     authenticator = AuthServiceAuthenticator(auth_service)
+    install_models(app, settings, runtime, authenticator)
     text_provider = _text_provider(settings)
     registry = current_datetime_registry()
     tool_executor = ToolExecutor(runtime.database.session_factory, registry)

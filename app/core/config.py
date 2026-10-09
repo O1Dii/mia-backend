@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     provider_failure_threshold: int = Field(default=5, ge=1, le=100)
     provider_cooldown_seconds: int = Field(default=60, ge=1, le=3600)
     metrics_enabled: bool = False
+    # M11 model gateway. Master keys: "id:base64url" entries separated by commas; the last is
+    # active unless CREDENTIALS_MASTER_KEY_ACTIVE names one. Required in staging/production.
+    credentials_master_keys: SecretStr | None = Field(default=None, repr=False)
+    credentials_master_key_active: str | None = Field(default=None, min_length=1)
+    model_request_timeout_seconds: float = Field(default=60.0, gt=0)
+    model_stream_deadline_seconds: float = Field(default=120.0, gt=0)
+    model_usage_pause_seconds: int = Field(default=3600, ge=60, le=86400)
 
     @field_validator("log_level")
     @classmethod
@@ -93,6 +100,8 @@ class Settings(BaseSettings):
                 raise ValueError("GOOGLE_CLIENT_ID is required outside local and test environments")
             if self.auth_jwt_secret.get_secret_value() == "mia-local-auth-signing-key-change-me":
                 raise ValueError("AUTH_JWT_SECRET must be overridden outside local environments")
+            if self.credentials_master_keys is None:
+                raise ValueError("CREDENTIALS_MASTER_KEYS is required outside local environments")
         return self
 
     @property
