@@ -10,7 +10,9 @@ from alembic import context
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.connections.oauth import models as connection_models  # noqa: F401
 from app.modules.conversations import models as conversation_models  # noqa: F401
+from app.modules.jobs import models as job_models  # noqa: F401
 from app.modules.models import models as model_gateway_models  # noqa: F401
+from app.modules.notifications import models as notification_models  # noqa: F401
 from app.modules.plugins.catalog import models as catalog_models  # noqa: F401
 from app.modules.runs import models as run_models  # noqa: F401
 from app.modules.tools import models as tool_models  # noqa: F401

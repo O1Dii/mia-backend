@@ -390,5 +390,89 @@
     "retryable": false,
     "public_message": "The sign-in link is unknown, expired or already used.",
     "owner": "M15"
+  },
+  {
+    "code": "job_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The job was not found.",
+    "owner": "M16"
+  },
+  {
+    "code": "schedule_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The schedule was not found.",
+    "owner": "M16"
+  },
+  {
+    "code": "inbox_item_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The inbox item was not found.",
+    "owner": "M16"
+  },
+  {
+    "code": "device_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The device was not found.",
+    "owner": "M16"
+  },
+  {
+    "code": "invalid_schedule_rule",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The schedule rule is invalid.",
+    "owner": "M16"
+  },
+  {
+    "code": "invalid_timezone",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The time zone is unknown.",
+    "owner": "M16"
+  },
+  {
+    "code": "schedule_interval_too_short",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The schedule runs too often.",
+    "owner": "M16"
+  },
+  {
+    "code": "job_limit_exceeded",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "Too many active background jobs.",
+    "owner": "M16"
+  },
+  {
+    "code": "schedule_limit_exceeded",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "Too many schedules.",
+    "owner": "M16"
+  },
+  {
+    "code": "notify_rate_limited",
+    "http_status": 429,
+    "retryable": true,
+    "public_message": "Too many notifications in the last hour.",
+    "owner": "M16"
+  },
+  {
+    "code": "job_interrupted",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The background task was interrupted.",
+    "owner": "M16"
+  },
+  {
+    "code": "job_budget_exceeded",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The background task ran out of its time budget.",
+    "owner": "M16"
   }
 ]

@@ -46,7 +46,7 @@
           "additionalProperties": false,
           "required": ["type", "id"],
           "properties": {
-            "type": { "type": "string", "enum": ["run", "schedule", "app"] },
+            "type": { "type": "string", "enum": ["run", "schedule", "app", "user"] },
             "id": { "type": "string", "minLength": 1, "maxLength": 256 }
           }
         },
@@ -65,8 +65,22 @@
         },
         "error": {
           "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/publicError" }]
-        }
+        },
+        "kind": { "$ref": "#/$defs/jobKind" }
       }
+    },
+    "jobKind": {
+      "type": "string",
+      "enum": ["run", "reminder"],
+      "default": "run",
+      "description": "run: a profile=job run with goal as its task; reminder: deliver goal as the notification text without a model call (M16, additive)"
+    },
+    "catchUpLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24,
+      "default": 3,
+      "description": "How many of the latest missed occurrences limited_catch_up runs late (M16, additive)"
     },
     "CreateJobRequest": {
       "type": "object",
@@ -101,9 +115,11 @@
         "delivery": { "$ref": "#/$defs/delivery" },
         "misfire_policy": {
           "type": "string",
-          "enum": ["skip", "run_once"],
-          "description": "What to do with occurrences missed while the core was down: drop them, or run once late"
+          "enum": ["skip", "run_once", "limited_catch_up"],
+          "description": "What to do with occurrences missed while the core was down: drop them, run the latest once late, or run up to catch_up_limit of the latest in order"
         },
+        "catch_up_limit": { "$ref": "#/$defs/catchUpLimit" },
+        "kind": { "$ref": "#/$defs/jobKind" },
         "status": { "type": "string", "enum": ["active", "paused"] },
         "next_run_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] },
         "last_run_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] },
@@ -120,7 +136,9 @@
         "timezone": { "$ref": "#/$defs/Schedule/properties/timezone" },
         "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
         "delivery": { "$ref": "#/$defs/delivery" },
-        "misfire_policy": { "type": "string", "enum": ["skip", "run_once"], "default": "skip" }
+        "misfire_policy": { "type": "string", "enum": ["skip", "run_once", "limited_catch_up"], "default": "skip" },
+        "catch_up_limit": { "$ref": "#/$defs/catchUpLimit" },
+        "kind": { "$ref": "#/$defs/jobKind" }
       }
     },
     "InboxItem": {
