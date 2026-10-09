@@ -2499,7 +2499,61 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M24 inbox
 
-- Нет записей.
+### OI-M24-001 — OAuth-подключение плагина из WebView приложения не завершается
+
+- Status: OPEN
+- Source session: M24
+- Component: Android feature/web, backend connections (M15/M30)
+- Question: как подключить аккаунт плагина (OAuth на сервере провайдера), начав магазин в WebView приложения?
+- Why non-blocking: плагины без подключения (builtin) и без OAuth устанавливаются в WebView (device gate); подключение возможно в web-браузере
+- Current assumption: страницы провайдера по политике WebView открываются во внешнем браузере; web-старт потока ставит cookie `mia_oauth_binding` (M30) в WebView, во внешнем браузере её нет, поэтому колбэк отвечает `connection_flow_invalid` (то же, что OI-M30-002 для Android)
+- Options: (a) нативный старт потока с bearer (без привязки, как OI-M30-002) и возврат по deep link; (b) разрешить в WebView только страницы авторизации, заданные сервером на время потока (allow-list из ответа `startConnection`); (c) Custom Tab + привязка не по cookie
+- Recommendation: (a) вместе с решением OI-M30-002
+- Affects sessions: M60, M50
+- Revisit trigger/by: UC-M24-3
+- Resolution:
+
+### OI-M24-002 — Живая доставка FCM не проверена
+
+- Status: OPEN
+- Source session: M24
+- Component: Android core/push, backend notifications
+- Question: доходит ли push через настоящий Firebase до телефона и открывает карточку?
+- Why non-blocking: путь «job → inbox → PushChannel → FcmClient HTTP v1 (тело запроса)» и «данные сообщения → уведомление → тап → карточка» проверены на телефоне с подменой только транспорта Google; Firebase-проекта и `google-services.json` нет
+- Current assumption: приложение собирается без `google-services.json`; push включается, когда заданы все четыре публичных параметра `miaFcmProjectId`, `miaFcmAppId`, `miaFcmApiKey`, `miaFcmSenderId` (Gradle-свойства), а backend получает `FCM_PROJECT_ID` и `FCM_CREDENTIALS_FILE`
+- Options: (a) пользователь создаёт Firebase-проект и запускает UC-M24-1; (b) подключить google-services plugin, когда файл появится
+- Recommendation: (a) перед M60
+- Affects sessions: M60
+- Revisit trigger/by: UC-M24-1
+- Resolution:
+
+### OI-M24-003 — Пути страниц M31 в приложении предполагаются
+
+- Status: OPEN
+- Source session: M24
+- Component: Android feature/web `WebSurface`, backend `app/modules/auth/web_handoff.py`
+- Question: совпадают ли маршруты дашборда `/dashboard`, памяти `/memory` и входящих `/inbox` с тем, что сделает M31?
+- Why non-blocking: M31 работает параллельно; пункты «Дашборд» и «Что Мия знает» могут до слияния открыть «Страница не найдена»; пункт «Входящие» в приложении не выведен (карточка push нативная)
+- Current assumption: имена по плану M31; allow-list backend уже содержит `dashboard`, `memory`, `inbox`, `privacy`
+- Options: (a) integrator сверяет `web/src/App.tsx` после M31 и правит `WebSurface.kt` (и список корней при ином имени); (b) добавить `INBOX`/`PRIVACY` в `WebSurface`
+- Recommendation: (a)
+- Affects sessions: MW5 integrator, M60
+- Revisit trigger/by: слияние M31
+- Resolution:
+
+### OI-M24-004 — Выход из приложения не отзывает серверные web-сессии
+
+- Status: OPEN
+- Source session: M24
+- Component: backend auth, Android
+- Question: отзывать ли `web_sessions`, выданные через hand-off, при выходе из приложения (`/v1/auth/logout`)?
+- Why non-blocking: при выходе приложение стирает cookie и данные WebView и инвалидирует FCM-токен; серверная сессия живёт до TTL (30 дней) и недоступна без cookie; на пользователя ограничено 32 сессий
+- Current assumption: не отзывать
+- Options: (a) связать web-сессию с refresh-семейством и отзывать при logout; (b) оставить
+- Recommendation: (a) при ревью безопасности (M60)
+- Affects sessions: M60
+- Revisit trigger/by: security review
+- Resolution:
 
 ## M31 inbox
 

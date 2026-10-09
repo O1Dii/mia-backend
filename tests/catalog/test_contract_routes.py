@@ -61,5 +61,11 @@ async def test_every_store_route_is_in_the_contract_and_the_other_way_round() ->
         ("GET", "/v1/connections/callback"),
         ("GET", "/v1/connections/client-metadata.json"),
     }
-    assert implemented | hidden == contract()
+    # M24: the WebView hand-off is mounted by install_runtime_api; tests/web_handoff covers it.
+    mounted_elsewhere = {
+        ("GET", "/v1/auth/web/handoff/redeem"),
+        ("POST", "/v1/auth/web/handoff"),
+    }
+    assert implemented | hidden | mounted_elsewhere == contract()
     assert not implemented & hidden
+    assert not implemented & mounted_elsewhere
