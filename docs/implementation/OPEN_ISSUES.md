@@ -2290,6 +2290,52 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Affected future sessions: M24, M16 consumers.
 - Revisit trigger/deadline: M24.
 
+## M25-R1 inbox
+
+### OI-M25R1-001 — Пороги диктовки подобраны на синтетической речи
+
+- Status: OPEN
+- Source session: M25-R1
+- Component: Android / feature:chat (`DictationConfig`)
+- Question: подходят ли пороги диктовки для живого голоса и шумной комнаты: начало речи RMS 0,02, тишина < 0,012,
+  пауза 1,4 с закрывает кусок, 3,5 с тишины после речи завершают диктовку, pre-roll 400 мс, хвост после стопа 240 мс?
+- Why non-blocking: на SM-S938B (инжектированная речь) фраза с паузами 0,9/1,3 с распознаётся целиком; кнопка стопа всегда
+  завершает диктовку с дочиткой буфера.
+- Current assumption: фиксированные пороги; при фоновом шуме выше 0,012 кусок не закрывается паузой и диктовка не
+  останавливается сама (только кнопкой).
+- Options: (a) оставить; (b) адаптивный порог тишины от уровня шума первых 300 мс; (c) настройка «длина паузы».
+- Recommendation: (a) до результатов UC-R-0110, затем (b) при жалобах.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: UC-R-0110.
+
+### OI-M25R1-002 — Первый `prepare()` STT заново хэширует модель при каждом старте процесса
+
+- Status: OPEN
+- Source session: M25-R1
+- Component: Android / core:stt (`OnDeviceSpeechRecognizer.load` → `SttModelStore.verify`)
+- Question: доверять маркеру проверки (размер + маркер) и не считать SHA-256 225 МБ при каждом запуске приложения?
+- Why non-blocking: диктовка теперь открывает микрофон до загрузки модели (21 мс до «Слушаю»); загрузка 1,2 с на SM-S938B
+  идёт параллельно, речь буферизуется.
+- Current assumption: полная проверка при первом `prepare()` в процессе (как в M21).
+- Options: (a) оставить; (b) полная проверка только после скачивания/обновления, далее маркер + размер.
+- Recommendation: (b) владельцем core:stt; экономит ~1 с и батарею на первом голосовом действии.
+- Affected future sessions: M60, владелец core:stt.
+- Revisit trigger/deadline: следующая сессия в core:stt.
+
+### OI-M25R1-003 — `adjustResize` меняет высоту WebView при открытой клавиатуре
+
+- Status: OPEN
+- Source session: M25-R1
+- Component: Android / app (MainActivity) + feature:web (M24-R1)
+- Question: проверить веб-поверхности (магазин, окно согласия, формы) с открытой клавиатурой после `adjustResize`.
+- Why non-blocking: `WebSurfaceScreen` уже внутри `MiaScreen` (отступ под IME), окно больше не сдвигается целиком; вид
+  страниц без клавиатуры не меняется.
+- Current assumption: WebView получает высоту «экран минус клавиатура», страница сама прокручивает поле в фокусе.
+- Options: (a) оставить; (b) если веб-диалоги считают высоту от `100vh`, перейти на `dvh` (M24-R1).
+- Recommendation: учесть в M24-R1 при проверке окна согласия; повтор в UC-R-0110.
+- Affected future sessions: M24-R1, M60.
+- Revisit trigger/deadline: интеграция MW5 (M24-R1 + M25-R1).
+
 ## M30 inbox
 
 ### OI-M30-001 — Google client ID веб-входа задаётся при сборке
