@@ -56,7 +56,9 @@ Codex получает этот workflow через `AGENTS.md`, а Claude Code 
 Архитектура: [docs/Mia_Architecture_Review.md](docs/Mia_Architecture_Review.md);
 хвосты вне MVP: [docs/Mia_Backlog.md](docs/Mia_Backlog.md).
 
-Сессии `Mxx`, волны `MW0…MW7`. Команды те же:
+Сессии `Mxx`, волны `MW0…MW7`. Репозитории: backend/coordination (этот), Android
+(`../mia-helper-android`) и MindWeaver (`/Users/aleksey/mind-map-generator`, ключ `MM`).
+Handoffs M-сессий: `docs/implementation/handoffs/Mxx.md`. Команды те же:
 
 ~~~text
 Выполни M00.

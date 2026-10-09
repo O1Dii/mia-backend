@@ -236,7 +236,12 @@ The procedure for running any of this on a phone is in
 [DEVICE_GATE.md](DEVICE_GATE.md); it is no longer something a session has to
 reconstruct.
 
-**The next command is `Выполни S31-R1`.** It has no session card in the plan —
+> **Superseded 2026-10-09.** The MVP M-plan replaces this path: S31-R1 and S33
+> are SUPERSEDED by M22/M60 (see the MVP section at the top). The next command is
+> `Выполни все готовые сессии wave MW0 параллельно`. The text below is kept as
+> history of the legacy voice beta gate.
+
+**Legacy next command was `Выполни S31-R1`.** It has no session card in the plan —
 it is a repair, so its input is [S31](handoffs/S31.md) "Incomplete work" plus
 [S16-R2](handoffs/S16-R2.md) and [S25-R3](handoffs/S25-R3.md), which changed the
 protocol and the playback path it must measure. It needs the phone at the sound

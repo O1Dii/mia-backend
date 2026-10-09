@@ -62,7 +62,7 @@
 |---|---|---|
 | B | `/Users/aleksey/PycharmProjects/mia-helper` | backend, web, contracts, coordination |
 | A | `/Users/aleksey/PycharmProjects/mia-helper-android` | Android |
-| MW | `/Users/aleksey/mind-map-generator` | **Не под git.** M51 начинает с вопроса пользователю о `git init` и baseline commit; `.env`, `*.db`, `storage/` идут в `.gitignore`. Без разрешения M51 → `BLOCKED` |
+| MM | `/Users/aleksey/mind-map-generator` (MindWeaver) | **Не под git.** M51 начинает с вопроса пользователю о `git init` и baseline commit; `.env`, `*.db`, `storage/` идут в `.gitignore`. Без разрешения M51 → `BLOCKED` |
 
 ## 3. Model policy
 
@@ -85,6 +85,16 @@
 - Sonnet high → Opus high;
 - Opus high → Opus xhigh;
 - если не помогает и xhigh — новая decision session, а не продолжение.
+
+**Запуск из одной сессии.** Модель выбирается при открытии сессии, текстовая
+команда её не переключает. Поэтому:
+
+- при команде на целую волну исполнитель запускает каждую сессию **отдельным
+  агентом с моделью из карточки** (Agent tool: `opus` / `sonnet` / `haiku`);
+- если сессия уже открыта на более сильной модели (например, Opus 5.5 для
+  карточки Sonnet), она может выполнить карточку сама. Фактическая модель
+  записывается в handoff. Обратная замена (Sonnet вместо Opus) — только как
+  fallback по правилу выше.
 
 **Codex (GPT, подписка Plus)** — запасной исполнитель той же карточки, когда
 лимиты Claude исчерпаны. Применяется и как точечный cross-review диффа
@@ -121,7 +131,7 @@ Context ceiling: 20K — один модуль; 30–35K — фича с гра�
 | Волны | Модель |
 |---|---|
 | MW1, MW2, MW6 | Opus 5.5 high: миграции, ядро, сквозные проверки |
-| Остальные | Sonnet 5.5 high |
+| MW0, MW3, MW4, MW5, MW7 | Sonnet 5.5 high. В MW0 integrator также переносит решение M01 в ADR-0014 |
 
 Integrator сливает ветки в порядке зависимостей, перестраивает миграции,
 запускает gate волны (§7), обновляет STATUS и делает integration commit.
@@ -129,12 +139,9 @@ Integrator сливает ветки в порядке зависимостей,
 ## 5. Граф и волны
 
 ~~~text
-MW0:  M00 ───────────────┬──────────────┬───────────┐        M01 (spike модели)
-                         │              │           │          │
-MW1:  M10 (аккаунты)   M12 (run)      M20 (VIS)   M21 (STT)   M11 (gateway) ◄─ M01
-       │   \            │   \            \          /           │
-MW2:   │    M14 ◄───────┼─── M13 (router) M22 (голос) ◄── M12   │
-       │   (builtin)    │   ◄─ M10,M12     ◄─ M20,M21           │
+MW0:  M00 (ADR/контракты) ◄─ —    M01 (spike модели) ◄─ —
+MW1:  M10 (аккаунты) ◄─ M00   M11 (gateway) ◄─ M00,M01   M12 (run) ◄─ M00   M20 (VIS) ◄─ M00   M21 (STT) ◄─ M00
+MW2:  M14 (builtin) ◄─ M00,M10    M13 (router) ◄─ M10,M12    M22 (голос) ◄─ M12,M20,M21
 MW3:  M15 (магазин) ◄─ M13,M14   M16 (jobs) ◄─ M12,M13   M17 (память) ◄─ M10,M11,M12,M13   M23 (device tools) ◄─ M13,M22
 MW4:  M30 (web) ◄─ M15   M40 (Linear) ◄─ M15   M41 (Telegram) ◄─ M15,M16,M17,M23   M50 (SDK/OAuth) ◄─ M11,M12,M13,M17   [M42 Calendar, opt]
 MW5:  M31 (web 2) ◄─ M30,M16,M17   M24 (Android web/push) ◄─ M16,M22,M30   M51 (MindWeaver) ◄─ M15,M50   M43 (docs) ◄─ M15,M50
@@ -176,8 +183,8 @@ Scheduler может запускать сессию сразу, как толь
 | M24 | Android: web-поверхности и push | M16, M22, M30 | MW5 | A | Sonnet 5.5 high | Opus 5.5 high | 35K |
 | M31 | Web: дашборд MCP Apps, память, входящие | M16, M17, M30 | MW5 | B | Sonnet 5.5 high | Opus 5.5 high | 40K |
 | M43 | Документация плагинов и SDK, шаблон | M15, M50 | MW5 | B | Haiku 5.5 high | Sonnet 5.5 medium | 20K |
-| M51 | MindWeaver ↔ Mia | M15, M50 | MW5 | MW, B | Sonnet 5.5 high | Opus 5.5 high | 40K |
-| M60 | Сквозная приёмка MVP и device gate | M24, M31, M40, M41, M51 | MW6 | B, A, MW | Opus 5.5 high | Opus 5.5 xhigh | 65K |
+| M51 | MindWeaver ↔ Mia | M15, M50 | MW5 | MM, B | Sonnet 5.5 high | Opus 5.5 high | 40K |
+| M60 | Сквозная приёмка MVP и device gate | M24, M31, M40, M41, M51 | MW6 | B, A, MM | Opus 5.5 high | Opus 5.5 xhigh | 65K |
 | M61 | Вторая модель и остальные адаптеры | M60 | MW7 | B | Sonnet 5.5 high | Opus 5.5 high | 30K |
 | M62 | Пилотный деплой и эксплуатация | M60 | MW7 | B | Sonnet 5.5 high | Opus 5.5 high | 35K |
 
@@ -273,8 +280,10 @@ Python-протоколы в `app/core/ports/`: `ModelGateway`, `ToolRouter`,
 **Read:** Review §5.5; `app/web_poc/providers.py`; SIWC docs
 (developers.openai.com/siwc).
 
-**Write scope:** `spikes/m01/**`, `docs/adr/0014-*.md`: только раздел
-Decision, если ADR уже создан M00; иначе запись в handoff.
+**Write scope:** `spikes/m01/**` (включая `spikes/m01/DECISION.md`). ADR
+не трогает: M00 создаёт ADR-0014 с Decision «ожидает M01», а integrator MW0
+переносит итог из `DECISION.md` в ADR-0014. Так write scopes M00 и M01 не
+пересекаются.
 
 **Work:**
 
@@ -286,7 +295,9 @@ Decision, если ADR уже создан M00; иначе запись в hando
 3. **Function calling** с двумя tools.
 4. Список моделей и наблюдаемые лимиты.
 5. Тот же сценарий на DeepInfra GLM-5.3-flash: tools и `reasoning_content`.
-   Ключ берётся по имени переменной, значение не выводится.
+   Ключ — переменная окружения `DEEPINFRA_API_KEY` (задокументирована в
+   `.env.example`); значение не выводится. Если переменная не задана —
+   попросить пользователя задать её, остальные шаги не блокируются.
 6. Сравнить задержку первого токена.
 
 **Out of scope:**
@@ -974,7 +985,7 @@ Android-приложении; push с результатами фоновых з
 `backend/app/mcp_server.py`. Секретные файлы (`.env`, `deploy/*.env*`) не
 открывать.
 
-**Write scope:** MW: `backend/app/services/llm.py` (провайдер `mia/*`),
+**Write scope:** MM: `backend/app/services/llm.py` (провайдер `mia/*`),
 `backend/app/services/mia_auth.py` (новый), `backend/app/routers/mcp_http.py`
 (новый), `backend/app/routers/auth.py` (кнопка входа),
 `frontend/src/pages/Login.jsx`, `frontend/src/pages/Settings.jsx`,
