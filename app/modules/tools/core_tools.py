@@ -1,4 +1,5 @@
-"""Core tools owned by Mia itself: ``background.*`` (M16), ``memory.*`` (M17), ``skills.*``.
+"""Core tools owned by Mia itself: ``background.*`` (M16), ``memory.*``/``people.*`` (M17),
+``skills.*``.
 
 They run in-process under the same router policy as plugin tools (schema,
 risk/approval, profile filter, audit). M13 ships the namespaces as empty
@@ -15,8 +16,8 @@ from typing import Literal
 from app.core.ports.tool_router import ToolContext
 from app.core.ports.types import JsonObject, Risk, RunProfile
 
-RESERVED_NAMESPACES: frozenset[str] = frozenset({"background", "memory", "skills"})
-_NAME = re.compile(r"^(background|memory|skills)\.[a-z][a-z0-9_]{0,63}$")
+RESERVED_NAMESPACES: frozenset[str] = frozenset({"background", "memory", "people", "skills"})
+_NAME = re.compile(r"^(background|memory|people|skills)\.[a-z][a-z0-9_]{0,63}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,7 +57,7 @@ class CoreToolRegistry:
 
     def register(self, tool: CoreTool) -> None:
         if not _NAME.match(tool.name):
-            raise ValueError("core tools live in background.*, memory.* or skills.*")
+            raise ValueError("core tools live in background.*, memory.*, people.* or skills.*")
         if tool.name in self._tools:
             raise ValueError(f"duplicate core tool {tool.name}")
         if tool.timeout_s <= 0:
