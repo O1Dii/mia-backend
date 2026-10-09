@@ -285,5 +285,12 @@
     "retryable": false,
     "public_message": "The device could not complete the action.",
     "owner": "M13"
+  },
+  {
+    "code": "invalid_feed_cursor",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The feed cursor is invalid.",
+    "owner": "M18"
   }
 ]

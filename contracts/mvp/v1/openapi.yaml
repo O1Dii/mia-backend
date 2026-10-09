@@ -14,6 +14,7 @@ security:
   - bearerAuth: []
 tags:
   - name: Runs
+  - name: Feed
   - name: Approvals
   - name: Plugins
   - name: Memory
@@ -113,6 +114,33 @@ paths:
         '204':
           description: Result accepted
           headers: *rid
+        default: *error
+  /v1/feed:
+    get:
+      tags: [Feed]
+      operationId: listFeed
+      summary: History of the user's main feed (voice and chat), newest first
+      description: >-
+        One continuous feed per user (M12). Keyset pagination: pass the previous page's
+        next_cursor as before to load older messages; new messages are always newer than any
+        cursor already issued, so pages never skip or repeat an item. Accepts the bearer
+        token (Android) and the HttpOnly mia_session cookie (web, M10). Only the caller's own
+        feed is reachable; a cursor that is malformed or belongs to another feed is rejected
+        with invalid_feed_cursor. Incognito runs never appear. An empty feed is an empty page.
+      parameters:
+        - name: before
+          in: query
+          required: false
+          description: Opaque next_cursor of the previous page
+          schema: {type: string, minLength: 1, maxLength: 512}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: A page of feed items, newest first
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedPage'}
         default: *error
   /v1/approvals:
     get:
@@ -1080,6 +1108,30 @@ components:
         error: {$ref: 'common.schema.json#/$defs/publicError'}
         cancel_reason: {type: string, enum: [user, client_disconnected, budget_exceeded, superseded]}
         finished_at: {type: string, format: date-time}
+    FeedItem:
+      type: object
+      required: [id, role, source, text, display, run_id, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        role: {type: string, enum: [user, assistant]}
+        source:
+          type: string
+          enum: [run_voice, run_chat, run_job, run_app, android_text, android_voice]
+          description: Where the message came from; run_* messages carry run_id
+        text: {type: string, description: Message text (user input, or the answer's markdown/speech)}
+        display:
+          type: [object, 'null']
+          description: >-
+            The answer's display exactly as in AssistantResponse.display
+            (assistant-response.schema.json); null for user messages and plain answers
+        run_id: {type: [string, 'null'], format: uuid}
+        created_at: {type: string, format: date-time}
+    FeedPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/FeedItem'}}
+        next_cursor: {type: [string, 'null'], description: Pass as before; null when there is nothing older}
     CatalogEntry:
       type: object
       required: [plugin_id, version, manifest]

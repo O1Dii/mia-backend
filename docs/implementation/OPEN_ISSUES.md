@@ -1700,7 +1700,35 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M18 inbox
 
-- Нет записей.
+### OI-M18-001 — `FeedService.open_turn` deadlocked on concurrent runs of one user
+
+- Status: RESOLVED
+- Source session: M18
+- Component: Conversations / feed (M12 code)
+- Question: two runs of one user (e.g. voice and chat started together) wrote to the primary feed concurrently; was that safe?
+- Why non-blocking: found and fixed in M18 (a regression test writes from three concurrent writers).
+- Current assumption: `open_turn` now takes the feed row lock (`SELECT … FOR UPDATE`) before inserting the turn. The turn's foreign key held a shared row lock while `append_entry` asked for the exclusive one, so two concurrent `open_turn` calls deadlocked (`DeadlockDetectedError`).
+- Options: keep the early lock (done); or insert the turn and entry in one statement.
+- Recommendation: keep; integrator should note that this is the only change to an existing `FeedService` write method.
+- Affects sessions: M12 engine (run start), M16, M25, M30.
+- Revisit trigger/by: none.
+- Resolution: fixed in `app/modules/conversations/feed.py::open_turn`; test `tests/feed/test_feed_api.py::test_pages_stay_exact_while_writers_append`.
+- Evidence: handoff M18.
+
+### OI-M18-002 — `cookieAuth` is not declared in `contracts/mvp/v1/openapi.yaml`
+
+- Status: OPEN
+- Source session: M18
+- Component: Contracts
+- Question: `GET /v1/feed` (like the M10 routes) accepts the `mia_session` cookie, but the contract has no `cookieAuth` security scheme, so `GET /v1/feed` is documented in prose only and inherits the global `bearerAuth`.
+- Why non-blocking: the implementation and tests accept both; M30 (web) can use it today.
+- Current assumption: integrator adds `components.securitySchemes.cookieAuth: {type: apiKey, in: cookie, name: mia_session}` (requested by M10) and `security: [{bearerAuth: []}, {cookieAuth: []}]` on `listFeed`.
+- Options: add now in the integration commit; or leave until M30.
+- Recommendation: add in the MW3 integration commit together with the M10 diff.
+- Affects sessions: M30, M31.
+- Revisit trigger/by: MW3 integration.
+- Resolution:
+- Evidence: handoff M18 «Requested shared-file changes».
 
 ## M33 inbox
 
