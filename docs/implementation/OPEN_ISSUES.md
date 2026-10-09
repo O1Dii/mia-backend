@@ -1079,7 +1079,70 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M12 inbox
 
-- Нет записей.
+### OI-M12-001 — Retention of runs and run events
+
+- Status: OPEN
+- Source session: M12
+- Component: Run engine / persistence
+- Question: how long are `runs` and `run_events` (response text, tool `structured_content`, approval arguments) kept, including incognito runs?
+- Why non-blocking: SSE resume only needs recent events; volume is small for one user; `input_text` of incognito runs is not stored and incognito runs never reach the feed.
+- Current assumption: kept indefinitely; deleting the user cascades.
+- Options: TTL job (e.g. 30 days, feed entries stay); delete events of finished runs after N days but keep `runs.response`; encrypt with the per-user DEK (ADR-0012) and crypto-shred.
+- Recommendation: TTL on `run_events` with the M17 privacy work, before public beta.
+- Affects sessions: M17, M31, M62.
+- Revisit trigger/by: M17 or first retention policy decision.
+- Resolution:
+- Evidence: `migrations/versions/20261009_m12_runs.py`, handoff M12.
+
+### OI-M12-002 — Draft text when the model answers in structured mode
+
+- Status: OPEN
+- Source session: M12
+- Component: Run engine / chat UX
+- Question: should chat show a streaming draft when the model returns the speech/display JSON?
+- Why non-blocking: `message.delta` is emitted in plain-text mode; in structured mode the client gets `response.final` only, which is correct but slower to first pixel.
+- Current assumption: no drafts in structured mode.
+- Options: incremental extraction of `display.markdown` from partial JSON; plain-text mode for chat and structured only for voice; keep as is.
+- Recommendation: decide after M11 measures first-token latency of the primary model and M30 builds the chat view.
+- Affects sessions: M11, M30, M61.
+- Revisit trigger/by: M30.
+- Resolution:
+- Evidence: `app/modules/runs/engine.py` (`model_step`).
+
+### OI-M12-003 — Run ownership with more than one backend instance
+
+- Status: OPEN
+- Source session: M12
+- Component: Run engine / runtime
+- Question: how do live runs, cancel signals and SSE wake-ups work across several backend processes?
+- Why non-blocking: internal beta runs one instance (OI-S18-002); the store is the source of truth, readers re-poll every 15 s, cancel via another instance is honoured at the next step boundary through `cancel_requested`, and a stale heartbeat (60 s) lets any instance end an orphaned run with `run_interrupted`.
+- Current assumption: single instance.
+- Options: Postgres `LISTEN/NOTIFY` or Redis pub/sub for wake-ups and cancel; run leases; sticky routing per run.
+- Recommendation: Postgres `LISTEN/NOTIFY` when a second instance is introduced.
+- Affects sessions: M62.
+- Revisit trigger/by: before horizontal scaling (together with OI-S18-002).
+- Resolution:
+- Evidence: `app/modules/runs/service.py`, `notifier.py`.
+
+### OI-M12-004 — Locale and form of the `speech.ack` filler
+
+- Status: OPEN
+- Source session: M12
+- Component: Voice / run engine
+- Question: should the filler follow the user's locale, vary, or be an on-device earcon?
+- Why non-blocking: one deployment-wide phrase `RUN_SPEECH_ACK_TEXT` (default «Секунду.») after `RUN_VOICE_ACK_DELAY_MS` (1500); clients may play an earcon instead of `text`.
+- Current assumption: Russian-speaking users, server text.
+- Options: per-locale phrases; client-side earcon only; model-generated filler.
+- Recommendation: M22 measures time to first sound on the phone and chooses.
+- Affects sessions: M22, M61.
+- Revisit trigger/by: M22.
+- Resolution:
+- Evidence: `contracts/mvp/v1/run-events.schema.json#/$defs/speechAck`.
+
+### Resolution update — OI-M00-001
+
+- M12 created `contracts/mvp/v1/error-codes.json` (`code`, `http_status` or null for event-only codes, `retryable`, `public_message`, `owner`) with a validator check (shape, uniqueness, `retryable` parity with `errors/v1`) and registered its 18 codes; `tests/runs/test_wiring.py` keeps `app/modules/runs/errors.py` in sync. M13/M16/M17/M50 append their codes. Suggested status: DECIDED (integrator updates the original record).
+- Evidence: handoff M12, `contracts/scripts/validate_contracts.py::validate_mvp_error_codes`.
 
 ## M20 inbox
 
