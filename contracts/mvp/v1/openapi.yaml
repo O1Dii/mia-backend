@@ -1058,6 +1058,8 @@ paths:
     get:
       tags: [Memory]
       operationId: listPeople
+      parameters:
+        - {name: status, in: query, required: false, schema: {type: string, enum: [suggested, active, rejected]}}
       responses:
         '200':
           description: People
@@ -1187,13 +1189,127 @@ paths:
     get:
       tags: [Memory]
       operationId: exportMemory
+      parameters:
+        - {name: format, in: query, required: false, schema: {type: string, enum: [zip, json], default: zip}}
       responses:
         '200':
-          description: Archive of /memories/*.md files
+          description: >-
+            zip — archive of memories/<category>.md, memories/people.md, memories/preferences.md,
+            memories/suggested.md and memory.json; json — the same records as one document (M17)
           headers: *rid
           content:
             application/zip:
               schema: {type: string, contentEncoding: base64}
+            application/json:
+              schema: {$ref: '#/components/schemas/MemoryExport'}
+        default: *error
+  /v1/memory:
+    delete:
+      tags: [Memory]
+      operationId: forgetMemory
+      summary: Hard-delete every fact, person and preference of the caller (settings and access log stay)
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Erased
+          headers: *rid
+        default: *error
+  /v1/memory/import:
+    post:
+      tags: [Memory]
+      operationId: importMemory
+      summary: Import from another assistant or a Mia export into the review queue (status suggested)
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [format, content]
+              properties:
+                format: {type: string, enum: [markdown, text, json]}
+                source: {type: string, enum: [chatgpt, claude, gemini, mia, other], default: other}
+                content: {type: string, minLength: 1, maxLength: 256000}
+      responses:
+        '201':
+          description: Batch queued for review; a replay with the same Idempotency-Key returns the same batch
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [batch_id, facts, people]
+                properties:
+                  batch_id: {type: string, format: uuid}
+                  facts: {type: integer, minimum: 0}
+                  people: {type: integer, minimum: 0}
+        default: *error
+  /v1/memory/settings:
+    get:
+      tags: [Memory]
+      operationId: getMemorySettings
+      responses:
+        '200':
+          description: Privacy settings
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemorySettings'}
+        default: *error
+    put:
+      tags: [Memory]
+      operationId: putMemorySettings
+      summary: Auto-save categories (never health/finance) and history retention
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                autosave_categories: {type: array, items: {type: string}}
+                history_retention: {type: string, enum: ['30d', '1y', forever, none]}
+      responses:
+        '200':
+          description: Saved settings
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemorySettings'}
+        default: *error
+  /v1/memory/access-log:
+    get:
+      tags: [Memory]
+      operationId: listMemoryAccess
+      summary: Who read or changed memory (runs, the user, apps); never content
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Newest first
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [at, actor, action, record_count]
+                      properties:
+                        at: {type: string, format: date-time}
+                        actor: {type: string, enum: [run, user, app, system]}
+                        action: {type: string}
+                        record_count: {type: integer, minimum: 0}
+                        run_id: {type: string, format: uuid}
+                        app_client_id: {type: string}
         default: *error
   /v1/jobs:
     get:
@@ -2045,6 +2161,21 @@ components:
     Person: {$ref: 'memory.schema.json#/$defs/Person'}
     Preference: {$ref: 'memory.schema.json#/$defs/Preference'}
     MemorySuggestion: {$ref: 'memory.schema.json#/$defs/MemorySuggestion'}
+    MemorySettings:
+      type: object
+      required: [autosave_categories, history_retention]
+      properties:
+        autosave_categories: {type: array, items: {type: string}}
+        history_retention: {type: string, enum: ['30d', '1y', forever, none]}
+    MemoryExport:
+      type: object
+      required: [format, exported_at, facts, people, preferences]
+      properties:
+        format: {const: mia.memory.v1}
+        exported_at: {type: string, format: date-time}
+        facts: {type: array, items: {$ref: '#/components/schemas/Fact'}}
+        people: {type: array, items: {$ref: '#/components/schemas/Person'}}
+        preferences: {type: array, items: {$ref: '#/components/schemas/Preference'}}
     Job: {$ref: 'job.schema.json#/$defs/Job'}
     CreateJobRequest: {$ref: 'job.schema.json#/$defs/CreateJobRequest'}
     Schedule: {$ref: 'job.schema.json#/$defs/Schedule'}

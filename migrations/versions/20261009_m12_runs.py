@@ -49,9 +49,7 @@ def upgrade() -> None:
         sa.Column("turn_id", postgresql.UUID(as_uuid=True)),
         sa.Column("device_id", postgresql.UUID(as_uuid=True)),
         sa.Column("app_client_id", sa.String(512)),
-        sa.Column(
-            "scopes", postgresql.ARRAY(sa.String(200)), nullable=False, server_default="{}"
-        ),
+        sa.Column("scopes", postgresql.ARRAY(sa.String(200)), nullable=False, server_default="{}"),
         sa.Column("incognito", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("input_text", sa.Text()),
         sa.Column("response", postgresql.JSONB()),

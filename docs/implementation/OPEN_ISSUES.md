@@ -1926,7 +1926,86 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M17 inbox
 
-- Нет записей.
+### OI-M17-001 — Поиск по памяти: слепой индекс вместо открытого FTS
+
+- Status: OPEN
+- Source session: M17
+- Component: Memory Ledger / context assembly
+- Question: достаточно ли качества поиска фактов для контекста run, если Postgres FTS работает по HMAC-токенам основ слов (`tsvector` из `t<hex>`), а не по словам?
+- Why non-blocking: содержимое зашифровано per-user DEK, а индекс не раскрывает слова и становится бесполезным после crypto-shred; закреплённый профиль и люди из запроса попадают в контекст всегда.
+- Current assumption: маленький стеммер RU/EN (`app/modules/memory/text.py`), совпадение по любой основе, ранжирование `ts_rank`; синонимов и опечаток нет.
+- Options: оставить; добавить n-граммы/префиксы в слепой индекс; эмбеддинги (ADR-0012 п.5) при доказанной нехватке FTS.
+- Recommendation: измерить на живых данных в M60; эмбеддинги — только после замера.
+- Affects sessions: M31 (поиск в UI), M50 (`memory.context`), M60.
+- Revisit trigger/by: жалобы на «Mia не вспомнила» или M60.
+- Resolution:
+- Evidence: `app/modules/memory/cipher.py`, `service.py::context`, `tests/memory/test_service_postgres.py::test_context_is_pinned_profile_plus_fts_and_minimized`.
+
+### OI-M17-002 — Retention «не хранить» удаляет историю на следующем проходе, а не запрещает запись
+
+- Status: OPEN
+- Source session: M17
+- Component: Retention / run engine
+- Question: должен ли режим `history_retention = none` вообще не писать ленту (как инкогнито), а не удалять её фоновым проходом?
+- Why non-blocking: проход (`RetentionSweeper`, каждые 15 мин) удаляет завершённые ходы и runs; модель продолжает видеть недавнюю ленту в пределах окна.
+- Current assumption: cutoff = «сейчас» на каждом проходе; 30d/1y — скользящее окно; инкогнито-runs удаляются через 1 час после завершения.
+- Options: engine-хук в M12 (при `none` run создаётся с `incognito=True` для ленты, но с чтением памяти); оставить проход.
+- Recommendation: хук в `RunService.start` (аддитивно, M12 follow-up или M31 вместе с экраном настроек).
+- Affects sessions: M12 follow-up, M31, M62.
+- Revisit trigger/by: экран приватности M31.
+- Resolution:
+- Evidence: `app/modules/memory/retention.py`, `tests/memory/test_retention_postgres.py`.
+
+### OI-M17-003 — Результат `device.contacts.search`: формат и телефоны в `content`
+
+- Status: OPEN
+- Source session: M17
+- Component: Device tools (M23) / privacy
+- Question: какой формат `structured_content` отдаёт Android и может ли модель видеть телефоны, если вызовет `device.contacts.search` напрямую (router показывает device tools модели, а `content` уходит ей)?
+- Why non-blocking: `people.resolve` не передаёт модели ни `content`, ни номера — только `contact:<n>` и имя; читатель терпим к форме.
+- Current assumption: `structured_content = {"contacts": [{"display_name"|"name", "phones"|"phone": [...], "emails"|"email": [...]}]}` (≤5 используются), номера в E.164; `content` содержит только имена.
+- Options: M23 пишет в `content` только имена; router скрывает `device.contacts.search` от модели при наличии `people.resolve`; оба.
+- Recommendation: M23 — `content` без номеров (обязательно); интегратор MW3 сверяет формат с `parse_contacts`.
+- Affects sessions: M23, MW3 integrator, M41.
+- Revisit trigger/by: интеграция MW3.
+- Resolution:
+- Evidence: `app/modules/memory/tools.py::parse_contacts`, `tests/memory/test_e2e_runs_postgres.py::test_no_phone_number_reaches_the_provider`.
+
+### OI-M17-004 — Нет публичного удаления аккаунта
+
+- Status: OPEN
+- Source session: M17
+- Component: Accounts / privacy
+- Question: кто и когда открывает «Удалить аккаунт» (`DELETE /v1/me` или аналог)?
+- Why non-blocking: `MemoryService.shred_account` готов (crypto-shred DEK через `KeyVault.shred_user` + удаление строк памяти); удаление `users` каскадирует остальное.
+- Current assumption: endpoint отсутствует; «Удалить всю память» (`DELETE /v1/memory`) DEK не уничтожает, чтобы не сбрасывать подключения моделей.
+- Options: M10 follow-up (`DELETE /v1/me`: shred → удалить `users`); M31 вместе со страницей «Где ваши данные»; M62 до пилота.
+- Recommendation: M31 UI + маленький endpoint в auth до пилота (M62).
+- Affects sessions: M31, M62.
+- Revisit trigger/by: пилот M62.
+- Resolution:
+- Evidence: `app/modules/memory/service.py::shred_account`, `tests/memory/test_service_postgres.py::test_crypto_shred_makes_surviving_ciphertext_unreadable`.
+
+### OI-M17-005 — Профиль автоматизаций (`scope: automation`) не учитывается в контексте job-runs
+
+- Status: OPEN
+- Source session: M17
+- Component: MemoryProvider port
+- Question: должны ли job-runs видеть только факты `scope = automation` (подготовка V2)?
+- Why non-blocking: в V1 ключ на сервере, разница только политическая; поле хранится и редактируется (`PATCH … {scope}`).
+- Current assumption: `MemoryProvider.context` не знает профиль run → job видит ту же память, что чат.
+- Options: аддитивный параметр `profile`/`scopes` в порте (владелец M00); фильтр в engine по `categories`.
+- Recommendation: решить вместе с M50 (`memory.read:<category>` для приложений тоже требует передачи scopes).
+- Affects sessions: M50, M16.
+- Revisit trigger/by: M50.
+- Resolution:
+- Evidence: `app/core/ports/memory_provider.py`.
+
+### Resolution updates
+
+- OI-M00-002 → DECIDED (M17): категории и `scope` оставлены как в `memory.schema.json`; `health`, `finance` — чувствительные (не автосохраняются, не закрепляются в контексте). Evidence: `app/modules/memory/domain.py`.
+- OI-M12-001 → RESOLVED for MVP (M17): retention истории по настройке пользователя (`30d`/`1y`/`forever`/`none`) удаляет завершённые ходы и runs (с `run_events` и `tool_approvals`); завершённые инкогнито-runs удаляются через 1 час. Evidence: `app/modules/memory/retention.py`, `tests/memory/test_retention_postgres.py`.
+- OI-M13-006 → частично (M17): строки `tool_approvals` удаляются вместе с runs по retention; отмена pending approvals при завершении run остаётся за M30.
 
 ## M23 inbox
 

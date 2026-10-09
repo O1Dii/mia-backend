@@ -42,7 +42,7 @@ def test_application_wires_router_approvals_and_device_channel() -> None:
         "/v1/approvals/{approval_id}/decision",
     } <= paths
     # Core tools come only from the reserved extension points (M16: background.*, schedule.*,
-    # notify; M17: memory.*).
+    # notify; M17: memory.*, people.*).
     assert all(
         tool.name == "notify" or tool.name.split(".")[0] in RESERVED_NAMESPACES
         for tool in stack.core_tools.tools()

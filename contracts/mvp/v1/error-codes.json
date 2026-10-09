@@ -474,5 +474,33 @@
     "retryable": false,
     "public_message": "The background task ran out of its time budget.",
     "owner": "M16"
+  },
+  {
+    "code": "memory_incognito",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "Incognito runs do not write memory.",
+    "owner": "M17"
+  },
+  {
+    "code": "memory_unavailable",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "Memory is temporarily unavailable.",
+    "owner": "M17"
+  },
+  {
+    "code": "memory_import_invalid",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The import could not be read.",
+    "owner": "M17"
+  },
+  {
+    "code": "memory_import_too_large",
+    "http_status": 413,
+    "retryable": false,
+    "public_message": "The import is too large.",
+    "owner": "M17"
   }
 ]

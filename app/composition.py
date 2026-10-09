@@ -15,6 +15,7 @@ from app.modules.conversations.feed import FeedService
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
 from app.modules.jobs.composition import install_jobs
+from app.modules.memory import install_memory
 from app.modules.models import install_models
 from app.modules.plugins.composition import build_builtin_plugins
 from app.modules.plugins.install.composition import (
@@ -156,6 +157,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         tools=tools,
         workspace=workspace,
     )
+    memory = install_memory(app, runtime, vault=models_stack.vault, tools=tools)
     runs = install_runs(
         app,
         settings,
@@ -164,6 +166,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         model_gateway=models_stack.gateway,
         tool_router=tools.router,
         approvals=tools.approvals,
+        memory=memory.service,
     )
     tools.device_channel.bind_publisher(runs.publish)
     install_jobs(app, settings, runtime, runs=runs, core_tools=tools.core_tools)
@@ -173,6 +176,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
             authenticator=request_authenticator(app),
         )
     )
+    memory.tools.bind_publisher(runs.publish)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
