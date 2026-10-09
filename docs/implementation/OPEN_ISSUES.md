@@ -2151,7 +2151,101 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M50 inbox
 
-- Нет записей.
+### Resolution update → OI-WEB-005 (app identity / SDK grants part)
+
+- Proposed status: RESOLVED (вместе с частью M10 — запись целиком закрыта).
+- Resolution: временные SDK grants POC заменены постоянными в PostgreSQL (revision `20261009_m50_oauth`): `oauth_grants` (пользователь × CIMD `client_id`, scopes, категории памяти, месячный лимит, отзыв), `oauth_tokens` (access 15 мин / rotating refresh 30 дней, только SHA-256), `oauth_codes`, `oauth_authorization_requests`, `oauth_app_usage`. Идентичность приложения — Client ID Metadata Document, без ручной регистрации; PKCE S256 обязателен. Временные токены POC не переносятся (как рекомендовано).
+- Evidence: `app/modules/oauth/**`, `tests/oauth/test_authorization_postgres.py`, handoff M50.
+
+### OI-M50-001 — Consent page sign-in return path (web, M30/M31)
+
+- Status: OPEN
+- Source session: M50
+- Component: Web / consent
+- Question: как экран согласия возвращает пользователя после входа в web?
+- Why non-blocking: страница согласия `oauth.html` показывает «Сначала войдите в Мию» со ссылкой `<base>/?return_to=<path+query oauth.html>`; без поддержки `return_to` пользователь входит и открывает ссылку приложения заново.
+- Current assumption: M30/M31 читает `return_to` и после входа делает `location.assign` **только** для относительного пути, начинающегося с `/` и не с `//` (иначе open redirect).
+- Options: поддержать `return_to` в `App.tsx`; встроить кнопку GIS прямо в `oauth.html`.
+- Recommendation: `return_to` в M31 (владелец `App.tsx`), с проверкой относительного пути.
+- Affects sessions: M31, M51.
+- Revisit trigger/by: M51 (первый живой вход MindWeaver через Mia).
+- Resolution:
+- Evidence: `web/src/oauth/api.ts` (`signInUrl`).
+
+### OI-M50-002 — Scopes `jobs`, `notify`, `mia.install` have no app-facing endpoint
+
+- Status: OPEN
+- Source session: M50
+- Component: OAuth scopes / apps
+- Question: какие эндпоинты получают приложения для фоновых задач, уведомлений и установки себя плагином?
+- Why non-blocking: scopes входят в словарь, согласие и токен (экран помечает «пока не используется»), но ничего не открывают; DoD M50 их не требует. `background.start` от имени приложения запустил бы job-профиль со всеми tools пользователя — эскалация, поэтому не открыт.
+- Current assumption: приложения используют `llm.generate`, `memory.*`, `tools.use:*`.
+- Options: app-профиль для jobs (наследует scopes токена) + квоты; `POST /v1/notify` с квотой на grant; `mia.install` через custom MCP URL M15 с согласием в Mia.
+- Recommendation: `notify` и `mia.install` — в M51, если понадобятся MindWeaver; jobs — после app-safe профиля в M16-follow-up.
+- Affects sessions: M51, M43, M60.
+- Revisit trigger/by: M51.
+- Resolution:
+- Evidence: `app/modules/oauth/scopes.py` (`NOT_ENFORCED_YET`).
+
+### OI-M50-003 — Apps on `/v1/runs` and `/v1/memory/context`
+
+- Status: OPEN
+- Source session: M50
+- Component: Runs / memory API for apps
+- Question: должны ли app-токены работать на `POST /v1/runs` (+SSE) и `GET /v1/memory/context` (ADR-0013 их перечисляет)?
+- Why non-blocking: оба роутера принимают только first-party principal (M10), app-токен получает 401; приложения идут через `/v1/chat/completions`/`/v1/responses` (Run(app)) и `/mcp` (`memory.search` по `memory.read:<cat>`). JS/Python SDK умеют runs для first-party токенов.
+- Current assumption: для MVP достаточно completions + MCP.
+- Options: в `app/api/v1/runs.py` и `memory.py` пробовать `app.state.oauth.apps.authenticate` для токенов `mia_at_` (runs — профиль `app`, без ленты; context — только `memory.read:<cat>`).
+- Recommendation: сделать в M51, если MindWeaver понадобится полноценный run; владельцы файлов M12/M17.
+- Affects sessions: M51, M43.
+- Revisit trigger/by: M51.
+- Resolution:
+- Evidence: `tests/oauth/test_mcp_postgres.py::test_app_tokens_never_reach_first_party_routes`.
+
+### OI-M50-004 — Spend estimate and concurrent overshoot
+
+- Status: OPEN
+- Source session: M50
+- Component: Apps / budget
+- Question: как считать расходы на подписке без цены провайдера и допускать ли перерасход параллельными запросами?
+- Why non-blocking: при `cost_usd = null` (план ChatGPT) Mia оценивает по токенам (`APPS_ESTIMATED_*_USD_PER_MTOK`, строка `estimated`); лимит проверяется до запроса и после каждого шага модели, параллельные запросы могут превысить лимит на стоимость одного шага каждый.
+- Current assumption: оценка консервативная, перерасход ограничен.
+- Options: резервирование бюджета в транзакции; отдельный «лимит запросов» для подписок.
+- Recommendation: замерить реальный расход MindWeaver в M51/M60; резервирование — если пилот покажет перерасход.
+- Affects sessions: M51, M60, M62.
+- Revisit trigger/by: M60.
+- Resolution:
+- Evidence: `app/modules/oauth/usage.py`, `test_monthly_limit_stops_the_app`.
+
+### OI-M50-005 — Deploy: issuer with a path prefix, rate limits on `/oauth/*`
+
+- Status: OPEN
+- Source session: M50
+- Component: Deployment / OAuth
+- Question: как публиковать AS под `https://host/mia`?
+- Why non-blocking: метаданные отдаются и по `<issuer>/.well-known/oauth-authorization-server`, но RFC 8414 для issuer с путём ищет `https://host/.well-known/oauth-authorization-server/mia` (корень хоста, мимо nginx `location /mia/`). У `/oauth/token` и `/oauth/authorize` нет rate limit (только размер тела и throttled purge).
+- Current assumption: локально и в тестах issuer без пути.
+- Options: nginx `location = /.well-known/oauth-authorization-server/mia` и `.../oauth-protected-resource/mia/mcp` → backend; отдельный поддомен; rate limit по IP/client_id в Redis.
+- Recommendation: M62 (пилотный деплой).
+- Affects sessions: M62, M51.
+- Revisit trigger/by: M62.
+- Resolution:
+- Evidence: `deploy/mia.nginx.conf`, `app/modules/oauth/router.py`.
+
+### OI-M50-006 — Paraphrase of injected memory by the model
+
+- Status: OPEN
+- Source session: M50
+- Component: Apps / memory.context privacy
+- Question: достаточно ли того, что `memory.context` никогда не отдаёт факты напрямую, если модель может пересказать их в ответе приложению?
+- Why non-blocking: это суть scope (ADR-0013: ядро подмешивает контекст к запросам приложения); факты проходят `minimize()`, только выбранные пользователем категории (здоровье/финансы исключены), чтение пишется в журнал (`actor=app`), системная подсказка просит не цитировать.
+- Current assumption: пользователь видит и выбирает категории на экране согласия.
+- Options: оставить; фильтр ответа на дословные совпадения с фактами; явное предупреждение на экране согласия.
+- Recommendation: оставить для MVP, текст предупреждения уточнить при дизайн-ревью экрана согласия.
+- Affects sessions: M60.
+- Revisit trigger/by: дизайн-ревью экрана согласия.
+- Resolution:
+- Evidence: `app/modules/oauth/apprun.py` (`CONTEXT_HEADER`), `test_memory_context_reaches_the_model_but_not_the_app`.
 
 ## M24 inbox
 
