@@ -45,6 +45,7 @@ test.describe('memory page: what Mia knows', () => {
     const dialog = page.getByRole('dialog')
     await dialog.getByLabel('Текст').fill('Живу в Бресте')
     await dialog.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     await expect(page.locator('[data-record="fact-suggested"]')).toHaveCount(1)
 
     await page.getByRole('button', { name: 'Отклонить: Не люблю кофе' }).click()
@@ -64,6 +65,7 @@ test.describe('memory page: what Mia knows', () => {
     await dialog.getByLabel('Текст').fill('Работаю в студии звука')
     await dialog.getByLabel('Раздел').selectOption('work')
     await dialog.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     const row = page.locator('[data-record="fact"]', { hasText: 'Работаю в студии звука' })
     await expect(row.locator('.mia-chip', { hasText: 'Работа' })).toBeVisible()
 
@@ -71,6 +73,7 @@ test.describe('memory page: what Mia knows', () => {
     dialog = page.getByRole('dialog')
     await dialog.getByLabel('Текст').fill('Работаю звукорежиссёром')
     await dialog.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     await expect(page.getByText('Работаю звукорежиссёром')).toBeVisible()
     expect(await api(page).facts()).toEqual(['Работаю звукорежиссёром'])
 
@@ -89,6 +92,7 @@ test.describe('memory page: what Mia knows', () => {
       await page.getByRole('button', { name: 'Добавить факт' }).click()
       await page.getByRole('dialog').getByLabel('Текст').fill(text)
       await page.getByRole('dialog').getByRole('button', { name: 'Сохранить' }).click()
+      await expect(page.getByRole('dialog')).toBeHidden()
       await expect(page.getByText(text)).toBeVisible()
     }
     await page.getByRole('tab', { name: /^Данные и приватность/ }).click()
@@ -127,6 +131,7 @@ test.describe('memory page: what Mia knows', () => {
     await dialog.getByLabel('Имя').fill('Яна')
     await dialog.getByLabel(/Кто это/).fill('жена')
     await dialog.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     const row = page.locator('[data-record="person"]', { hasText: 'Яна' })
     await expect(row).toContainText('жена')
 
@@ -134,6 +139,7 @@ test.describe('memory page: what Mia knows', () => {
     dialog = page.getByRole('dialog')
     await dialog.getByLabel(/Другие имена/).fill('Янка, Яночка')
     await dialog.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     await expect(row.getByText('Янка')).toBeVisible()
 
     await row.getByRole('button', { name: 'Удалить: Яна' }).click()
@@ -193,6 +199,7 @@ test.describe('memory page: what Mia knows', () => {
     await page.getByRole('button', { name: 'Добавить факт' }).click()
     await page.getByRole('dialog').getByLabel('Текст').fill('Секретный факт')
     await page.getByRole('dialog').getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     await expect(page.getByText('Секретный факт')).toBeVisible()
 
     const other = await browser.newContext({ baseURL: page.url().split('/').slice(0, 3).join('/') })
@@ -220,6 +227,7 @@ test.describe('memory page: what Mia knows', () => {
       .getByLabel('Текст')
       .fill('Очень длинный факт про то, как я люблю гулять по набережной по вечерам')
     await page.getByRole('dialog').getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     await expect(page.locator('[data-record="fact"]')).toHaveCount(1)
     expect(await horizontalOverflow(page)).toEqual([])
     await page.screenshot({ path: info.outputPath('screens/memory-mobile.png'), fullPage: true })
