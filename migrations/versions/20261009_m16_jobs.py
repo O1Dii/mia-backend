@@ -1,7 +1,7 @@
 """M16 jobs: queue + attempts, schedules, fired deadlines, inbox, push tokens, deliveries.
 
 Revision ID: 20261009_m16_jobs
-Revises: 20261009_m13_tools
+Revises: 20261009_m15_store
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20261009_m16_jobs"
-down_revision: str | None = "20261009_m13_tools"
+down_revision: str | None = "20261009_m15_store"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

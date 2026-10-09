@@ -132,11 +132,12 @@ def parse_contacts(structured: JsonObject | None) -> list[Contact]:
     """Tolerant reader of the ``device.contacts.search`` result (M23).
 
     Expected ``structured_content``: ``{"contacts": [{"display_name"|"name": str,
-    "phones"|"phone": [...], "emails"|"email": [...]}]}``.
+    "phones"|"phone": [...], "emails"|"email": [...]}]}``. The Android client (M23) sends
+    ``{"matches": [{"name": str, "phone_count": int}]}`` — names only, no identifiers.
     """
     if not structured:
         return []
-    raw = structured.get("contacts", structured.get("results"))
+    raw = structured.get("contacts", structured.get("matches", structured.get("results")))
     if not isinstance(raw, list):
         return []
     contacts: list[Contact] = []

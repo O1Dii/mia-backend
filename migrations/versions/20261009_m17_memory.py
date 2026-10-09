@@ -1,7 +1,7 @@
 """M17 Memory Ledger: facts, people, preferences, privacy settings, access log.
 
 Revision ID: 20261009_m17_memory
-Revises: 20261009_m13_tools
+Revises: 20261009_m16_jobs
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20261009_m17_memory"
-down_revision: str | None = "20261009_m13_tools"
+down_revision: str | None = "20261009_m16_jobs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

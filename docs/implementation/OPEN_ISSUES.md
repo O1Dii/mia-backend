@@ -45,7 +45,7 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
 | OI-W6-019 | RESOLVED | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | клиент сам закрывал сокет кодом 1013 | resolved in S25-R3 |
 | OI-M00-001 | RESOLVED | MVP contracts | Где реестр кодов ошибок mvp/v1? | `contracts/mvp/v1/error-codes.json` (M12) | resolved in MW1 integration |
-| OI-M00-002 | OPEN | Memory contract | Категории памяти и `Fact.scope` окончательные? | предварительные | M17 |
+| OI-M00-002 | DECIDED | Memory contract | Категории памяти и `Fact.scope` окончательные? | категории/scope как в схеме; health/finance чувствительные (M17) | resolved in MW3 integration |
 | OI-M00-003 | RESOLVED | Backend tooling | Какую версию Python закрепить для `uv sync`? | `.python-version` = 3.13 | resolved in MW0 integration |
 | OI-M01-001 | OPEN | Model gateway | Численные лимиты Plus для SIWC? | неизвестны; 429 → пауза и переключение на GLM реализованы в M11 | M61 |
 | OI-M01-002 | OPEN | Model gateway / terms | Можно ли использовать план в многопользовательской MIA? | только локально/у владельца; нужна заявка OpenAI и ручное чтение terms | before hosted pilot (M62) |
@@ -57,7 +57,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M11-001 | OPEN | Model gateway | Принимает ли план structured output (`text.format`)? | нет; M12 делит ответ эвристикой | M61 |
 | OI-M11-002 | OPEN | Model gateway | Вход в ChatGPT, когда сервер удалённый? | вход только на хосте backend | M62 |
 | OI-M11-003 | OPEN | Credentials | Custody master key / KMS | ключи в секрет-менеджере деплоя → env | before public beta |
-| OI-M12-001 | OPEN | Runs | Retention `runs`/`run_events` | хранятся бессрочно | M17 |
+| OI-M12-001 | RESOLVED | Runs | Retention `runs`/`run_events` | retention по настройке пользователя (M17) | resolved in MW3 integration |
 | OI-M12-002 | OPEN | Runs / web | Черновик текста в structured mode | без черновиков | M30 |
 | OI-M12-003 | OPEN | Runs runtime | Runs при нескольких backend-инстансах | один инстанс | with OI-S18-002 |
 | OI-M12-004 | DECIDED | Voice | Язык и форма `speech.ack` | клиент озвучивает серверный текст, задержка 1500 мс | живой замер MW2 |
@@ -70,15 +70,15 @@ Integration session обновляет этот индекс после merge.
 | OI-M21-004 | OPEN | Android STT | WER на живой речи | измерено только на синтезе | M22 device gate |
 | OI-M21-005 | OPEN | Android STT | Какие ABI упаковывать | только arm64-v8a | release AAB |
 | OI-M13-001 | RESOLVED | Model adapters | Имена tools с точками у OpenAI-совместимых API | алиас в адаптерах (`ToolNames`) | resolved in MW2 integration |
-| OI-M13-002 | OPEN | Tools / store | Словарь `installations.grants` | grants не проверяются сверх статуса/digest/network/scopes | M15 |
+| OI-M13-002 | RESOLVED | Tools / store | Словарь `installations.grants` | словарь в `install/grants.py` (M15); роутер — OI-M15-001 | resolved in MW3 integration |
 | OI-M13-003 | OPEN | Tools / voice | Фильтр voice: `voice: true` и `read`? | только флаг `voice` | M15 / M60 |
 | OI-M13-004 | RESOLVED | Tools / catalog | Digest каталога = `compute_tools_digest` | builtin-каталог MW2 так и считает | resolved in MW2 integration; правило для M15 |
 | OI-M13-005 | OPEN | Tools | Skills удалённых плагинов не загружаются | только упакованные `SKILL.md` | M15 |
-| OI-M13-006 | OPEN | Approvals | Retention и отмена pending approvals завершённых run | хранятся; не отменяются | M17 / M30 |
-| OI-M14-001 | OPEN | Plugin contract | Скрытый app-only `get_state` у декларативных | не в манифесте; запрошен additive diff | M15 |
-| OI-M14-002 | OPEN | Plugin permissions | Разрешение «любая публичная HTTPS-страница» | `builtin.internet` без словаря; запрошен `permissions.publicWeb` | M15 |
+| OI-M13-006 | OPEN | Approvals | Retention и отмена pending approvals завершённых run | approvals удаляются с runs по retention (M17); отмена pending — M30 | M30 |
+| OI-M14-001 | RESOLVED | Plugin contract | Скрытый app-only `get_state` у декларативных | валидатор допускает `get_state` (M15); скрытие — OI-M15-005 | resolved in MW3 integration |
+| OI-M14-002 | RESOLVED | Plugin permissions | Разрешение «любая публичная HTTPS-страница» | `permissions.publicWeb` + grant `network.public_web` (M15) | resolved in MW3 integration |
 | OI-M14-003 | OPEN | Plugins | `mia.clock` и v2 id, начинающиеся с цифры | не перенесены | M15 |
-| OI-M14-004 | OPEN | Jobs | Контракт срабатывания дедлайнов timer/alarm/focus | M16 читает `items[].deadline_ms` | M16 |
+| OI-M14-004 | RESOLVED | Jobs | Контракт срабатывания дедлайнов timer/alarm/focus | `jobs/deadlines.py` сканирует `deadline_ms` (M16) | resolved in MW3 integration |
 | OI-M14-005 | OPEN | Plugins / LLM | Бюджет `HostLlm` и плановые дайджесты | `GatewayHostLlm` без бюджета (profile `job`) | M16 / M17 |
 | OI-M14-006 | OPEN | MCP Apps | Bridge проверен только на фейковом хосте | протокольные тесты под node | M31 |
 | OI-M14-007 | RESOLVED | Dependencies | `mcp` тянет `httpx2` | одна копия правок тестов | resolved in MW2 integration |
@@ -87,6 +87,36 @@ Integration session обновляет этот индекс после merge.
 | OI-M22-003 | OPEN | Android voice | Endpointing 480 мс — самое долгое звено | 480 мс | M60 |
 | OI-M22-004 | OPEN | Android voice | Модель STT остаётся в памяти процесса | держится | M60 |
 | OI-M22-005 | OPEN | Android UI | `display.kind = app` на Android | текстовая карточка | M24 |
+| OI-WEB-002 | RESOLVED | Jobs | Напоминания без открытого браузера | воркер M16 + inbox + push | resolved in MW3 integration |
+| OI-M15-001 | OPEN | Tools / store | Роутер не сверяет `installations.grants` | grants только при установке; нужен backfill | до M40 / беты |
+| OI-M15-002 | OPEN | Store / custom MCP | Свой MCP по URL: все tools `write_external` | риск по умолчанию максимальный | M60 |
+| OI-M15-003 | OPEN | Connections / security | OAuth `state` не привязан к браузеру (login-CSRF) | без привязки; шаг complete в сессии | M30 |
+| OI-M15-004 | OPEN | Connections | Нет преднастроенных OAuth-клиентов; публикация из checkout | DCR/CIMD или 422 | M40 |
+| OI-M15-005 | OPEN | Tools | Роутер показывает модели app-only `get_state` | не скрывается | M31 |
+| OI-M15-006 | OPEN | Accounts | Токены провайдеров не отзываются при удалении аккаунта | только при удалении установки | before beta |
+| OI-M15-007 | OPEN | Store | Нет rate limit на probe/connect | без лимитов | M62 |
+| OI-M15-008 | OPEN | Store | Отзывы без модерации | любой вошедший | открытая публикация |
+| OI-M15-009 | OPEN | Connections | `server.auth: mia_token` без источника токена | `connection_required` | M51 |
+| OI-M15-010 | RESOLVED | Tests | Часы теста approvals застыли на 12:00Z | часы от реального времени | resolved in M15 |
+| OI-M16-001 | OPEN | Jobs / voice | Сводка «пока вас не было» — в следующий интерактивный run | не строго голосовой | M60 |
+| OI-M16-002 | OPEN | Jobs | `max_steps`/`max_cost_usd` per job не применяются | лимиты профиля `job` | M50 |
+| OI-M16-003 | RESOLVED | Tests | Падение теста approvals M13 по дате | исправлено M15 | resolved in MW3 integration |
+| OI-M16-004 | OPEN | Push | Payload и семантика доставки для M24 | открытие по `inbox_item_id` | M24 |
+| OI-M16-005 | OPEN | Jobs | Retention jobs/inbox/deliveries | до удаления пользователя | M62 |
+| OI-M17-001 | OPEN | Memory | Слепой индекс вместо открытого FTS | стеммер RU/EN, без синонимов | M60 |
+| OI-M17-002 | OPEN | Memory / privacy | Retention «none» удаляет на следующем проходе | проход раз в 15 мин | M31 |
+| OI-M17-003 | RESOLVED | Memory / device tools | Формат результата `device.contacts.search` | `matches` с именами, без номеров | resolved in MW3 integration |
+| OI-M17-004 | OPEN | Accounts | Нет публичного удаления аккаунта | `shred_account` готов, endpoint нет | M62 |
+| OI-M17-005 | OPEN | Memory / jobs | `scope: automation` не учитывается в job-runs | job видит ту же память | M50 |
+| OI-M18-001 | RESOLVED | Feed | Deadlock `open_turn` при параллельных runs | блокировка строки ленты первой | resolved in M18 |
+| OI-M18-002 | RESOLVED | Contracts | `cookieAuth` в openapi | добавлен M15, глобальный security | resolved in MW3 integration |
+| OI-M23-001 | OPEN | Android device tools | Заполняет ли Telegram поле из `text` в `tg://resolve` | текст ещё и в буфере обмена | UC-MW3-2 / M41 |
+| OI-M23-002 | OPEN | Android device tools | Samsung Clock: нет удаления будильника без UI | `verified` — эвристика | M60 |
+| OI-M23-003 | RESOLVED | Tests | То же, что OI-M16-003 | исправлено M15 | resolved in MW3 integration |
+| OI-M33-001 | OPEN | Design / Android | Шрифт Manrope на Android | системный шрифт | UC-MW3-1 |
+| OI-M33-002 | OPEN | Design / Android | Настоящий backdrop blur на Android | приближение | UC-MW3-1 |
+| OI-M33-003 | OPEN | Design / web | Переключатель темы, тосты, браузеры 2024+ | следует системе | M30 |
+| OI-M33-004 | OPEN | Design / web | Унаследованные цвета `light-dark()` в `styles.css` | не подбирались вручную | UC-MW3-1 / M30 |
 
 ## Record template
 
@@ -928,7 +958,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-WEB-002 — Reminder execution outside an open browser
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: WEB-P1
 - Component: Scheduler / notifications
 - Question: какие устройства должны выполнять будильники при закрытой вкладке и отсутствии сети?
@@ -938,7 +968,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: backend jobs для cloud-автоматизаций и локальный device scheduler для колонки.
 - Affects sessions: WEB-P4, WEB-P6.
 - Revisit trigger/by: перед background notifications и обещанием надёжного будильника.
-- Resolution: —
+- Resolution: — M16 (MW3): воркер `python -m app.worker` исполняет jobs и расписания вне браузера; результат → InboxItem → push. См. `## M16 inbox`.
 - Evidence: `web/src/plugins/scheduler.ts`, `web/src/App.tsx`, `web/README.md`.
 
 ### OI-WEB-003 — Community publication and executable plugins
@@ -1029,7 +1059,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M00-002 — Категории памяти и `scope` фактов предварительные
 
-- Status: OPEN
+- Status: DECIDED
 - Source session: M00
 - Component: Memory Ledger
 - Question: окончательный набор категорий (`profile`, `work`, `home`, `health`, `finance`, `interests`, `other`) и значения `Fact.scope` (`user`, `automation`).
@@ -1039,7 +1069,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: M17 подтверждает или аддитивно расширяет до миграции данных.
 - Affects sessions: M17, M50, M31.
 - Revisit trigger/by: начало M17.
-- Resolution:
+- Resolution: M17 (MW3): категории и `scope` оставлены как в `memory.schema.json`; `health`, `finance` чувствительные (без автосохранения). См. `## M17 inbox`.
 - Evidence:
 
 ### OI-M00-003 — Версия Python окружения разработки
@@ -1213,7 +1243,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M12-001 — Retention of runs and run events
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M12
 - Component: Run engine / persistence
 - Question: how long are `runs` and `run_events` (response text, tool `structured_content`, approval arguments) kept, including incognito runs?
@@ -1223,7 +1253,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: TTL on `run_events` with the M17 privacy work, before public beta.
 - Affects sessions: M17, M31, M62.
 - Revisit trigger/by: M17 or first retention policy decision.
-- Resolution:
+- Resolution: M17 (MW3), для MVP: retention истории по настройке пользователя (`30d`/`1y`/`forever`/`none`), инкогнито-runs удаляются через 1 час. См. `## M17 inbox`; «none» — OI-M17-002.
 - Evidence: `migrations/versions/20261009_m12_runs.py`, handoff M12.
 
 ### OI-M12-002 — Draft text when the model answers in structured mode
@@ -1411,7 +1441,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M13-002 — Vocabulary of `installations.grants` is undefined
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M13
 - Component: Tool router policy / store consent
 - Question: which grant strings exist and which tool calls do they gate?
@@ -1421,7 +1451,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: M15 defines the consent vocabulary with the consent screen; the router adds the check in one place (`McpToolRouter._plugin_entries`).
 - Affects sessions: M15, M30, M40+.
 - Revisit trigger/by: M15.
-- Resolution:
+- Resolution: M15 (MW3): словарь grants в `app/modules/plugins/install/grants.py`, проверка при установке и обновлении. Проверка в роутере — OI-M15-001.
 - Evidence: `app/modules/tools/router.py`, `app/modules/workspace/catalog.py`.
 
 ### OI-M13-003 — Voice discovery: «`voice: true` и `read`» vs. manifest examples
@@ -1481,14 +1511,14 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: decide together with OI-M12-001 (M17 privacy work); add the cancel hook when M30 shows approval lists.
 - Affects sessions: M17, M30, M62.
 - Revisit trigger/by: M30 approvals UI or retention decision.
-- Resolution:
+- Resolution: Частично M17 (MW3): `tool_approvals` удаляются вместе с runs по retention; отмена pending approvals при завершении run — M30.
 - Evidence: `migrations/versions/20261009_m13_tools.py`, `app/modules/tools/approvals.py`.
 
 ## M14 inbox
 
 ### OI-M14-001 — Declarative servers expose an app-only `get_state` that the manifest cannot list
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M14
 - Component: Plugins / declarative host, manifest contract
 - Question: the tile of a declarative plugin must read its state without an LLM, but the M00 rule `declarative actions == tools` (validator `check_manifest_semantics`) forbids declaring a read tool, and a tile `refresh.tool` must be in `tools`. How is the tile refreshed?
@@ -1498,12 +1528,12 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) for the MVP, then (b) additively in the contract when M15 writes the publication check.
 - Affects sessions: M13, M15, M30, M31.
 - Revisit trigger/by: M15 (publication checks) and M31 (dashboard refresh).
-- Resolution:
+- Resolution: M15 (MW3): валидатор и публикация допускают у декларативных `tools` дополнительный `get_state`; скрытие от модели — OI-M15-005.
 - Evidence: `app/modules/plugins/declarative/host.py` (`GET_STATE_TOOL`), `tests/plugins/test_declarative.py::test_actions_become_tools_and_state_patch_persists_per_installation`.
 
 ### OI-M14-002 — No permission vocabulary for "any public HTTPS page"
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M14
 - Component: Plugins / manifest permissions
 - Question: `builtin.internet.read(url)` fetches arbitrary public HTTPS pages, but `permissions.network` is an allow-list of hosts (SSRF list for remote servers).
@@ -1513,7 +1543,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: add `publicWeb: boolean` additively to the schema in M15 and use it in the consent screen.
 - Affects sessions: M15, M30.
 - Revisit trigger/by: M15 consent screen.
-- Resolution:
+- Resolution: M15 (MW3): `permissions.publicWeb` в схеме манифеста, grant `network.public_web`; `builtin.internet` его объявляет.
 - Evidence: `app/plugins/builtin/internet/mia.json`, `app/modules/plugins/builtin/web.py`.
 
 ### OI-M14-003 — Mia-clock plugin and v2 ids that cannot be converted
@@ -1533,7 +1563,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M14-004 — Firing contract for stored deadlines (M16)
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M14
 - Component: Plugins / jobs
 - Question: timer, alarm and focus only store `items[]` in `PluginState` (`deadline_ms`, `status`, `label`); who marks an item as fired and how is firing de-duplicated?
@@ -1543,7 +1573,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: one-shot job created by the router/host when a tool result carries `structuredContent.changed` with a `deadline_ms`, falling back to the periodic scan.
 - Affects sessions: M13, M16, M31.
 - Revisit trigger/by: M16.
-- Resolution:
+- Resolution: M16 (MW3): `app/modules/jobs/deadlines.py` сканирует `items[].deadline_ms` timer/alarm/focus и срабатывает один раз (тест 3 сканеров).
 - Evidence: `app/modules/plugins/builtin/deadlines.py`, `tests/plugins/test_countdown_plugins.py`.
 
 ### OI-M14-005 — Host LLM budget and scheduled digest runs
@@ -1881,7 +1911,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M16-003 — Pre-existing date-dependent failure in an M13 test
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M16
 - Component: Tests (M13)
 - Question: `tests/tools/test_e2e_runs.py::test_approval_round_trip_through_the_engine[postgres]` fails on `main@be9437f` too once real time passes 2026-10-09 12:02 UTC: `tests/tools/helpers.Clock` is fixed at 12:00 while the Postgres run path uses real time, so the approval is `expired`.
@@ -1891,7 +1921,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: MW3 integrator makes `Clock()` start at real now (one-line fix in `tests/tools/helpers.py`).
 - Affects sessions: MW3 integrator.
 - Revisit trigger/by: MW3 gate.
-- Resolution:
+- Resolution: MW3 integration: часы `tests/tools/helpers.py` идут от реального времени (исправление M15, OI-M15-010); тест зелёный на интеграционной ветке.
 - Evidence: pytest on `be9437f` and on `session/M16-jobs`: same single failure.
 
 ### OI-M16-004 — Push payload and delivery semantics for M24
@@ -1958,7 +1988,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M17-003 — Результат `device.contacts.search`: формат и телефоны в `content`
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M17
 - Component: Device tools (M23) / privacy
 - Question: какой формат `structured_content` отдаёт Android и может ли модель видеть телефоны, если вызовет `device.contacts.search` напрямую (router показывает device tools модели, а `content` уходит ей)?
@@ -1968,7 +1998,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: M23 — `content` без номеров (обязательно); интегратор MW3 сверяет формат с `parse_contacts`.
 - Affects sessions: M23, MW3 integrator, M41.
 - Revisit trigger/by: интеграция MW3.
-- Resolution:
+- Resolution: MW3 integration: Android (M23) отдаёт `{"matches": [{name, phone_count}]}` и имена в `content`, без номеров; `parse_contacts` читает `matches`; кандидаты — `contact:<n>` по имени. Тест `tests/integration/test_mw3_gate.py`. Номер для `telegram.handoff` берётся на телефоне.
 - Evidence: `app/modules/memory/tools.py::parse_contacts`, `tests/memory/test_e2e_runs_postgres.py::test_no_phone_number_reaches_the_provider`.
 
 ### OI-M17-004 — Нет публичного удаления аккаунта
@@ -2011,7 +2041,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 - OI-M23-001 (non-blocking, owner M41): `telegram.handoff` with a contact opens `tg://resolve?phone=<digits>&text=<text>` and also puts the text on the clipboard; whether Telegram for Android prefills the chat field from `text` was not verified on a real chat (phone locked). Default: the model tells the user to press send and paste if the field is empty. Check on the device or in the first M41 gate.
 - OI-M23-002 (non-blocking): Samsung's clock app has no headless alarm delete (`ACTION_DISMISS_ALARM` only opens the list), so device-gate runs leave one alarm 03:17 "MIA gate" (and 03:41 from the first tests); the user can delete them. `device.alarm.set` `verified` is a heuristic because Samsung reports a briefing pre-alert as the next alarm clock.
-- OI-M23-003 (non-blocking, owner M13): `tests/tools/test_e2e_runs.py::test_approval_round_trip_through_the_engine[postgres]` fails after 12:02 UTC on 2026-10-09 on main as well: `tests/tools/helpers.py` fixes its clock at 2026-10-09T12:00Z while the Postgres store uses wall-clock time, so the 120 s approval has expired. Make the helper clock relative to now.
+- OI-M23-003 (RESOLVED in MW3 integration — M15 fix, see OI-M15-010; non-blocking, owner M13): `tests/tools/test_e2e_runs.py::test_approval_round_trip_through_the_engine[postgres]` fails after 12:02 UTC on 2026-10-09 on main as well: `tests/tools/helpers.py` fixes its clock at 2026-10-09T12:00Z while the Postgres store uses wall-clock time, so the 120 s approval has expired. Make the helper clock relative to now.
 
 ## M18 inbox
 
@@ -2032,7 +2062,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M18-002 — `cookieAuth` is not declared in `contracts/mvp/v1/openapi.yaml`
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M18
 - Component: Contracts
 - Question: `GET /v1/feed` (like the M10 routes) accepts the `mia_session` cookie, but the contract has no `cookieAuth` security scheme, so `GET /v1/feed` is documented in prose only and inherits the global `bearerAuth`.
@@ -2042,7 +2072,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: add in the MW3 integration commit together with the M10 diff.
 - Affects sessions: M30, M31.
 - Revisit trigger/by: MW3 integration.
-- Resolution:
+- Resolution: MW3 integration: M15 добавила `cookieAuth` и глобальное `security: [bearerAuth, cookieAuth]` в `openapi.yaml`; `listFeed` наследует его.
 - Evidence: handoff M18 «Requested shared-file changes».
 
 ## M33 inbox

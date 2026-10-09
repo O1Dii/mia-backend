@@ -106,6 +106,10 @@ def test_parse_contacts_is_tolerant_and_bounded() -> None:
     assert contacts[0] == Contact("Яна Петрова", {"phone": "+79161234567"})
     assert contacts[1].identifiers == {"phone": "+375291112233", "email": "y@example.com"}
     assert parse_contacts(None) == []
+    # M23 Android result shape: names and a phone count only (MW3 integration, OI-M17-003).
+    assert parse_contacts({"matches": [{"name": "Яна Гейтова", "phone_count": 2}]}) == [
+        Contact("Яна Гейтова", {})
+    ]
     assert parse_contacts({"contacts": "nope"}) == []
 
 

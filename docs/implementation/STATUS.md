@@ -123,8 +123,56 @@ Follow-ups MW2 (не блокируют MW3):
 **Gemini Live вне MVP (решение пользователя 2026-10-09):** код сохранён, режим скрыт — Android-флаг
 `LIVE_VOICE_ENABLED = false` (пункт в настройках не показывается, сохранённый выбор Live → каскад), Android main `ec4fb68` (`lint test assembleDebug` PASS). Возврат — `Mia_Backlog.md` §4.
 
-Готовы к старту: M15, M16, M17, M23, M18, M33 (волна MW3, параллельно; не больше пяти активных — шестая стартует, когда
-освободится слот).
+MW3 стартовала 2026-10-09: M15, M16, M17, M23, M33 параллельно, M18 — в освободившийся слот после M23 (worktrees
+`../mia-helper-wt/<Mxx>`, Android `../mia-helper-android-wt/{M23,M33}`). Диспетчерские правила волны: миграции от
+`20261009_m13_tools`; backend-эндпоинты device tools — M23 в `app/api/v1/device_tools.py` (push-token M16 — `devices.py`);
+M15 — владелец отложенных правок `contracts/mvp/v1` (M10/M11 пути, `cookieAuth`, OI-M14-001/002); M16 — точечные хуки в
+builtin timer/alarm (не понадобились).
+
+**MW3 integrated 2026-10-09** (integrator: Opus 5.5 high вместо Sonnet 5.5 high по правилу «более сильная модель»). Backend
+merge: M18 → `9079c21`, M15 → `5f3a245`, M16 → `efe55c3`, M17 → `6d3a44c`, M23 → `8cb886d`, M33 → `294b1d9`, integration
+commit поверх. Android main: M23 → `1450389`, M33 → `3565859`, без конфликтов. Конфликты только ожидаемые: `error-codes.json`
+(объединение по `code`, 73 кода), `.env.example`, `migrations/env.py`, `app/composition.py` (порядок M15
+`build_catalog_stack → install_workspace → build_connections → install_tools → install_store`, затем `install_memory` до
+`install_runs`; после `bind_publisher`: jobs, feed, memory publisher, device tools), `core_tools.py` (пространства
+`background`, `memory`, `people`, `schedule`, `skills` + `notify`), `tests/tools/test_wiring.py`.
+Integrator:
+- миграции в линейную цепочку `20261009_m13_tools → 20261009_m15_store → 20261009_m16_jobs → 20261009_m17_memory` (head);
+- OI-M17-003: Android M23 отдаёт `{"matches": [{name, phone_count}]}` без номеров — `parse_contacts` (M17) читает `matches`;
+  без этого `people.resolve` никогда не находил контакты телефона;
+- OI-M18-002: `cookieAuth` уже глобальный (M15) — `/v1/feed` наследует;
+- gate-тест `tests/integration/test_mw3_gate.py`: все поверхности MW3 в продакшн-приложении, инструменты M16+M17 в одном
+  реестре, `people.resolve` на ответе телефона в формате M23 (Postgres).
+
+Gate MW3:
+- плагин проходит путь публикация → установка → OAuth: PASS офлайн (M15: 6 builtin публикуются; add-by-URL с тестовым
+  MCP-сервером и тестовым AS — PKCE S256, resource indicator, PRM, DCR, refresh, отзыв RFC 7009; повторное согласие);
+- расписание переживает рестарт: PASS (M16: настоящий процесс `python -m app.worker`, SIGTERM, пропущенный запуск по
+  политике после рестарта; двойной claim невозможен — 8 воркеров × 60 jobs);
+- «Запомни, что Яна…» работает: PASS офлайн через движок на Postgres (M17); живой голосом — UC-MW3-3;
+- device tools на телефоне: **PARTIAL** (M23 на SM-S938B: поиск контакта и будильник голосом PASS; окно разрешения,
+  Telegram и Настройки на переднем плане не проверены — экран был заблокирован) → UC-MW3-2;
+- `GET /v1/feed` отдаёт голос и чат одной лентой: PASS (M18; bearer и cookie; keyset без пропусков при параллельной записи;
+  исправлен deadlock `open_turn`, OI-M18-001);
+- токены M33 генерируются для web и Android, style-страница готова к ревью: PASS (drift-тест, контраст ≥ 4.5:1) → UC-MW3-1.
+
+Проверки: ruff, `ruff format --check`, mypy (395 файлов), `validate_contracts.py` (mvp/v1: 25 examples, 14 run events,
+87 operations, 73 error codes) PASS; pytest с PostgreSQL+Redis 1115 passed / 5 skipped / 0 failed (первый прогон под нагрузкой Gradle: 1 flaky `tests/jobs/test_process.py` — SIGTERM до установки обработчика, отдельно 3×PASS), `tests/design` с `MIA_ANDROID_DIR` 30 passed, gate MW3 2 passed; alembic upgrade → downgrade `20261009_m13_tools` → upgrade, `alembic check`
+без drift. Android main (JDK 17): `lint test assembleDebug` + androidTest-сборки `:core:devicetools`, `:feature:voice` —
+BUILD SUCCESSFUL, 250 unit-тестов, 0 failed.
+
+User checks MW3: UC-MW3-1 (ревью дизайна), UC-MW3-2 (оставшийся device gate M23), UC-MW3-3 (Яна живым голосом) — в
+[USER_CHECKS.md](USER_CHECKS.md).
+
+Follow-ups MW3 (не блокируют MW4):
+- роутер не сверяет grants (OI-M15-001, нужен backfill установок) и показывает модели app-only `get_state` (OI-M15-005);
+- OAuth `state` не привязан к браузеру (OI-M15-003) — закрыть в M30 вместе с UI подключения;
+- пример `contracts/mvp/v1/examples/device-tools/registration.json` всё ещё называет `telegram.share`, реализован
+  `telegram.handoff` (карточка M23) — переименовать при следующей правке контрактов;
+- нет публичного удаления аккаунта (OI-M17-004) и отзыва токенов провайдеров при нём (OI-M15-006) — M62.
+
+Готовы к старту (волна MW4): M30, M25, M40, M50, M42 (optional). M41 ждёт M23 COMPLETED (UC-MW3-2: device gate на
+разблокированном телефоне).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -138,18 +186,18 @@ Follow-ups MW2 (не блокируют MW3):
 | M13 | MW2 | COMPLETED | M10,M12 | Opus 5.5 high | [M13](handoffs/M13.md) | `6dc045a` | router/policy/MCP/approvals; миграция `20261009_m13_tools` |
 | M14 | MW2 | COMPLETED | M00,M10 | Sonnet 5.5 high | [M14](handoffs/M14.md) | `b6f2563` | 6 builtin + declarative host, конвертер v1/v2; пакеты в `app/plugins/builtin/` |
 | M22 | MW2 | COMPLETED | M12,M20,M21 | Opus 5.5 high | [M22](handoffs/M22.md) | `216a7c7` / Android `1cc92e8` | каскад STT→run→TTS, approvals, barge-in; device gate PASS (фейк модели) |
-| M15 | MW3 | READY | M13,M14 | Sonnet 5.5 high | — | — | магазин и подключения |
-| M16 | MW3 | READY | M12,M13 | Opus 5.5 high | — | — | jobs/расписания/уведомления |
-| M17 | MW3 | READY | M10,M11,M12,M13 | Opus 5.5 high | — | — | Memory Ledger |
-| M23 | MW3 | READY | M13,M22 | Sonnet 5.5 high | — | — | Android device tools |
-| M18 | MW3 | READY | M12 | Sonnet 5.5 high | — | — | лента `GET /v1/feed` (голос + чат) |
-| M33 | MW3 | READY | M00 | Sonnet 5.5 high | — | — | дизайн-система web + Android, style-страница |
-| M30 | MW4 | PENDING | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
-| M25 | MW4 | PENDING | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
-| M40 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Linear |
-| M41 | MW4 | PENDING | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
-| M42 | MW4 | PENDING | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
-| M50 | MW4 | PENDING | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
+| M15 | MW3 | COMPLETED | M13,M14 | Sonnet 5.5 high | [M15](handoffs/M15.md) | `5f3a245` | магазин, OAuth для MCP, grants; миграция `20261009_m15_store` |
+| M16 | MW3 | COMPLETED | M12,M13 | Opus 5.5 high | [M16](handoffs/M16.md) | `efe55c3` | worker, расписания, inbox, FCM v1; миграция `20261009_m16_jobs` |
+| M17 | MW3 | COMPLETED | M10,M11,M12,M13 | Opus 5.5 high | [M17](handoffs/M17.md) | `6d3a44c` | Memory Ledger, people.resolve, retention, crypto-shred; миграция `20261009_m17_memory` |
+| M23 | MW3 | PARTIAL | M13,M22 | Sonnet 5.5 high | [M23](handoffs/M23.md) | `8cb886d` / Android `1450389` | 4 device tools + backend endpoints; device gate: контакты и будильник PASS, остальное — UC-MW3-2 |
+| M18 | MW3 | COMPLETED | M12 | Sonnet 5.5 high | [M18](handoffs/M18.md) | `9079c21` | `GET /v1/feed` (bearer+cookie, keyset); fix deadlock `open_turn` |
+| M33 | MW3 | COMPLETED | M00 | Sonnet 5.5 high | [M33](handoffs/M33.md) | `294b1d9` / Android `3565859` | токены W3C → web+Android, MiaTheme, style-страница; ревью UC-MW3-1 |
+| M30 | MW4 | READY | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
+| M25 | MW4 | READY | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
+| M40 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Linear |
+| M41 | MW4 | PENDING | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот; ждёт M23 COMPLETED (UC-MW3-2) |
+| M42 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
+| M50 | MW4 | READY | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
 | M24 | MW5 | PENDING | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
 | M31 | MW5 | PENDING | M16,M17,M30 | Sonnet 5.5 high | — | — | web: дашборд MCP Apps/память/входящие |
 | M43 | MW5 | PENDING | M15,M50 | Haiku 5.5 high | — | — | docs плагинов и SDK |
