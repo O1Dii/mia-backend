@@ -2135,7 +2135,70 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M30 inbox
 
-- Нет записей.
+### OI-M30-001 — Google client ID веб-входа задаётся при сборке
+
+- Status: OPEN
+- Source session: M30
+- Component: Web / auth
+- Question: откуда web берёт Google client ID для кнопки входа?
+- Why non-blocking: ID публичный; в M10 нет эндпоинта конфигурации (POC отдавал его в `/api/web/auth/session`).
+- Current assumption: переменная сборки `VITE_GOOGLE_CLIENT_ID`; без неё экран входа сообщает, что вход не настроен.
+- Options: (a) оставить переменную сборки; (b) добавить публичный `GET /v1/auth/web/config {google_client_id}` в M10-роутер.
+- Recommendation: (a) для MVP, (b) если нужна одна сборка на несколько окружений (M62).
+- Affected future sessions: M62.
+- Revisit trigger/deadline: настройка пилотного деплоя.
+
+### OI-M30-002 — Привязка OAuth-подключения к браузеру: только для web, не для Android
+
+- Status: OPEN
+- Source session: M30 (продолжение OI-M15-003)
+- Component: Connections / OAuth
+- Question: как защитить вход плагина (login CSRF) для потоков, начатых с Android?
+- Why non-blocking: web закрыт (Lax-cookie `mia_oauth_binding`, `flow_binding_hash`, миграция `20261009_m30_connection_binding`); поток Android начинается bearer-запросом, а колбэк приходит в системный браузер без общего cookie-хранилища, поэтому привязки нет. Состояние остаётся одноразовым, случайным, хранится хэшем, живёт 10 минут.
+- Current assumption: Android-потоки не привязаны.
+- Options: (a) `POST /v1/connections/{id}/complete` под сессией приложения: колбэк только сохраняет код; (b) показывать в приложении `account_label` и просить подтвердить подключение.
+- Recommendation: (a) вместе с M24/M25 (web-поверхности и push) до публичной беты.
+- Affected future sessions: M25, M24.
+- Revisit trigger/deadline: до беты.
+
+### OI-M30-003 — Текст подтверждения формируется ядром технически
+
+- Status: OPEN
+- Source session: M30
+- Component: Tools / approvals
+- Question: нужен ли человекочитаемый русский `summary` у подтверждения вместо `Tracker: create_issue — title="…"`?
+- Why non-blocking: экран подтверждения показывает summary, риск и параметры; смысл понятен, но выглядит технически.
+- Current assumption: `summary` показывается как есть.
+- Options: (a) оставить; (b) плагин даёт шаблон описания действия в manifest (`tools.<name>.confirm`), ядро подставляет аргументы; (c) клиент форматирует по `tool` и `arguments`.
+- Recommendation: (b), аддитивное поле manifest в M43 (SDK плагинов).
+- Affected future sessions: M43, M25.
+- Revisit trigger/deadline: ревью документации плагинов.
+
+### OI-M30-004 — В ленте нет `speech`: «Озвучить» старого ответа читает весь текст
+
+- Status: OPEN
+- Source session: M30
+- Component: Feed API
+- Question: добавить ли `speech` в `FeedItem`?
+- Why non-blocking: у свежего ответа web озвучивает `response.final.speech`; у ответа из истории читает `display.markdown`, превращённый в обычный текст (может быть длинным).
+- Current assumption: для истории озвучивается весь текст.
+- Options: (a) оставить; (b) добавить `speech` (и `followups`) в `FeedItem` аддитивно в M18-коде.
+- Recommendation: (b) при следующей правке `/v1/feed`; затрагивает и Android M25.
+- Affected future sessions: M25, M31.
+- Revisit trigger/deadline: ревью озвучки на живом браузере (UC).
+
+### OI-M30-005 — Привязка SDK-приложений и вход ChatGPT по подписке не вынесены на web
+
+- Status: OPEN
+- Source session: M30
+- Component: Web
+- Question: нужны ли на web экран «Приложения и доступ» (код привязки SDK-приложения, POC `LinkedApps`) и вход в модель через ChatGPT-подписку (`/v1/model-connections/chatgpt-plan/sign-in`)?
+- Why non-blocking: карточка M30 их не требует; первое заменяет «Войти через Mia» (M50), второе — отдельный поток.
+- Current assumption: экран приложений удалён вместе с `/api/web`; вход по подписке доступен только через API.
+- Options: (a) оставить; (b) добавить экран «Приложения» после M50; (c) добавить кнопку входа ChatGPT в «Моделях».
+- Recommendation: (b) в M31/M50, (c) по решению продукта.
+- Affected future sessions: M31, M50.
+- Revisit trigger/deadline: интеграция MW4.
 
 ## M40 inbox
 
