@@ -1,0 +1,17 @@
+{
+  "id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+  "rule": "RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=30",
+  "timezone": "Europe/Moscow",
+  "goal": "Утренняя сводка: встречи и задачи на сегодня",
+  "delivery": {
+    "channels": [
+      "push",
+      "telegram"
+    ]
+  },
+  "misfire_policy": "run_once",
+  "status": "active",
+  "next_run_at": "2026-10-10T05:30:00Z",
+  "last_run_at": null,
+  "created_at": "2026-10-09T10:00:00Z"
+}

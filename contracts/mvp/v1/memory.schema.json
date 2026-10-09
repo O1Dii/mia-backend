@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/memory.schema.json",
+  "title": "MIA MVP v1 Memory Ledger records",
+  "description": "Fact, Person and Preference records of the Memory Ledger, Review §7.3 and §7.5, ADR-0012. Encryption (per-user DEK) is a storage property and is invisible on the wire. Root document is any ledger record, discriminated by kind.",
+  "oneOf": [
+    { "$ref": "#/$defs/Fact" },
+    { "$ref": "#/$defs/Person" },
+    { "$ref": "#/$defs/Preference" }
+  ],
+  "$defs": {
+    "category": {
+      "type": "string",
+      "enum": ["profile", "work", "home", "health", "finance", "interests", "other"],
+      "description": "Initial category set; app scopes are memory.read:<category>. Extended additively by M17"
+    },
+    "sensitivity": {
+      "type": "string",
+      "enum": ["normal", "sensitive"],
+      "description": "sensitive records are never auto-saved and never leave the core without an explicit scope"
+    },
+    "recordStatus": {
+      "type": "string",
+      "enum": ["suggested", "active", "rejected"],
+      "description": "suggested = proposed by the model or an app, awaiting one-tap consent. Deletion is a hard delete, not a status"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["user_said", "turn", "plugin", "import", "app", "device_contacts", "telegram"]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "turn id, plugin id, import batch id or app client_id"
+        }
+      }
+    },
+    "Fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "text", "category", "source", "status", "sensitivity", "scope", "created_at", "updated_at", "last_used_at"],
+      "properties": {
+        "kind": { "const": "fact" },
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "category": { "$ref": "#/$defs/category" },
+        "source": { "$ref": "#/$defs/source" },
+        "status": { "$ref": "#/$defs/recordStatus" },
+        "sensitivity": { "$ref": "#/$defs/sensitivity" },
+        "scope": {
+          "type": "string",
+          "enum": ["user", "automation"],
+          "description": "automation = also readable by background jobs (prepares the V2 'automation profile')"
+        },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "updated_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "last_used_at": {
+          "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }]
+        }
+      }
+    },
+    "Person": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "display_name", "aliases", "identifiers", "source", "status", "sensitivity", "created_at", "updated_at", "last_used_at"],
+      "description": "The model only sees person:<id>, display_name and relation; identifiers are substituted by the core at execution time",
+      "properties": {
+        "kind": { "const": "person" },
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "aliases": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 60 }
+        },
+        "relation": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "identifiers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "telegram_user_id": { "type": "integer", "minimum": 1 },
+            "telegram_username": { "type": "string", "pattern": "^[A-Za-z0-9_]{5,32}$" },
+            "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{6,14}$" },
+            "email": { "type": "string", "format": "email", "maxLength": 254 }
+          }
+        },
+        "trusted": {
+          "type": "boolean",
+          "default": false,
+          "description": "Trusted contact: a voice 'yes' may approve messages to this person"
+        },
+        "source": { "$ref": "#/$defs/source" },
+        "status": { "$ref": "#/$defs/recordStatus" },
+        "sensitivity": { "$ref": "#/$defs/sensitivity" },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "updated_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "last_used_at": {
+          "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }]
+        }
+      }
+    },
+    "Preference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "key", "value", "source", "created_at", "updated_at"],
+      "properties": {
+        "kind": { "const": "preference" },
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
+          "description": "Dotted key, e.g. reply.language, voice.speech_rate"
+        },
+        "value": { "type": ["string", "number", "boolean"] },
+        "source": { "$ref": "#/$defs/source" },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "updated_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "MemorySuggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "category"],
+      "description": "Input of memory.remember (model) and memory.suggest (apps). Always lands as status=suggested unless the user enabled auto-save for a non-sensitive category",
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "category": { "$ref": "#/$defs/category" }
+      }
+    }
+  }
+}

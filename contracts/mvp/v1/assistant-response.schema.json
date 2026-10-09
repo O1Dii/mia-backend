@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/assistant-response.schema.json",
+  "title": "MIA MVP v1 assistant response (speech / display)",
+  "description": "Final answer of a run, Review §5.2(b), ADR-0011. speech is spoken by TTS; display carries the full information for the screen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["speech", "display", "followups"],
+  "properties": {
+    "speech": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^(?!.*https?://)[^\\r\\n*`#|\\[\\]<>]*$",
+      "description": "One or two plain sentences, target <= 250 characters (hard limit 300). No markdown, links, line breaks or ids"
+    },
+    "display": {
+      "description": "What the screen shows. null when speech alone is the full answer",
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/textDisplay" },
+        { "$ref": "#/$defs/cardDisplay" },
+        { "$ref": "#/$defs/appDisplay" },
+        { "$ref": "#/$defs/linkDisplay" }
+      ]
+    },
+    "followups": {
+      "type": "array",
+      "maxItems": 3,
+      "items": { "type": "string", "minLength": 1, "maxLength": 120 },
+      "description": "Suggested next user utterances, rendered as chips"
+    }
+  },
+  "$defs": {
+    "textDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "markdown"],
+      "properties": {
+        "kind": { "const": "text" },
+        "markdown": { "type": "string", "minLength": 1, "maxLength": 32000 }
+      }
+    },
+    "cardDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "markdown"],
+      "properties": {
+        "kind": { "const": "card" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "markdown": { "type": "string", "minLength": 1, "maxLength": 32000 },
+        "source_tool_call_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Tool call whose structuredContent fed this card"
+        }
+      }
+    },
+    "appDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "plugin_id", "resource_uri"],
+      "properties": {
+        "kind": { "const": "app" },
+        "plugin_id": { "$ref": "common.schema.json#/$defs/pluginId" },
+        "resource_uri": { "$ref": "common.schema.json#/$defs/uiResourceUri" },
+        "structured_content": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "fallback_markdown": {
+          "type": "string",
+          "maxLength": 32000,
+          "description": "Shown where the MCP App cannot be rendered"
+        }
+      }
+    },
+    "linkDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "url", "title"],
+      "properties": {
+        "kind": { "const": "link" },
+        "url": { "$ref": "common.schema.json#/$defs/httpsUrl" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    }
+  }
+}

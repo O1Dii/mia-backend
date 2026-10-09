@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "builtin.timer",
+  "version": "1.0.0",
+  "name": "Таймер",
+  "listing": {
+    "description": "Таймеры и будильник голосом, плитка с обратным отсчётом",
+    "category": "utilities",
+    "author": "Mia",
+    "icon": "assets/icon.svg"
+  },
+  "server": {
+    "kind": "builtin",
+    "module": "app.plugins.timer.server"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "start": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "get": {
+      "risk": "read",
+      "voice": true
+    },
+    "cancel": {
+      "risk": "write_reversible",
+      "voice": true
+    }
+  },
+  "requires": {
+    "deviceTools": [
+      "device.alarm.set"
+    ]
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "active-timers",
+        "title": "Таймеры",
+        "resourceUri": "ui://builtin.timer/tile",
+        "sizes": [
+          "1x1",
+          "2x1"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "get",
+          "everySeconds": 30
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": true,
+    "schedules": true
+  }
+}

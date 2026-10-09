@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/job.schema.json",
+  "title": "MIA MVP v1 jobs, schedules and inbox",
+  "description": "Background jobs (background.start), schedules (schedule.create) and inbox items, Review §5.2(d). Root document is a Job.",
+  "$ref": "#/$defs/Job",
+  "$defs": {
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channels"],
+      "properties": {
+        "channels": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/notifyChannel" }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_steps", "max_duration_seconds"],
+      "properties": {
+        "max_steps": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "max_duration_seconds": { "type": "integer", "minimum": 1, "maximum": 1800 },
+        "max_cost_usd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "JobStatus": {
+      "type": "string",
+      "enum": ["queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"]
+    },
+    "Job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "goal", "status", "origin", "budget", "delivery", "attempt", "created_at", "started_at", "finished_at", "result", "error"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "inputs": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "status": { "$ref": "#/$defs/JobStatus" },
+        "origin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "id"],
+          "properties": {
+            "type": { "type": "string", "enum": ["run", "schedule", "app"] },
+            "id": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        },
+        "run_id": {
+          "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/id" }],
+          "description": "Run with profile=job executing this job"
+        },
+        "budget": { "$ref": "#/$defs/budget" },
+        "delivery": { "$ref": "#/$defs/delivery" },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "started_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] },
+        "finished_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] },
+        "result": {
+          "oneOf": [{ "type": "null" }, { "$ref": "assistant-response.schema.json" }]
+        },
+        "error": {
+          "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/publicError" }]
+        }
+      }
+    },
+    "CreateJobRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal"],
+      "description": "Body of POST /v1/jobs and arguments of the background.start tool",
+      "properties": {
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "inputs": { "$ref": "common.schema.json#/$defs/jsonObject" },
+        "delivery": { "$ref": "#/$defs/delivery" },
+        "budget": { "$ref": "#/$defs/budget" }
+      }
+    },
+    "Schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "rule", "timezone", "goal", "delivery", "misfire_policy", "status", "next_run_at", "last_run_at", "created_at"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "rule": {
+          "type": "string",
+          "pattern": "^(DTSTART[^\\n]*\\n)?RRULE:FREQ=(MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[A-Za-z0-9,:+-]+)*$",
+          "maxLength": 1000,
+          "description": "RFC 5545 RRULE, optionally preceded by a DTSTART line"
+        },
+        "timezone": {
+          "type": "string",
+          "pattern": "^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2})$",
+          "description": "IANA time zone, e.g. Europe/Moscow"
+        },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "delivery": { "$ref": "#/$defs/delivery" },
+        "misfire_policy": {
+          "type": "string",
+          "enum": ["skip", "run_once"],
+          "description": "What to do with occurrences missed while the core was down: drop them, or run once late"
+        },
+        "status": { "type": "string", "enum": ["active", "paused"] },
+        "next_run_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] },
+        "last_run_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "CreateScheduleRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "timezone", "goal", "delivery"],
+      "description": "Body of POST /v1/schedules and arguments of the schedule.create tool",
+      "properties": {
+        "rule": { "$ref": "#/$defs/Schedule/properties/rule" },
+        "timezone": { "$ref": "#/$defs/Schedule/properties/timezone" },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "delivery": { "$ref": "#/$defs/delivery" },
+        "misfire_policy": { "type": "string", "enum": ["skip", "run_once"], "default": "skip" }
+      }
+    },
+    "InboxItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "title", "response", "created_at", "read_at"],
+      "description": "Assistant inbox entry; voice announces unread items on the next voice run",
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "id"],
+          "properties": {
+            "type": { "type": "string", "enum": ["job", "schedule", "plugin", "system"] },
+            "id": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "response": { "$ref": "assistant-response.schema.json" },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "read_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] }
+      }
+    }
+  }
+}

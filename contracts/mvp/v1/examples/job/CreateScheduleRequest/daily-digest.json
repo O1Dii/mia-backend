@@ -1,0 +1,12 @@
+{
+  "rule": "RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=30",
+  "timezone": "Europe/Moscow",
+  "goal": "Утренняя сводка: встречи и задачи на сегодня",
+  "delivery": {
+    "channels": [
+      "push",
+      "telegram"
+    ]
+  },
+  "misfire_policy": "run_once"
+}

@@ -1,0 +1,13 @@
+{
+  "speech": "Карта по статье готова, она на экране.",
+  "display": {
+    "kind": "app",
+    "plugin_id": "team.mindweaver",
+    "resource_uri": "ui://team.mindweaver/map",
+    "structured_content": {
+      "map_id": "m-42"
+    },
+    "fallback_markdown": "[Открыть карту](https://mindweaver.example.com/maps/m-42)"
+  },
+  "followups": []
+}

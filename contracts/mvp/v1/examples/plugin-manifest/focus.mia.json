@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "community.focus-board",
+  "version": "1.0.0",
+  "name": "Доска фокуса",
+  "listing": {
+    "description": "Три главные задачи дня без отдельного сервера (no-code)",
+    "category": "productivity",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "declarative",
+    "actions": [
+      {
+        "name": "set_focus",
+        "description": "Записать главную задачу дня",
+        "inputs": {
+          "task": {
+            "type": "string",
+            "description": "Задача",
+            "maxLength": 200
+          }
+        },
+        "effect": "state.patch"
+      },
+      {
+        "name": "plan_day",
+        "description": "Предложить план дня по текущим задачам",
+        "inputs": {},
+        "effect": "model.prompt",
+        "prompt": "Составь короткий план дня по задачам: {{state.focus}}"
+      }
+    ],
+    "view": {
+      "type": "fields",
+      "fields": [
+        "focus"
+      ]
+    }
+  },
+  "tools": {
+    "set_focus": {
+      "risk": "write_reversible",
+      "voice": true
+    },
+    "plan_day": {
+      "risk": "read"
+    }
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": true,
+      "monthlyBudgetUsd": 1
+    },
+    "memory": [],
+    "notify": false
+  }
+}

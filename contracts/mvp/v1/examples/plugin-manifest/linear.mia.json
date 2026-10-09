@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "team.linear",
+  "version": "0.1.0",
+  "name": "Linear",
+  "listing": {
+    "description": "Задачи Linear в чате, голосе и на дашборде",
+    "category": "work",
+    "icon": "assets/icon.png",
+    "screenshots": [
+      "assets/s1.png"
+    ],
+    "downloads": []
+  },
+  "server": {
+    "kind": "remote",
+    "url": "https://mcp.linear.app/mcp",
+    "auth": "oauth",
+    "protocolVersion": "2026-07-28"
+  },
+  "skills": [
+    "SKILL.md"
+  ],
+  "tools": {
+    "list_issues": {
+      "risk": "read",
+      "voice": true
+    },
+    "create_issue": {
+      "risk": "write_reversible"
+    },
+    "delete_issue": {
+      "risk": "write_external"
+    }
+  },
+  "surfaces": {
+    "tiles": [
+      {
+        "id": "my-issues",
+        "resourceUri": "ui://team.linear/my-issues",
+        "bundled": "ui/my-issues.html",
+        "sizes": [
+          "2x2",
+          "4x2"
+        ],
+        "mobile": "card",
+        "refresh": {
+          "tool": "list_issues",
+          "everySeconds": 300
+        }
+      }
+    ]
+  },
+  "permissions": {
+    "network": [
+      "mcp.linear.app"
+    ],
+    "llm": {
+      "viaHost": false
+    },
+    "memory": [],
+    "notify": true
+  }
+}

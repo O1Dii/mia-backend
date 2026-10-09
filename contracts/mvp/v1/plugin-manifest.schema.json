@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/plugin-manifest.schema.json",
+  "title": "MIA MVP v1 plugin manifest (mia.json)",
+  "description": "Plugin envelope, Review §5.4.3-§5.4.4, ADR-0010. The executable part is an MCP server, UI is MCP Apps (ui://), instructions are SKILL.md. Field names are camelCase like the Review example and MCP; API payloads elsewhere in mvp/v1 are snake_case.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "version", "name", "listing", "server", "tools", "permissions"],
+  "properties": {
+    "schemaVersion": { "const": "mia.plugin/1" },
+    "id": { "$ref": "common.schema.json#/$defs/pluginId" },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$"
+    },
+    "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+    "listing": { "$ref": "#/$defs/listing" },
+    "server": {
+      "oneOf": [
+        { "$ref": "#/$defs/builtinServer" },
+        { "$ref": "#/$defs/remoteServer" },
+        { "$ref": "#/$defs/declarativeServer" }
+      ]
+    },
+    "skills": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/relativePath" },
+      "description": "Paths of SKILL.md files inside the plugin package. Only their description goes into the system prompt; the body is loaded when the plugin is selected"
+    },
+    "tools": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 64,
+      "propertyNames": { "$ref": "common.schema.json#/$defs/toolName" },
+      "additionalProperties": { "$ref": "#/$defs/toolPolicy" },
+      "description": "Mia policy overlay for the server's tools. Publication checks that this set equals the server's tools/list"
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deviceTools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "device-tools.schema.json#/$defs/deviceToolName" },
+          "description": "Device tools the plugin's flows rely on (e.g. telegram.share). Missing tools degrade the plugin, they do not block install"
+        }
+      }
+    },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tiles": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/tile" }
+        }
+      }
+    },
+    "permissions": { "$ref": "#/$defs/permissions" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "server": { "properties": { "kind": { "const": "remote" } } } }
+      },
+      "then": {
+        "properties": { "permissions": { "properties": { "network": { "minItems": 1 } } } }
+      }
+    }
+  ],
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,200}$"
+    },
+    "hostname": {
+      "type": "string",
+      "pattern": "^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+    },
+    "listing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "category"],
+      "properties": {
+        "description": { "type": "string", "minLength": 10, "maxLength": 240 },
+        "category": {
+          "type": "string",
+          "enum": ["work", "productivity", "communication", "knowledge", "home", "utilities", "fun"]
+        },
+        "author": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "icon": { "$ref": "#/$defs/relativePath" },
+        "screenshots": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/relativePath" }
+        },
+        "downloads": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["platform", "url", "label"],
+            "properties": {
+              "platform": { "type": "string", "enum": ["web", "android", "ios", "desktop"] },
+              "url": { "$ref": "common.schema.json#/$defs/httpsUrl" },
+              "label": { "type": "string", "minLength": 1, "maxLength": 60 }
+            }
+          }
+        }
+      }
+    },
+    "builtinServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "module"],
+      "description": "Python MCP server running in the core process",
+      "properties": {
+        "kind": { "const": "builtin" },
+        "module": {
+          "type": "string",
+          "pattern": "^app(\\.[a-z_][a-z0-9_]*)+$",
+          "description": "Importable module that exposes the in-process MCP server"
+        }
+      }
+    },
+    "remoteServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "url", "auth"],
+      "description": "Streamable HTTP MCP server (spec 2026-07-28). The URL host must be in permissions.network (SSRF allow-list)",
+      "properties": {
+        "kind": { "const": "remote" },
+        "url": { "$ref": "common.schema.json#/$defs/httpsUrl" },
+        "auth": { "type": "string", "enum": ["none", "oauth", "mia_token"] },
+        "protocolVersion": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+      }
+    },
+    "declarativeServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "actions", "view"],
+      "description": "No-code plugin (v2-style actions) for which Mia itself is the MCP server; actions become tools, the view becomes an MCP App",
+      "properties": {
+        "kind": { "const": "declarative" },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/declarativeAction" }
+        },
+        "view": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["fields", "html"] },
+            "fields": { "type": "array", "maxItems": 10, "items": { "type": "string" } },
+            "html": { "type": "string", "maxLength": 24000 }
+          }
+        }
+      }
+    },
+    "declarativeAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "inputs", "effect"],
+      "properties": {
+        "name": { "$ref": "common.schema.json#/$defs/toolName" },
+        "description": { "type": "string", "minLength": 5, "maxLength": 300 },
+        "inputs": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+              "type": { "type": "string", "enum": ["string", "integer", "boolean"] },
+              "description": { "type": "string", "maxLength": 300 },
+              "maxLength": { "type": "integer", "minimum": 1, "maximum": 16000 },
+              "minimum": { "type": "integer" },
+              "maximum": { "type": "integer" }
+            }
+          }
+        },
+        "effect": { "type": "string", "enum": ["state.patch", "model.prompt"] },
+        "prompt": { "type": "string", "maxLength": 8000 }
+      }
+    },
+    "toolPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["risk"],
+      "properties": {
+        "risk": { "$ref": "common.schema.json#/$defs/risk" },
+        "voice": {
+          "type": "boolean",
+          "default": false,
+          "description": "Exposed in the voice profile (fast reads only)"
+        },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+        "task": {
+          "type": "boolean",
+          "default": false,
+          "description": "Long-running MCP Task; the router wraps it in a job"
+        }
+      }
+    },
+    "tile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "resourceUri", "sizes"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "resourceUri": { "$ref": "common.schema.json#/$defs/uiResourceUri" },
+        "bundled": {
+          "$ref": "#/$defs/relativePath",
+          "description": "HTML shipped with the plugin and served by Mia as the ui:// resource (own UI on top of a third-party server)"
+        },
+        "sizes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "enum": ["1x1", "2x1", "2x2", "4x2", "4x4"] }
+        },
+        "mobile": { "type": "string", "enum": ["card", "tile", "hidden"], "default": "card" },
+        "refresh": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tool", "everySeconds"],
+          "properties": {
+            "tool": { "$ref": "common.schema.json#/$defs/toolName" },
+            "everySeconds": { "type": "integer", "minimum": 30, "maximum": 86400 }
+          }
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["network", "llm", "memory", "notify"],
+      "properties": {
+        "network": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/hostname" },
+          "description": "Allow-listed hosts; private and loopback addresses are always refused in the cloud"
+        },
+        "llm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["viaHost"],
+          "properties": {
+            "viaHost": {
+              "type": "boolean",
+              "description": "The plugin may call the user's model through Mia (llm.generate), within a user-set budget"
+            },
+            "monthlyBudgetUsd": { "type": "number", "minimum": 0, "maximum": 1000 }
+          }
+        },
+        "memory": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(context|suggest|read:(profile|work|home|health|finance|interests|other))$"
+          },
+          "description": "Memory access, same vocabulary as app scopes without the memory. prefix"
+        },
+        "notify": { "type": "boolean" },
+        "schedules": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

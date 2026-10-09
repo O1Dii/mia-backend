@@ -1,0 +1,70 @@
+{
+  "device_id": "a1b2c3d4-e5f6-4789-8abc-def012345678",
+  "platform": "android",
+  "app_version": "0.5.0",
+  "tools": [
+    {
+      "name": "device.contacts.search",
+      "description": "Найти контакт телефона по имени; результат не сохраняется на сервере",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      "risk": "read",
+      "voice": true,
+      "requires_unlocked": false,
+      "timeout_ms": 3000
+    },
+    {
+      "name": "device.alarm.set",
+      "description": "Поставить будильник Android (AlarmManager)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "at"
+        ]
+      },
+      "risk": "write_reversible",
+      "voice": true,
+      "requires_unlocked": false,
+      "timeout_ms": 3000
+    },
+    {
+      "name": "telegram.share",
+      "description": "Открыть чат Telegram с готовым текстом (L0, отправляет пользователь)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "risk": "write_reversible",
+      "voice": true,
+      "requires_unlocked": true,
+      "timeout_ms": 30000
+    }
+  ]
+}

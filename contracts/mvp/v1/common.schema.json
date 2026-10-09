@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/common.schema.json",
+  "title": "MIA MVP v1 shared definitions",
+  "description": "Reusable primitives referenced by the other mvp/v1 schemas. Not a document type of its own.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "RFC 3339 timestamp with an explicit offset"
+    },
+    "runProfile": {
+      "type": "string",
+      "enum": ["voice", "chat", "job", "app"],
+      "description": "Run profile, Review §5.2(a)"
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["read", "write_reversible", "write_external"],
+      "description": "Tool risk class, Review §5.3. write_external always creates an Approval"
+    },
+    "pluginId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}(\\.[a-z][a-z0-9-]{1,47}){1,2}$",
+      "description": "Reverse-domain-like plugin id, for example team.linear or builtin.timer"
+    },
+    "toolName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "description": "Tool name local to its plugin"
+    },
+    "qualifiedToolName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9_-]*)+$",
+      "description": "Tool name as shown to the model and in events: <plugin-or-namespace>.<tool>, for example team.linear.list_issues, device.contacts.search, background.start"
+    },
+    "argsHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 of canonical JSON arguments: UTF-8, keys sorted, separators (',', ':'), no ASCII escaping. Reference implementation: app.core.ports.approval_service.canonical_args_hash"
+    },
+    "uiResourceUri": {
+      "type": "string",
+      "pattern": "^ui://[a-z0-9.-]+(/[A-Za-z0-9._~-]+)*$",
+      "maxLength": 512,
+      "description": "MCP Apps UI resource URI"
+    },
+    "httpsUrl": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^https://[^\\s]+$"
+    },
+    "jsonObject": {
+      "type": "object",
+      "description": "Arbitrary JSON object (tool arguments, structuredContent)"
+    },
+    "notifyChannel": {
+      "type": "string",
+      "enum": ["push", "telegram", "inbox"]
+    },
+    "publicError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "description": "Stable machine code. The v1 registry in contracts/errors/v1 is extended additively by the owning session"
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_tokens", "output_tokens"],
+      "properties": {
+        "input_tokens": { "type": "integer", "minimum": 0 },
+        "output_tokens": { "type": "integer", "minimum": 0 },
+        "cost_usd": { "type": ["number", "null"], "minimum": 0 }
+      }
+    }
+  }
+}
