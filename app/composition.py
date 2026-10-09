@@ -12,6 +12,7 @@ from app.modules.auth.service import AuthService, InvalidCredentialsError
 from app.modules.auth.tokens import InvalidAccessTokenError
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
+from app.modules.jobs.composition import install_jobs
 from app.modules.models import install_models
 from app.modules.plugins.composition import build_builtin_plugins
 from app.modules.realtime import (
@@ -138,6 +139,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         approvals=tools.approvals,
     )
     tools.device_channel.bind_publisher(runs.publish)
+    install_jobs(app, settings, runtime, runs=runs, core_tools=tools.core_tools)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,

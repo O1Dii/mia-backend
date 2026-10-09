@@ -25,6 +25,26 @@ services:
       redis:
         condition: service_healthy
 
+  worker:
+    # M16 jobs worker: queue, schedules, timer/alarm firing, push deliveries.
+    build: .
+    command: ["python", "-m", "app.worker"]
+    environment:
+      APP_ENV: development
+      AI_PROVIDER: fake
+      DATABASE_URL: postgresql+asyncpg://mia:mia-local-only@postgres:5432/mia
+      REDIS_URL: redis://redis:6379/0
+    healthcheck:
+      disable: true
+    stop_grace_period: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     environment:

@@ -15,8 +15,9 @@ from typing import Literal
 from app.core.ports.tool_router import ToolContext
 from app.core.ports.types import JsonObject, Risk, RunProfile
 
-RESERVED_NAMESPACES: frozenset[str] = frozenset({"background", "memory", "skills"})
-_NAME = re.compile(r"^(background|memory|skills)\.[a-z][a-z0-9_]{0,63}$")
+RESERVED_NAMESPACES: frozenset[str] = frozenset({"background", "memory", "skills", "schedule"})
+_NAME = re.compile(r"^((background|memory|skills|schedule)\.[a-z][a-z0-9_]{0,63}|notify)$")
+"""``schedule.*`` and the bare ``notify`` were added by M16 (Review §5.2(d) tool names)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,7 +57,7 @@ class CoreToolRegistry:
 
     def register(self, tool: CoreTool) -> None:
         if not _NAME.match(tool.name):
-            raise ValueError("core tools live in background.*, memory.* or skills.*")
+            raise ValueError("core tools live in background.*, memory.*, skills.*, schedule.*")
         if tool.name in self._tools:
             raise ValueError(f"duplicate core tool {tool.name}")
         if tool.timeout_s <= 0:
