@@ -1,0 +1,11 @@
+{
+  "tool": "list_issues",
+  "arguments": {"assignee": "me", "limit": 20},
+  "structuredContent": {
+    "issues": [
+      {"id": "7c1f0b3e-0000-4000-8000-000000000001", "identifier": "ENG-101", "title": "Fix login redirect", "status": "In Progress", "priority": {"value": 2, "name": "High"}, "assignee": "Test User", "url": "https://linear.app/test/issue/ENG-101"},
+      {"id": "7c1f0b3e-0000-4000-8000-000000000002", "identifier": "ENG-102", "title": "Write release notes", "status": "Todo", "priority": {"value": 3, "name": "Medium"}, "assignee": "Test User", "url": "https://linear.app/test/issue/ENG-102"}
+    ],
+    "hasNextPage": false
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "tool": "create_issue",
+  "arguments": {"team": "Engineering", "title": "Buy milk"},
+  "structuredContent": {"id": "7c1f0b3e-0000-4000-8000-000000000003", "identifier": "ENG-103", "title": "Buy milk", "status": "Backlog"}
+}

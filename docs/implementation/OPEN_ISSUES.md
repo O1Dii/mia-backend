@@ -2139,7 +2139,33 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M40 inbox
 
-- Нет записей.
+### OI-M40-001 — Набор tools официального сервера Linear не проверен вживую
+
+- Status: OPEN
+- Source session: M40
+- Component: plugins/linear, публикация
+- Question: совпадает ли `tools` в `mia.json` (14 имён) с `tools/list` на `https://mcp.linear.app/mcp`?
+- Why non-blocking: публичная документация Linear имён tools не перечисляет, а без интерактивного OAuth вызвать `tools/list` нельзя; публикация против реального сервера требует токена
+- Current assumption: имена и набор взяты из известной схемы hosted-сервера Linear (list_issues, get_issue, create_issue, update_issue, create_comment и т.д.); `delete_issue` намеренно нет
+- Options: (a) пользователь запускает `validate --discover --token-env` (см. handoff, user check) и правит список по выводу; (b) оставить как есть, если совпало
+- Recommendation: (a) перед M60
+- Affects sessions: M60
+- Revisit trigger/by: первый реальный smoke Linear
+- Resolution:
+
+### OI-M40-002 — Форма результата `list_issues` у реального сервера
+
+- Status: OPEN
+- Source session: M40
+- Component: plugins/linear/ui/my-issues.html
+- Question: возвращает ли Linear `structuredContent` (`issues` / `nodes`) или только текстовый JSON в `content`?
+- Why non-blocking: плитка принимает `issues`, `nodes` и голый массив из `structuredContent`; мост `window.mia` отдаёт плитке только `structuredContent`, текст не разбирается
+- Current assumption: структурированный результат есть; иначе плитка покажет «Нет данных»
+- Options: (a) если только текст — парсить `content[].text` в мосту (`app/modules/plugins/builtin/bridge.py`, M14/M15), (b) нормализовать в роутере
+- Recommendation: проверить на smoke; при необходимости (a), отдельная правка ядра
+- Affects sessions: M30, M60
+- Revisit trigger/by: smoke Linear
+- Resolution:
 
 ## M41 inbox
 
