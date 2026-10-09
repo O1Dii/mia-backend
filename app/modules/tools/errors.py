@@ -33,9 +33,7 @@ ROUTER_CODES: Final[dict[str, RouterCode]] = {
     "tool_unavailable": RouterCode(True, "The plugin server is unavailable."),
     "tool_timeout": RouterCode(False, "The tool did not answer in time."),
     "tool_execution_failed": RouterCode(True, "The tool could not complete the request."),
-    "tool_result_invalid": RouterCode(False, "The tool returned an invalid result."),
     # Approvals bound to exact arguments.
-    "approval_required": RouterCode(False, "The action needs an approval."),
     "approval_not_found": RouterCode(False, "The approval was not found.", 404),
     "approval_args_mismatch": RouterCode(
         False, "The arguments differ from the approved ones.", 409

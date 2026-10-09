@@ -189,20 +189,6 @@
     "owner": "M13"
   },
   {
-    "code": "tool_result_invalid",
-    "http_status": null,
-    "retryable": false,
-    "public_message": "The tool returned an invalid result.",
-    "owner": "M13"
-  },
-  {
-    "code": "approval_required",
-    "http_status": null,
-    "retryable": false,
-    "public_message": "The action needs an approval.",
-    "owner": "M13"
-  },
-  {
     "code": "approval_not_found",
     "http_status": 404,
     "retryable": false,
