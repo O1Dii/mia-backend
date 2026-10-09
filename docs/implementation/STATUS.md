@@ -27,12 +27,15 @@ M21 → `522c517`, без конфликтов. Integrator: миграции в 
 `install_runs(model_gateway=...)`; `model_failover` добавлен в `KNOWN_EVENTS` (запрос M11); тест
 `tests/integration/test_mw1_gate.py`.
 
-Gate MW1 — PASS, кроме живого вызова основной модели:
+Gate MW1 — PASS (живой вызов основной модели подтверждён пользователем 2026-10-09, см. ниже):
 - миграции M10–M12 в одной цепочке: PASS (upgrade → downgrade `20260913_0003` → upgrade, `alembic check` без drift);
 - один аккаунт на web и Android: PASS (M10: cookie и bearer → один `user_id` по Google `sub`);
 - run с основной моделью без tools отвечает через SSE: PASS офлайн (реальный `DefaultModelGateway`, `chatgpt-plan`,
   записанный Responses-ответ → `run.started … response.final … run.completed`). **Живой прогон не выполнен**: нужен
   интерактивный вход владельца, `uv run python -m app.modules.models.smoke --provider gpt-plan` (handoff M11);
+  **живой smoke M11 выполнен пользователем 2026-10-09: PASS** — Sign in with ChatGPT, подпись ID-токена проверена по
+  JWKS, `chatgpt-plan/gpt-6.1-sol`, tool-цикл 3 хода (`get_time`, `add_todo`), first event 4112 мс (один замер;
+  M01 p50 1340 мс). Это прямой вызов адаптера; путь run → SSE проверен офлайн тестом выше;
 - Android запускается как ассистент: PASS (device gate M20 на SM-S938B, разблокированный и заблокированный экран);
 - STT измерен: PASS (M21, SM-S938B: p50 106 мс на 3–5 с речи, PSS 286 МБ, WER 6.9 % на синтезе).
 
@@ -63,7 +66,7 @@ Follow-ups MW1 (не блокируют MW2):
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
 | M01 | MW0 | COMPLETED | — | Sonnet 5.5 high | [M01](handoffs/M01.md) | `f52cc2a` | основная = GPT-plan (SIWC), резерв GLM-5.3-Flash |
 | M10 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M10](handoffs/M10.md) | `839200e` | cookie+bearer → один user; workspace/installations/dashboard; перенос SQLite |
-| M11 | MW1 | COMPLETED | M00,M01 | Sonnet 5.5 high | [M11](handoffs/M11.md) | `e12ce12` | gateway `chatgpt-plan`+GLM, envelope crypto; живой smoke не выполнен (нужен вход владельца) |
+| M11 | MW1 | COMPLETED | M00,M01 | Sonnet 5.5 high | [M11](handoffs/M11.md) | `e12ce12` | gateway `chatgpt-plan`+GLM, envelope crypto; живой smoke gpt-plan PASS (пользователь) |
 | M12 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M12](handoffs/M12.md) | `e4f0cc6` | runs/events/SSE, профили, speech/display, `speech.ack`; реестр error-codes |
 | M20 | MW1 | COMPLETED | M00 | Sonnet 5.5 high | [M20](handoffs/M20.md) | `6028f42` / Android `34e978b` | VIS + lock screen; device gate PASS на SM-S938B |
 | M21 | MW1 | COMPLETED | M00 | Opus 5.5 high | [M21](handoffs/M21.md) | `8c037e6` / Android `522c517` | GigaAM-v3 CTC, sherpa-onnx 1.13.8, загрузка модели при первом запуске |
