@@ -80,6 +80,8 @@ class PluginConnection(Base):
     flow_verifier_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary)
     flow_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     flow_return_to: Mapped[str | None] = mapped_column(String(300))
+    flow_binding_hash: Mapped[str | None] = mapped_column(String(64))
+    """SHA-256 of the browser binding value (web flows only, OI-M15-003)."""
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

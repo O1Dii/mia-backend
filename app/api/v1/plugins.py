@@ -7,6 +7,7 @@ ID Metadata Document. Publishing is not an HTTP operation: administrators run
 ``python -m cli.mia_plugin publish <dir>`` on the backend host.
 """
 
+import hashlib
 import html
 from collections.abc import Awaitable
 from typing import Annotated, Any
@@ -44,6 +45,8 @@ from app.modules.workspace.service import MutationResult, WorkspaceContext, Work
 
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", min_length=16, max_length=128)]
 PluginId = Annotated[str, Query(pattern=PLUGIN_ID_PATTERN)]
+BINDING_COOKIE = "mia_oauth_binding"
+"""Lax cookie that ties an OAuth callback to the browser that started the flow (OI-M15-003)."""
 _IMAGE_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "default-src 'none'; sandbox",
@@ -212,27 +215,58 @@ def build_plugins_router(
 
     @router.post("/connections", status_code=201)
     async def start_connection(
-        ctx: Context, payload: StartConnectionRequest, idempotency_key: IdempotencyKey
+        ctx: Context,
+        request: Request,
+        payload: StartConnectionRequest,
+        idempotency_key: IdempotencyKey,
     ) -> Response:
-        return _respond(
+        # A browser (session cookie, no bearer) gets a binding; the Android app has no cookie jar
+        # shared with the system browser, so its flows stay unbound (tracked as OI-M30-002).
+        web = request.headers.get("authorization") is None
+        binding = (
+            hashlib.sha256(
+                f"mia-oauth-binding:{ctx.user_id}:{idempotency_key}".encode()
+            ).hexdigest()
+            if web
+            else None
+        )
+        response = _respond(
             await _guard(
                 connections.start(
                     ctx,
                     payload.installation_id,
                     return_to=payload.return_to,
                     idempotency_key=idempotency_key,
+                    binding=binding,
                 )
             )
         )
+        if binding is not None and response.status_code < 300:
+            response.set_cookie(
+                BINDING_COOKIE,
+                binding,
+                max_age=connections.flow_ttl_seconds,
+                path="/v1/connections/callback",
+                httponly=True,
+                samesite="lax",
+                secure=authenticator.policy.secure,
+            )
+        return response
 
     @router.get("/connections/callback", include_in_schema=False)
     async def oauth_callback(
+        request: Request,
         state: Annotated[str | None, Query(max_length=256)] = None,
         code: Annotated[str | None, Query(max_length=2048)] = None,
         error: Annotated[str | None, Query(max_length=128)] = None,
     ) -> Response:
-        outcome = await _guard(connections.complete(state=state, code=code, error=error))
+        outcome = await _guard(
+            connections.complete(
+                state=state, code=code, error=error, binding=request.cookies.get(BINDING_COOKIE)
+            )
+        )
         headers = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+        result: Response
         if outcome.return_to is not None:
             query = urlencode(
                 {
@@ -241,17 +275,24 @@ def build_plugins_router(
                 }
             )
             separator = "&" if "?" in outcome.return_to else "?"
-            return RedirectResponse(
+            result = RedirectResponse(
                 outcome.return_to + separator + query, status_code=303, headers=headers
             )
-        title = "Аккаунт подключён" if outcome.ok else "Не удалось подключить аккаунт"
-        body = "Можно вернуться в Mia." if outcome.ok else "Вернитесь в Mia и попробуйте ещё раз."
-        return HTMLResponse(
-            f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
-            f"<title>{html.escape(title)}</title><h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>",
-            status_code=200 if outcome.ok else 400,
-            headers=headers,
-        )
+        else:
+            title = "Аккаунт подключён" if outcome.ok else "Не удалось подключить аккаунт"
+            body = (
+                "Можно вернуться в Mia." if outcome.ok else "Вернитесь в Mia и попробуйте ещё раз."
+            )
+            result = HTMLResponse(
+                "<!doctype html><meta charset=utf-8>"
+                "<meta name=viewport content='width=device-width'>"
+                f"<title>{html.escape(title)}</title><h1>{html.escape(title)}</h1>"
+                f"<p>{html.escape(body)}</p>",
+                status_code=200 if outcome.ok else 400,
+                headers=headers,
+            )
+        result.delete_cookie(BINDING_COOKIE, path="/v1/connections/callback")
+        return result
 
     @router.get("/connections/client-metadata.json", include_in_schema=False)
     async def client_metadata() -> Response:

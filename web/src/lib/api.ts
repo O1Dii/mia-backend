@@ -1,198 +1,275 @@
-export type ProviderId =
-  'openai' | 'anthropic' | 'gemini' | 'deepinfra' | 'groq' | 'mistral' | 'ollama' | 'local'
+import { http } from './http'
+
+// ---------------------------------------------------------------- shared shapes (contracts/mvp/v1)
+export type Risk = 'read' | 'write_reversible' | 'write_external'
+export type Display =
+  | { kind: 'text'; markdown: string }
+  | { kind: 'card'; title?: string; markdown: string; source_tool_call_id?: string }
+  | {
+      kind: 'app'
+      plugin_id: string
+      resource_uri: string
+      structured_content?: Record<string, unknown>
+      fallback_markdown?: string
+    }
+  | { kind: 'link'; url: string; title: string }
+export type AssistantResponse = { speech: string; display: Display | null; followups: string[] }
+
+export type User = {
+  id: string
+  email: string
+  display_name: string | null
+  avatar_url: string | null
+}
+
+export type FeedItem = {
+  id: string
+  role: 'user' | 'assistant'
+  source: string
+  text: string
+  display: Display | null
+  run_id: string | null
+  created_at: string
+}
+export type FeedPage = { items: FeedItem[]; next_cursor: string | null }
+
+export type Run = {
+  id: string
+  profile: 'voice' | 'chat'
+  status: 'running' | 'waiting_approval' | 'cancel_requested' | 'completed' | 'failed' | 'cancelled'
+  response?: AssistantResponse
+  error?: { code: string; message: string }
+  conversation_id?: string
+}
+
+export type Approval = {
+  id: string
+  run_id: string
+  tool_call_id: string
+  plugin_id?: string
+  tool: string
+  risk: Risk
+  summary: string
+  arguments: Record<string, unknown>
+  args_hash: string
+  status: 'pending' | 'approved' | 'denied' | 'expired' | 'cancelled'
+  created_at: string
+  expires_at: string
+  decision: { decision: 'approve' | 'deny'; decided_at: string; channel: string } | null
+}
+
+// ------------------------------------------------------------------------------- store
+export type Rating = { average: number | null; count: number }
+export type CatalogEntry = {
+  plugin_id: string
+  version: string
+  manifest: { server?: { kind?: string; auth?: string }; listing?: { author?: string } }
+  name: string
+  description: string
+  category: string
+  author: string | null
+  kind: 'builtin' | 'remote' | 'declarative'
+  tagline: string | null
+  color: string | null
+  art: string | null
+  featured: boolean
+  rating: Rating
+  installs: number
+  icon_url: string | null
+  screenshots: string[]
+  published_at: string
+}
+export type ConsentTool = { name: string; description: string; risk: Risk; voice: boolean }
+export type Consent = {
+  plugin_id: string
+  version: string
+  tools_digest: string
+  tools: ConsentTool[]
+  grants: { id: string; text: string }[]
+  network: string[]
+  public_web: boolean
+  llm: { via_host: boolean; monthly_budget_usd: number | null }
+  memory: string[]
+  notify: boolean
+  schedules: boolean
+  device_tools: string[]
+  requires_connection: boolean
+  stores_state: boolean
+}
+export type CatalogDetail = CatalogEntry & { versions: string[]; consent: Consent }
+export type Review = {
+  id: string
+  plugin_id: string
+  rating: number
+  text: string
+  author: string
+  mine: boolean
+  updated_at: string
+}
+export type ReviewList = { items: Review[]; rating: Rating }
+
+export type InstallationStatus = 'active' | 'needs_connection' | 'needs_consent' | 'disabled'
+export type Installation = {
+  id: string
+  plugin_id: string
+  version: string
+  status: InstallationStatus
+  custom_url: string | null
+  source: 'catalog' | 'custom' | 'legacy_web'
+  grants: string[]
+  tools_digest: string | null
+  state_version: number
+  created_at: string
+  updated_at: string
+}
+export type UpdateInfo = {
+  installation_id: string
+  plugin_id: string
+  installed_version: string
+  latest_version: string
+  update_available: boolean
+  added_grants: string[]
+  removed_grants: string[]
+  digest_changed: boolean
+  consent: Consent | null
+}
+export type Discovery = {
+  installation_id: string
+  state: 'needs_connection' | 'ready'
+  tools: { name: string; description: string; risk: Risk }[]
+  tools_digest: string | null
+  grants: { id: string; text: string }[]
+  host: string
+  skipped_tools: string[]
+}
 export type Connection = {
   id: string
-  provider: ProviderId
+  installation_id: string
+  plugin_id: string
+  status: 'pending' | 'connected' | 'expired' | 'revoked'
+  account_label: string | null
+  scopes: string | null
+}
+
+// ------------------------------------------------------------------- model connections
+export type ModelProvider =
+  'openai' | 'anthropic' | 'gemini' | 'deepinfra' | 'groq' | 'mistral' | 'ollama' | 'local'
+export type ModelConnection = {
+  id: string
+  provider: string
   label: string
   model: string
-  base_url: string
+  base_url: string | null
+  capability: 'tools' | 'chat_only'
   has_key: boolean
-  tool_mode: 'native' | 'json'
+  key_last4: string | null
+  status: 'active' | 'paused' | 'needs_reauth'
+  paused_until: string | null
+  is_primary: boolean
+  verified: boolean
+  last_tested_at: string | null
+  last_test_ok: boolean | null
+  last_test_error_code: string | null
+  created_at: string
 }
-export type Message = { role: 'user' | 'assistant'; content: string }
 
-export const webPath = (path: string) => `${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}`
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(webPath(`/api/web${path}`), {
-      ...init,
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-Mia-Web': '1', ...init.headers },
-      signal: init.signal ?? AbortSignal.timeout(160000),
-    })
-  } catch {
-    throw new Error('Локальный сервер недоступен или запрос истёк. Проверьте запуск web API.')
-  }
-  if (!response.ok) {
-    if (response.status === 401) window.dispatchEvent(new Event('mia:unauthorized'))
-    const body = await response.json().catch(() => null)
-    throw new Error(typeof body?.detail === 'string' ? body.detail : 'Не удалось выполнить запрос.')
-  }
-  return response.status === 204 ? (undefined as T) : response.json()
-}
+const enc = encodeURIComponent
 
 export const api = {
-  auth: () => request<AuthSession>('/auth/session'),
-  loginNonce: () => post<{ nonce: string }>('/auth/nonce', {}),
-  googleLogin: (credential: string) => post<{ user: WebUser }>('/auth/google', { credential }),
-  hubLogin: () => post<{ user: WebUser }>('/auth/hub', {}),
-  logout: () => post<{ ok: boolean }>('/auth/logout', {}),
-  reviews: (id: string) => request<Reviews>(`/plugins/${encodeURIComponent(id)}/reviews`),
-  review: (id: string, rating: number, text: string) =>
-    post<Reviews>(`/plugins/${encodeURIComponent(id)}/reviews`, { rating, text }),
-  deleteReview: (id: string) =>
-    request<Reviews>(`/plugins/${encodeURIComponent(id)}/reviews`, { method: 'DELETE' }),
-  connections: () => request<Connection[]>('/connections'),
-  add: (input: {
-    provider: ProviderId
+  // ---- account
+  me: () => http<User>('GET', '/v1/me', { quiet401: true }),
+  nonce: () => http<{ nonce: string }>('POST', '/v1/auth/web/nonce', { body: undefined }),
+  googleLogin: (credential: string) =>
+    http<{ user: User }>('POST', '/v1/auth/web/google', { body: { credential } }),
+  logout: () => http<void>('POST', '/v1/auth/web/logout'),
+
+  // ---- chat
+  feed: (before?: string, limit = 30) =>
+    http<FeedPage>('GET', '/v1/feed', { query: { before, limit } }),
+  createRun: (text: string, key: string) =>
+    http<Run>('POST', '/v1/runs', {
+      body: { profile: 'chat', input: { text } },
+      key,
+    }),
+  getRun: (id: string) => http<Run>('GET', `/v1/runs/${enc(id)}`),
+  cancelRun: (id: string) => http<Run>('POST', `/v1/runs/${enc(id)}/cancel`),
+  approvals: (status: Approval['status'] = 'pending') =>
+    http<{ items: Approval[] }>('GET', '/v1/approvals', { query: { status, limit: 100 } }),
+  decide: (approval: Approval, decision: 'approve' | 'deny') =>
+    http<Approval>('POST', `/v1/approvals/${enc(approval.id)}/decision`, {
+      body: { decision, args_hash: approval.args_hash },
+      key: `${approval.id}-${decision}-${approval.args_hash.slice(-12)}`.padEnd(16, '0'),
+    }),
+
+  // ---- store
+  plugins: (query?: string, category?: string, cursor?: string) =>
+    http<{ items: CatalogEntry[]; next_cursor: string | null }>('GET', '/v1/plugins', {
+      query: { query, category, cursor, limit: 50 },
+    }),
+  plugin: (id: string) => http<CatalogDetail>('GET', `/v1/plugins/${enc(id)}`),
+  install: (id: string, consent: Consent) =>
+    http<Installation>('POST', `/v1/plugins/${enc(id)}/install`, {
+      body: {
+        version: consent.version,
+        tools_digest: consent.tools_digest,
+        grants: consent.grants.map((g) => g.id),
+      },
+    }),
+  reviews: (id: string) => http<ReviewList>('GET', `/v1/plugins/${enc(id)}/reviews`),
+  putReview: (id: string, rating: number, text: string) =>
+    http<void>('PUT', `/v1/plugins/${enc(id)}/reviews/me`, { body: { rating, text } }),
+  deleteReview: (id: string) => http<void>('DELETE', `/v1/plugins/${enc(id)}/reviews/me`),
+  installations: () => http<{ items: Installation[] }>('GET', '/v1/installations'),
+  installation: (id: string) => http<Installation>('GET', `/v1/installations/${enc(id)}`),
+  createCustom: (url: string) =>
+    http<Installation>('POST', '/v1/installations', { body: { custom_mcp_url: url } }),
+  discovery: (id: string) => http<Discovery>('GET', `/v1/installations/${enc(id)}/discovery`),
+  consentCustom: (installation: Installation, discovery: Discovery) =>
+    http<Installation>('POST', `/v1/installations/${enc(installation.id)}/consent`, {
+      body: {
+        expected_version: installation.state_version,
+        tools_digest: discovery.tools_digest,
+        grants: discovery.grants.map((g) => g.id),
+      },
+    }),
+  uninstall: (id: string) => http<void>('DELETE', `/v1/installations/${enc(id)}`),
+  updateInfo: (id: string) => http<UpdateInfo>('GET', `/v1/installations/${enc(id)}/update`),
+  upgrade: (installation: Installation, consent: Consent) =>
+    http<Installation>('POST', `/v1/installations/${enc(installation.id)}/upgrade`, {
+      body: {
+        expected_version: installation.state_version,
+        version: consent.version,
+        tools_digest: consent.tools_digest,
+        grants: consent.grants.map((g) => g.id),
+      },
+    }),
+  connections: () => http<{ items: Connection[] }>('GET', '/v1/connections'),
+  startConnection: (installationId: string, returnTo: string) =>
+    http<{ connection_id: string; authorization_url: string }>('POST', '/v1/connections', {
+      body: { installation_id: installationId, return_to: returnTo },
+    }),
+  disconnect: (id: string) => http<void>('DELETE', `/v1/connections/${enc(id)}`),
+
+  // ---- models
+  models: () => http<{ items: ModelConnection[] }>('GET', '/v1/model-connections'),
+  addModel: (input: {
+    provider: ModelProvider
     label: string
     model: string
-    api_key: string
+    api_key?: string
     base_url?: string
-    tool_mode?: 'native' | 'json'
-  }) => request<Connection>('/connections', { method: 'POST', body: JSON.stringify(input) }),
-  remove: (id: string) =>
-    request<void>(`/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  chat: (
-    id: string,
-    messages: Message[],
-    options: { request_id?: string; use_tools?: boolean; plugin_id?: string } = {},
-  ) =>
-    request<ChatResult>('/chat', {
-      method: 'POST',
-      body: JSON.stringify({
-        connection_id: id,
-        messages,
-        request_id: crypto.randomUUID(),
-        ...options,
-      }),
-    }),
-  workspace: () => request<WorkspaceSnapshot>('/workspace'),
-  select: (connection_id: string) =>
-    post<WorkspaceSnapshot>('/connections/select', { connection_id }),
-  install: (plugin_id: string, manifest?: unknown) =>
-    post<WorkspaceSnapshot>('/plugins/install', { plugin_id, manifest }),
-  uninstall: (id: string) =>
-    request<WorkspaceSnapshot>(`/plugins/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  action: (name: string, args: Record<string, unknown>, request_id = crypto.randomUUID()) =>
-    post<ActionResult & { workspace: WorkspaceSnapshot }>('/actions', {
-      name,
-      arguments: args,
-      request_id,
-    }),
-  layout: (widgets: WidgetLayout[]) => post<WorkspaceSnapshot>('/dashboard', { widgets }),
-  digestSettings: (topics: string, interval_minutes: number) =>
-    post<WorkspaceSnapshot>('/digest/settings', { topics, interval_minutes }),
-  apps: () => request<{ id: string; plugin_id: string; expires_in: number }[]>('/apps'),
-  inspectApp: (user_code: string) =>
-    post<{ plugin_id: string; name: string; permissions: string[]; subject_id: string }>(
-      '/apps/inspect',
-      { user_code },
+    capability?: 'tools' | 'chat_only'
+    make_primary?: boolean
+  }) => http<ModelConnection>('POST', '/v1/model-connections', { body: input }),
+  patchModel: (id: string, input: { make_primary?: boolean; label?: string }) =>
+    http<ModelConnection>('PATCH', `/v1/model-connections/${enc(id)}`, { body: input }),
+  removeModel: (id: string) => http<void>('DELETE', `/v1/model-connections/${enc(id)}`),
+  testModel: (id: string) =>
+    http<{ ok: boolean; latency_ms: number; error_code: string | null }>(
+      'POST',
+      `/v1/model-connections/${enc(id)}/test`,
+      { timeoutMs: 90000 },
     ),
-  approveApp: (user_code: string) => post<{ id: string }>('/apps/approve', { user_code }),
-  revokeApp: (id: string) => request<void>(`/apps/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-}
-
-export const providerOptions: {
-  id: ProviderId
-  name: string
-  mark: string
-  color: string
-  model: string
-  local?: boolean
-  url?: string
-}[] = [
-  { id: 'openai', name: 'OpenAI', mark: '◎', color: 'mint', model: 'gpt-4.1-mini' },
-  { id: 'anthropic', name: 'Anthropic', mark: '✳', color: 'peach', model: 'claude-sonnet-4-5' },
-  { id: 'gemini', name: 'Google Gemini', mark: '✦', color: 'blue', model: 'gemini-2.5-flash' },
-  {
-    id: 'deepinfra',
-    name: 'DeepInfra',
-    mark: '◈',
-    color: 'violet',
-    model: 'zai-org/GLM-5.3-Flash',
-  },
-  { id: 'groq', name: 'Groq', mark: '↯', color: 'peach', model: 'llama-3.3-70b-versatile' },
-  { id: 'mistral', name: 'Mistral', mark: '▧', color: 'yellow', model: 'mistral-small-latest' },
-  {
-    id: 'ollama',
-    name: 'Ollama',
-    mark: '◉',
-    color: 'mint',
-    model: 'llama3.2',
-    local: true,
-    url: 'http://127.0.0.1:11434',
-  },
-  {
-    id: 'local',
-    name: 'LM Studio / local',
-    mark: '⌘',
-    color: 'blue',
-    model: 'local-model',
-    local: true,
-    url: 'http://127.0.0.1:1234/v1',
-  },
-]
-
-function post<T>(path: string, body: unknown) {
-  return request<T>(path, { method: 'POST', body: JSON.stringify(body) })
-}
-export type ActionResult = {
-  name?: string
-  ok: boolean
-  plugin_id?: string
-  data?: Record<string, unknown>
-  error?: string
-}
-export type ChatResult = {
-  text: string
-  model: string
-  actions?: ActionResult[]
-  warning?: string | null
-}
-export type WidgetLayout = { id: string; plugin_id: string; size: 'small' | 'medium' | 'wide' }
-export type PluginState = {
-  deadline?: number | null
-  remaining?: number
-  label?: string
-  status?: string
-  zones?: string[]
-  notes?: { id: string; text: string; done: boolean }[]
-  topics?: string
-  interval_minutes?: number
-  summary?: string
-  model?: string
-  items?: { title: string; url: string; source: string; published_at: string; snippet: string }[]
-  updated_at?: number
-  error?: string | null
-  query?: string
-  answer?: string
-  [field: string]: unknown
-}
-export type WorkspaceSnapshot = {
-  subject_id: string
-  revision: number
-  installed: string[]
-  manifests: Record<string, import('../plugins/catalog').ApplicationManifest>
-  states: Record<string, PluginState>
-  layout: WidgetLayout[]
-  active_connection_id: string
-  audit: { id: string; name: string; plugin_id: string; ok: boolean; at: number }[]
-  server_time: number
-}
-
-export type WebUser = { id: string; name: string; email: string }
-export type AuthSession = {
-  user: WebUser | null
-  required: boolean
-  google_client_id: string
-  google_hub: boolean
-  login_url: string
-}
-export type Reviews = {
-  count: number
-  average: number | null
-  items: { author: string; rating: number; text: string; updated_at: number; mine: boolean }[]
+  resumeModel: (id: string) =>
+    http<ModelConnection>('POST', `/v1/model-connections/${enc(id)}/resume`),
 }

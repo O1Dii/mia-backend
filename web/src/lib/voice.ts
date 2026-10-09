@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+// Browser dictation (SpeechRecognition) and read-aloud (speechSynthesis). The recognized text goes
+// into the input field; nothing is sent until the user (or the "send at once" setting) says so.
 
 type RecognitionResult = { isFinal: boolean; [index: number]: { transcript: string } }
 type RecognitionEvent = { results: { length: number; [index: number]: RecognitionResult } }
@@ -17,18 +20,43 @@ type VoiceWindow = Window & {
   SpeechRecognition?: new () => Recognition
   webkitSpeechRecognition?: new () => Recognition
 }
-const browser = window as VoiceWindow
 
-export function useVoice(setText: (value: string) => void) {
+function recognitionConstructor() {
+  const browser = window as VoiceWindow
+  return browser.SpeechRecognition || browser.webkitSpeechRecognition
+}
+
+const dictationErrors: Record<string, string> = {
+  'not-allowed': 'Разрешите доступ к микрофону в настройках браузера.',
+  'service-not-allowed': 'Браузер не разрешил распознавание речи.',
+  'audio-capture': 'Микрофон недоступен. Проверьте подключение.',
+  network: 'Сервис распознавания недоступен. Проверьте интернет.',
+  'no-speech': 'Речь не распознана. Попробуйте ещё раз.',
+}
+
+export type DictationHandlers = {
+  /** Called with the whole field text (what was there before + what is recognized so far). */
+  onText: (text: string) => void
+  /** Called once when recognition ends with the final field text; `heard` is false for silence. */
+  onEnd: (text: string, heard: boolean) => void
+}
+
+export function speakable(text: string): string[] {
+  const plain = text.replace(/\s+/g, ' ').trim()
+  if (!plain) return []
+  return (plain.match(/.{1,450}(?:\s|$)|\S{1,450}/gs) ?? [plain]).filter((s) => s.trim())
+}
+
+export function useVoice() {
   const [listening, setListening] = useState(false)
-  const [speaking, setSpeaking] = useState<number | null>(null)
+  const [speaking, setSpeaking] = useState<string | null>(null)
   const [error, setError] = useState('')
   const recognition = useRef<Recognition | null>(null)
-  const utterances = useRef<SpeechSynthesisUtterance[]>([])
   const speechRun = useRef(0)
-  const supported = Boolean(browser.SpeechRecognition || browser.webkitSpeechRecognition)
+  const supported = Boolean(recognitionConstructor())
   const canSpeak = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
-  function stopListening() {
+
+  const cancelDictation = useCallback(() => {
     const current = recognition.current
     recognition.current = null
     if (current) {
@@ -38,101 +66,97 @@ export function useVoice(setText: (value: string) => void) {
       current.abort()
     }
     setListening(false)
-  }
-  function stopSpeaking() {
+  }, [])
+
+  const stopSpeaking = useCallback(() => {
     speechRun.current++
-    if (canSpeak) window.speechSynthesis.cancel()
-    utterances.current = []
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     setSpeaking(null)
-  }
+  }, [])
+
   useEffect(
     () => () => {
-      const current = recognition.current
-      if (current) {
-        current.onresult = null
-        current.onerror = null
-        current.onend = null
-        current.abort()
-      }
+      cancelDictation()
       speechRun.current++
       if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     },
-    [],
+    [cancelDictation],
   )
-  function dictate(previous: string) {
-    if (recognition.current) {
-      stopListening()
-      return
-    }
-    const Constructor = browser.SpeechRecognition || browser.webkitSpeechRecognition
-    if (!Constructor) {
-      setError(
-        'Этот браузер не поддерживает диктовку. Попробуйте Chrome или Safari либо используйте клавиатуру.',
-      )
-      return
-    }
-    stopSpeaking()
-    setError('')
-    const current = new Constructor()
-    recognition.current = current
-    current.lang = 'ru-RU'
-    current.continuous = false
-    current.interimResults = true
-    current.onresult = (event) => {
-      const parts = []
-      for (let i = 0; i < event.results.length; i++) parts.push(event.results[i][0].transcript)
-      setText([previous.trim(), parts.join(' ').trim()].filter(Boolean).join(' ').slice(0, 16000))
-    }
-    current.onerror = (event) => {
-      setError(
-        (
-          {
-            'not-allowed': 'Разрешите доступ к микрофону в настройках браузера.',
-            'audio-capture': 'Микрофон недоступен. Проверьте подключение.',
-            network: 'Сервис распознавания недоступен. Проверьте интернет.',
-            'no-speech': 'Речь не распознана. Попробуйте ещё раз.',
-          } as Record<string, string>
-        )[event.error] ?? 'Диктовка остановлена. Можно продолжить с клавиатуры.',
-      )
-      recognition.current = null
-      setListening(false)
-    }
-    current.onend = () => {
-      if (recognition.current === current) recognition.current = null
-      setListening(false)
-    }
-    try {
-      setListening(true)
-      current.start()
-    } catch {
-      recognition.current = null
-      setListening(false)
-      setError('Не удалось включить микрофон. Попробуйте ещё раз.')
-    }
-  }
-  function speak(text: string, index: number) {
-    if (speaking === index) {
+
+  /** Toggle: a second call while listening asks the browser to finish and deliver the result. */
+  const toggleDictation = useCallback(
+    (previous: string, handlers: DictationHandlers) => {
+      if (recognition.current) {
+        recognition.current.stop()
+        return
+      }
+      const Constructor = recognitionConstructor()
+      if (!Constructor) {
+        setError('Этот браузер не поддерживает диктовку. Используйте клавиатуру.')
+        return
+      }
       stopSpeaking()
-      return
-    }
-    stopListening()
-    stopSpeaking()
-    setError('')
-    if (!canSpeak) {
-      setError('Озвучка не поддерживается этим браузером.')
-      return
-    }
-    const run = speechRun.current
-    const plain = text
-      .replace(/```[\s\S]*?```/g, ' Фрагмент кода показан на экране. ')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/[#*_`]/g, '')
-    const chunks = plain.match(/.{1,450}(?:\s|$)|\S{1,450}/gs) ?? [plain]
-    const voices = window.speechSynthesis.getVoices()
-    const voice = voices.find((v) => v.lang.toLowerCase().startsWith('ru'))
-    utterances.current = chunks
-      .filter((s) => s.trim())
-      .map((chunk) => {
+      setError('')
+      const current = new Constructor()
+      recognition.current = current
+      current.lang = 'ru-RU'
+      current.continuous = false
+      current.interimResults = true
+      let latest = previous
+      let heard = false
+      current.onresult = (event) => {
+        const parts: string[] = []
+        for (let i = 0; i < event.results.length; i++) parts.push(event.results[i][0].transcript)
+        const spoken = parts.join(' ').trim()
+        if (!spoken) return
+        heard = true
+        latest = [previous.trim(), spoken].filter(Boolean).join(' ').slice(0, 16000)
+        handlers.onText(latest)
+      }
+      current.onerror = (event) => {
+        setError(
+          dictationErrors[event.error] ?? 'Диктовка остановлена. Можно продолжить с клавиатуры.',
+        )
+      }
+      current.onend = () => {
+        if (recognition.current !== current) return
+        recognition.current = null
+        setListening(false)
+        handlers.onEnd(latest, heard)
+      }
+      try {
+        setListening(true)
+        current.start()
+      } catch {
+        recognition.current = null
+        setListening(false)
+        setError('Не удалось включить микрофон. Попробуйте ещё раз.')
+      }
+    },
+    [stopSpeaking],
+  )
+
+  /** Read `text` aloud; calling again with the same `key` while speaking stops it. */
+  const speak = useCallback(
+    (text: string, key: string) => {
+      if (speaking === key) {
+        stopSpeaking()
+        return
+      }
+      cancelDictation()
+      stopSpeaking()
+      setError('')
+      if (!canSpeak) {
+        setError('Озвучка не поддерживается этим браузером.')
+        return
+      }
+      const chunks = speakable(text)
+      if (!chunks.length) return
+      const run = speechRun.current
+      const voice = window.speechSynthesis
+        .getVoices()
+        .find((v) => v.lang.toLowerCase().startsWith('ru'))
+      const utterances = chunks.map((chunk) => {
         const utterance = new SpeechSynthesisUtterance(chunk)
         utterance.lang = 'ru-RU'
         if (voice) utterance.voice = voice
@@ -148,25 +172,25 @@ export function useVoice(setText: (value: string) => void) {
         }
         return utterance
       })
-    if (!utterances.current.length) return
-    utterances.current.at(-1)!.onend = () => {
-      if (speechRun.current === run) {
-        setSpeaking(null)
-        utterances.current = []
+      utterances[utterances.length - 1].onend = () => {
+        if (speechRun.current === run) setSpeaking(null)
       }
-    }
-    setSpeaking(index)
-    for (const utterance of utterances.current) window.speechSynthesis.speak(utterance)
-  }
+      setSpeaking(key)
+      for (const utterance of utterances) window.speechSynthesis.speak(utterance)
+    },
+    [speaking, canSpeak, cancelDictation, stopSpeaking],
+  )
+
   return {
     listening,
     speaking,
     error,
     supported,
     canSpeak,
-    dictate,
+    toggleDictation,
+    cancelDictation,
     speak,
-    stopListening,
     stopSpeaking,
+    clearError: () => setError(''),
   }
 }

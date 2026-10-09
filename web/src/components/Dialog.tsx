@@ -24,10 +24,10 @@ export function Dialog({
     >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="dialog-overlay" />
-        <DialogPrimitive.Content className={`dialog ${wide ? 'dialog-wide' : ''}`}>
+        <DialogPrimitive.Content className={`dialog mw-dialog ${wide ? 'dialog-wide' : ''}`}>
           <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
           <DialogPrimitive.Description>{description}</DialogPrimitive.Description>
-          <DialogPrimitive.Close className="icon-button dialog-close" aria-label="Закрыть">
+          <DialogPrimitive.Close className="mia-icon-btn dialog-close" aria-label="Закрыть">
             <X size={20} />
           </DialogPrimitive.Close>
           {children}

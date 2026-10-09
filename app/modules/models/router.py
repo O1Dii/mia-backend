@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
+from app.modules.auth.principal import AuthenticationFailure, RequestAuthenticator
 from app.modules.models.catalog import ConnectionValidationError
 from app.modules.models.chatgpt_plan.credentials import PlanCredentialStore
 from app.modules.models.chatgpt_plan.signin import SignInCoordinator
@@ -99,7 +100,9 @@ def build_models_router(
     plan_store: PlanCredentialStore | None = None,
     sign_in: SignInCoordinator | None = None,
     clock: Callable[[], float] = time.monotonic,
+    web_authenticator: RequestAuthenticator | None = None,
 ) -> APIRouter:
+    """``web_authenticator`` additionally accepts the web ``mia_session`` cookie (M30)."""
     router = APIRouter(prefix="/v1/model-connections", tags=["Models"], route_class=ModelRoute)
     last_test: dict[uuid.UUID, float] = {}
 
@@ -110,6 +113,21 @@ def build_models_router(
             if scheme.lower() == "bearer" and token
             else None
         )
+        if (
+            user is None
+            and authorization is None
+            and web_authenticator is not None
+            and request.cookies.get(web_authenticator.policy.session_cookie)
+        ):
+            try:
+                web = await web_authenticator.authenticate(request)
+            except AuthenticationFailure as failure:
+                if failure.status_code == 403:
+                    raise _ApiError(
+                        _error(request, 403, "permission_denied", "Cross-site request rejected.")
+                    ) from failure
+            else:
+                return uuid.UUID(web.user_id)
         if user is None:
             raise _ApiError(
                 _error(
