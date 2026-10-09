@@ -502,5 +502,12 @@
     "retryable": false,
     "public_message": "The import is too large.",
     "owner": "M17"
+  },
+  {
+    "code": "device_call_not_pending",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "No device tool call is waiting for this result.",
+    "owner": "M23"
   }
 ]

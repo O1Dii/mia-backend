@@ -2009,7 +2009,9 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M23 inbox
 
-- Нет записей.
+- OI-M23-001 (non-blocking, owner M41): `telegram.handoff` with a contact opens `tg://resolve?phone=<digits>&text=<text>` and also puts the text on the clipboard; whether Telegram for Android prefills the chat field from `text` was not verified on a real chat (phone locked). Default: the model tells the user to press send and paste if the field is empty. Check on the device or in the first M41 gate.
+- OI-M23-002 (non-blocking): Samsung's clock app has no headless alarm delete (`ACTION_DISMISS_ALARM` only opens the list), so device-gate runs leave one alarm 03:17 "MIA gate" (and 03:41 from the first tests); the user can delete them. `device.alarm.set` `verified` is a heuristic because Samsung reports a briefing pre-alert as the next alarm clock.
+- OI-M23-003 (non-blocking, owner M13): `tests/tools/test_e2e_runs.py::test_approval_round_trip_through_the_engine[postgres]` fails after 12:02 UTC on 2026-10-09 on main as well: `tests/tools/helpers.py` fixes its clock at 2026-10-09T12:00Z while the Postgres store uses wall-clock time, so the 120 s approval has expired. Make the helper clock relative to now.
 
 ## M18 inbox
 

@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from pydantic import SecretStr
 
+from app.api.v1.device_tools import install_device_tools
 from app.api.v1.feed import build_feed_router
 from app.core.circuit import GuardedRealtimeSession, GuardedTextProvider, ProviderCircuit
 from app.core.config import Settings
@@ -177,6 +178,12 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         )
     )
     memory.tools.bind_publisher(runs.publish)
+    install_device_tools(
+        app,
+        channel=tools.device_channel,
+        runs=runs,
+        authenticator=request_authenticator(app),
+    )
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
