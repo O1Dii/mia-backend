@@ -329,7 +329,7 @@ def build_oauth_router(
     @router.get("/oauth/userinfo", include_in_schema=False)
     @router.post("/oauth/userinfo", include_in_schema=False)
     async def userinfo(request: Request) -> JSONResponse:
-        access = await apps.authenticate(request, required=("openid",))
+        access = await apps.authenticate(request, required=("openid",), any_audience=True)
         return JSONResponse(await service.userinfo(access), headers=NO_STORE)
 
     # -- consent (first-party) ----------------------------------------------------

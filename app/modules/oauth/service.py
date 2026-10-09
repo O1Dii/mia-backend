@@ -13,7 +13,9 @@ Security rules kept here:
 - redirect URIs are compared as exact strings, at authorize and at token time;
 - a code is redeemed at most once; a replay revokes what the code produced;
 - a refresh token is used at most once; a replay revokes the whole rotation family;
-- effective scopes are re-intersected with the live grant on every request.
+- effective scopes are re-intersected with the live grant on every request;
+- RFC 8707 resources are Mia's own API and ``/mcp``, ``OAUTH_EXTRA_RESOURCES`` and what the
+  :class:`ResourcePolicy` knows (plugin servers, M51-R1); anything else is ``invalid_target``.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Final, cast
+from typing import Any, Final, Protocol, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import delete, select, update
@@ -90,16 +92,34 @@ class OAuthConfig:
     id_token_ttl_s: int = 3600
     default_monthly_limit_usd: Decimal = Decimal("5.00")
     max_monthly_limit_usd: Decimal = Decimal("100.00")
+    extra_resources: frozenset[str] = frozenset()
+    """``OAUTH_EXTRA_RESOURCES``: plugin servers any client may ask for (dev/ops override)."""
+    plugin_token_ttl_s: int = 300
+    """Lifetime of a token minted for a ``mia_token`` plugin call (never above 5 minutes)."""
 
     @property
     def mcp_resource(self) -> str:
         return self.issuer.rstrip("/") + "/mcp"
 
     @property
-    def resources(self) -> frozenset[str]:
-        """Accepted RFC 8707 resource indicators: the API origin and the MCP endpoint."""
+    def own_resources(self) -> frozenset[str]:
+        """Mia's own resources: the API origin and the MCP endpoint."""
         base = self.issuer.rstrip("/")
         return frozenset({base, base + "/", self.mcp_resource})
+
+    @property
+    def resources(self) -> frozenset[str]:
+        """Statically accepted RFC 8707 resource indicators (own + configured extras)."""
+        return self.own_resources | self.extra_resources
+
+
+class ResourcePolicy(Protocol):
+    """Which plugin servers (RFC 8707 resources) a client may get a token for (M51-R1)."""
+
+    async def allows(self, resource: str, *, client_id: str) -> bool: ...
+
+
+PLUGIN_TOKEN_MAX_TTL_S: Final = 300
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +148,16 @@ class AppAccess:
     memory_categories: tuple[MemoryCategory, ...]
     monthly_limit_usd: Decimal
     resource: str | None
+    expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class MintedToken:
+    """A short-lived access token minted by Mia itself for a ``mia_token`` plugin call."""
+
+    access_token: str
+    scopes: tuple[str, ...]
+    resource: str
     expires_at: datetime
 
 
@@ -225,6 +255,8 @@ class AuthorizationService:
     config: OAuthConfig
     subject_key: bytes
     clock: Callable[[], datetime] = field(default=utc_now)
+    resources: ResourcePolicy | None = None
+    """Plugin servers accepted as RFC 8707 resources besides :attr:`OAuthConfig.resources`."""
     purge_every_s: float = 600.0
     _purged_at: float = field(default=0.0, init=False, repr=False)
 
@@ -299,7 +331,9 @@ class AuthorizationService:
             scopes = parse_scope(params.scope)
         except InvalidScopeError:
             raise fail("invalid_scope", "The requested scope is invalid.") from None
-        if params.resource is not None and params.resource not in self.config.resources:
+        if params.resource is not None and not await self.resource_allowed(
+            params.resource, client_id=client.client_id
+        ):
             raise fail("invalid_target", "Unknown resource.")
         if params.nonce is not None and len(params.nonce) > MAX_NONCE:
             raise fail("invalid_request", "nonce is too long.")
@@ -327,6 +361,18 @@ class AuthorizationService:
                 )
             )
         return with_query(self.config.consent_url, {"request": handle})
+
+    async def resource_allowed(self, resource: str, *, client_id: str) -> bool:
+        """RFC 8707: Mia's own resources, configured extras, or a plugin server the policy knows."""
+        if resource in self.config.resources:
+            return True
+        if self.resources is None or len(resource) > 2048:
+            return False
+        try:
+            return await self.resources.allows(resource, client_id=client_id)
+        except Exception:
+            logger.warning("oauth_resource_policy_failed")
+            return False
 
     async def _request_for(
         self, session: AsyncSession, handle: str, user_id: uuid.UUID, *, lock: bool
@@ -743,11 +789,75 @@ class AuthorizationService:
         )
 
     async def userinfo(self, access: AppAccess) -> dict[str, Any]:
+        """OIDC claims plus ``azp`` (client) and, for a resource-bound token, ``aud`` (M51-R1).
+
+        A plugin server asks here who a token belongs to; it must check that ``aud`` is its
+        own URL (and may check ``azp``), since Mia's tokens are opaque.
+        """
         async with self.sessions() as session:
             user = await session.get(User, access.user_id)
         if user is None:
             raise app_error("invalid_token")
-        return self.claims(user, client_id=access.client_id, scopes=access.scopes)
+        body = self.claims(user, client_id=access.client_id, scopes=access.scopes)
+        body["azp"] = access.client_id
+        if access.resource is not None:
+            body["aud"] = access.resource
+        return body
+
+    # -- tokens for ``server.auth: mia_token`` plugins (M51-R1) ----------------------
+
+    async def plugin_grant(self, user_id: uuid.UUID, client_id: str) -> GrantView | None:
+        """The user's live grant of a plugin's own client (its CIMD URL), if any."""
+        async with self.sessions() as session:
+            row = await self._active_grant(session, user_id, client_id)
+        return _grant_view(row) if row is not None else None
+
+    async def mint_plugin_token(
+        self,
+        user_id: uuid.UUID,
+        *,
+        client_id: str,
+        resource: str,
+        scopes: Sequence[str] = ("openid",),
+    ) -> MintedToken | None:
+        """A short-lived access token (no refresh) from the user's grant of ``client_id``.
+
+        Bound to ``resource`` (the plugin server URL), scopes = ``scopes`` ∩ the live grant.
+        None when the user has no active grant of that client or nothing intersects. The
+        token row belongs to the grant: revoking the grant revokes it, and
+        :meth:`authenticate` re-checks the grant on every use anyway.
+        """
+        now = self.clock()
+        ttl = min(self.config.plugin_token_ttl_s, self.config.access_ttl_s, PLUGIN_TOKEN_MAX_TTL_S)
+        async with self.sessions() as session, session.begin():
+            grant = await self._active_grant(session, user_id, client_id)
+            if grant is None:
+                return None
+            live = set(_split(grant.scopes))
+            granted = tuple(dict.fromkeys(s for s in scopes if s in live))
+            if not granted:
+                return None
+            access = creds.new_secret("access")
+            expires_at = now + timedelta(seconds=ttl)
+            session.add(
+                OAuthToken(
+                    id=uuid.uuid4(),
+                    token_hash=creds.digest(access),
+                    kind="access",
+                    grant_id=grant.id,
+                    family_id=uuid.uuid4(),
+                    code_id=None,
+                    user_id=grant.user_id,
+                    client_id=grant.client_id,
+                    scopes=_join(granted),
+                    resource=resource,
+                    created_at=now,
+                    expires_at=expires_at,
+                )
+            )
+        return MintedToken(
+            access_token=access, scopes=granted, resource=resource, expires_at=expires_at
+        )
 
     # -- connected apps (first-party) ------------------------------------------------
 

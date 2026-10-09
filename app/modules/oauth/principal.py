@@ -33,9 +33,20 @@ class AppAuthenticator:
         return "Bearer " + ", ".join(parts)
 
     async def authenticate(
-        self, request: Request, *, required: Iterable[str] = (), mcp: bool = False
+        self,
+        request: Request,
+        *,
+        required: Iterable[str] = (),
+        mcp: bool = False,
+        any_audience: bool = False,
     ) -> AppAccess:
-        """Return the verified access; else 401 ``invalid_token`` / 403 ``insufficient_scope``."""
+        """Return the verified access; else 401 ``invalid_token`` / 403 ``insufficient_scope``.
+
+        A token bound to another resource (RFC 8707, e.g. a plugin server) is refused, so a
+        token minted for a plugin never works on Mia's own API or ``/mcp``. Only
+        ``/oauth/userinfo`` passes ``any_audience``: resource servers ask there who a token
+        of theirs belongs to and get its ``aud`` back to check (M51-R1).
+        """
         header = request.headers.get("authorization", "")
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
@@ -47,7 +58,8 @@ class AppAuthenticator:
             )
         access = await self._service.authenticate(token.strip())
         expected = {self.mcp_resource} if mcp else {self.api_resource, self.api_resource + "/"}
-        if access is None or (access.resource is not None and access.resource not in expected):
+        foreign = access is not None and access.resource is not None and not any_audience
+        if access is None or (foreign and access.resource not in expected):
             raise app_error(
                 "invalid_token",
                 headers={"WWW-Authenticate": self.challenge(mcp=mcp, error="invalid_token")},
