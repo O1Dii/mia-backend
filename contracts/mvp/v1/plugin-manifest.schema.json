@@ -274,7 +274,12 @@
           "description": "Memory access, same vocabulary as app scopes without the memory. prefix"
         },
         "notify": { "type": "boolean" },
-        "schedules": { "type": "boolean", "default": false }
+        "schedules": { "type": "boolean", "default": false },
+        "publicWeb": {
+          "type": "boolean",
+          "default": false,
+          "description": "The plugin may read any public HTTPS page (builtin plugins only; private and loopback addresses stay refused). Shown on the consent screen as grant network.public_web"
+        }
       }
     }
   }
