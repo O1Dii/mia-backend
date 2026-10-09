@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { toast } from 'sonner'
-import { api, type WorkspaceSnapshot } from './api'
+import { api, type WorkspaceSnapshot } from './legacyApi'
 import { useAuth } from './auth'
 import { catalog, recipeManifest, recipeSchema } from '../plugins/catalog'
 
@@ -49,12 +49,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           let next = await api.workspace()
           // One-time import of old installations; author content is revalidated on the server.
           const migration = `mia.runtime-migrated.${next.subject_id}`
-          if (
-            !auth.user &&
-            !auth.required &&
-            !localStorage.getItem(migration) &&
-            next.installed.length === 0
-          ) {
+          if (!auth.user && !localStorage.getItem(migration) && next.installed.length === 0) {
             const old = JSON.parse(localStorage.getItem('mia.installed.v1') || '[]') as unknown
             const recipes = recipeSchema
               .array()

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { api } from '../lib/api'
+import { api } from '../lib/legacyApi'
 import { useWorkspace } from '../lib/workspace'
 import type { Plugin } from './catalog'
 import { toolName } from './Tools'

@@ -1,0 +1,428 @@
+"""Backend for the web Playwright tests (M30): the production wiring with fake outside worlds.
+
+Real: PostgreSQL, Redis, auth (cookie sessions), workspace, store, installs, connections (OAuth
+with PKCE/resource indicator against an in-process authorization server), tool router, approvals,
+run engine, feed, model-connection API. Fake: Google ID tokens (``google:<subject>``), the model
+(scripted by the last user message) and the remote MCP server plus its authorization server.
+
+Run from the repository root with ``MIA_TEST_DATABASE_URL`` and ``MIA_TEST_REDIS_URL`` set::
+
+    uv run python web/tests/support/e2e_server.py --port 8130 --public-origin http://127.0.0.1:5230
+
+Test-only routes live under ``/__e2e`` and exist only in this process.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+import tempfile
+import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
+
+REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO))
+
+import app.modules.auth.composition as auth_composition  # noqa: E402
+import app.modules.models.composition as models_composition  # noqa: E402
+import uvicorn  # noqa: E402
+from app.api.v1.approvals import build_approvals_router  # noqa: E402
+from app.api.v1.feed import build_feed_router  # noqa: E402
+from app.composition import AuthServiceAuthenticator  # noqa: E402
+from app.core.config import Settings  # noqa: E402
+from app.core.database import Database  # noqa: E402
+from app.core.ports.model_gateway import (  # noqa: E402
+    ModelDone,
+    ModelEvent,
+    ModelInfo,
+    ModelRequest,
+    ModelToolCall,
+    TextDelta,
+    ToolCallRequested,
+)
+from app.core.ports.types import DEFAULT_MODEL  # noqa: E402
+from app.core.runtime import Runtime  # noqa: E402
+from app.main import create_app  # noqa: E402
+from app.modules.auth.composition import install_auth, request_authenticator  # noqa: E402
+from app.modules.connections.oauth.client import OAuthClient  # noqa: E402
+from app.modules.connections.oauth.service import ConnectionService  # noqa: E402
+from app.modules.conversations.feed import FeedService  # noqa: E402
+from app.modules.models.composition import install_models  # noqa: E402
+from app.modules.models.gateway import ProbeResult  # noqa: E402
+from app.modules.plugins.builtin import BUILTIN_ROOT  # noqa: E402
+from app.modules.plugins.catalog.package import load_package  # noqa: E402
+from app.modules.plugins.catalog.showcase import showcase_for  # noqa: E402
+from app.modules.plugins.composition import build_builtin_plugins  # noqa: E402
+from app.modules.plugins.install.composition import (  # noqa: E402
+    build_catalog_stack,
+    install_store,
+)
+from app.modules.plugins.registry import PluginRegistry, SqlInstallationReader  # noqa: E402
+from app.modules.runs.composition import install_runs  # noqa: E402
+from app.modules.tools.approvals import SqlApprovalService  # noqa: E402
+from app.modules.tools.audit import SqlToolAudit  # noqa: E402
+from app.modules.tools.composition import ToolStack  # noqa: E402
+from app.modules.tools.core_tools import CoreToolRegistry  # noqa: E402
+from app.modules.tools.device import InMemoryDeviceToolChannel  # noqa: E402
+from app.modules.tools.mcp_client import McpConnector  # noqa: E402
+from app.modules.tools.router import McpToolRouter, RouterConfig  # noqa: E402
+from app.modules.users import UserRepository  # noqa: E402
+from app.modules.workspace.composition import install_workspace  # noqa: E402
+from fastapi import APIRouter, FastAPI, Request  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from tests.catalog.remote_world import (  # noqa: E402
+    AuthorizationServer,
+    FakeResolver,
+    RemoteWorld,
+    browser_authorize,
+    running,
+    transport_factory,
+)
+from tests.workspace.harness import CLIENT_ID, TokenGoogleVerifier, migrate_to_head  # noqa: E402
+
+ADMIN_SUB = "e2e-store-admin"
+TRACKER_ID = "team.tracker"
+UPDATER_ID = "team.updater"
+
+
+class RealClock:
+    def __call__(self) -> float:
+        return time.time()
+
+    @property
+    def now(self) -> float:
+        return time.time()
+
+
+class Script:
+    """What the fake model does; ``structured`` is toggled by ``POST /__e2e/model-mode``."""
+
+    structured = True
+
+
+def answer(speech: str, display: dict[str, Any] | None = None, followups: list[str] | None = None):
+    return json.dumps(
+        {"speech": speech, "display": display, "followups": followups or []}, ensure_ascii=False
+    )
+
+
+class ScriptedGateway:
+    """A model that answers by keyword; tool calls use the tools the router offers."""
+
+    async def describe(self, *, user_id: str, model: str = DEFAULT_MODEL) -> ModelInfo:
+        return ModelInfo(
+            ref="e2e/scripted",
+            provider="e2e",
+            supports_tools=True,
+            supports_structured_output=Script.structured,
+            verified=True,
+        )
+
+    connections: Any = None
+
+    async def probe(self, user_id: Any, connection_id: Any) -> ProbeResult:
+        await self.connections.record_test(connection_id, ok=True, error_code=None)
+        return ProbeResult(ok=True, latency_ms=12, error_code=None)
+
+    async def stream(self, request: ModelRequest) -> AsyncIterator[ModelEvent]:
+        last = request.messages[-1]
+        names = [tool.name for tool in request.tools]
+        user = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
+        lowered = user.lower()
+        if last.role == "tool":
+            body = json.loads(last.content) if last.content.startswith("{") else {}
+            status = body.get("status")
+            if status == "succeeded":
+                reply = answer(
+                    "Готово, задача создана." if "создай" in lowered else "Вот что нашлось.",
+                    {"kind": "card", "title": "Tracker", "markdown": "**A-3** — результат готов"},
+                    ["Покажи список задач"],
+                )
+            elif status == "denied":
+                reply = answer("Хорошо, ничего не делаю.")
+            else:
+                reply = answer("Не получилось выполнить действие.")
+            for event in self._text(reply):
+                yield event
+            return
+        wanted = None
+        if "создай задачу" in lowered:
+            wanted = (
+                "create_issue",
+                {"title": user.split("задачу", 1)[1].strip() or "Без названия"},
+            )
+        elif "список задач" in lowered:
+            wanted = ("list_issues", {})
+        if wanted is not None:
+            name = next((n for n in names if n.endswith(f".{wanted[0]}")), None)
+            if name is not None:
+                call = ModelToolCall(call_id="call-1", name=name, arguments=wanted[1])
+                yield ToolCallRequested(call)
+                yield ModelDone("tool_calls")
+                return
+            for event in self._text(answer("Этот инструмент не установлен.")):
+                yield event
+            return
+        if "карточк" in lowered:
+            reply = answer(
+                "Вот карточка на экране.",
+                {"kind": "card", "title": "Сегодня", "markdown": "- 10:00 Олег\n- 13:00 Команда"},
+                ["Что дальше?"],
+            )
+        elif "длинн" in lowered:
+            reply = answer("Это длинный ответ.", {"kind": "text", "markdown": "строка\n\n" * 40})
+        else:
+            reply = answer(
+                "Привет! Я Мия, это тестовый ответ.",
+                {"kind": "text", "markdown": "Привет! Я **Мия**, это тестовый ответ."},
+                ["Расскажи ещё", "Создай задачу Купить молоко"],
+            )
+        for event in self._text(reply):
+            yield event
+
+    def _text(self, reply: str) -> list[ModelEvent]:
+        if Script.structured:
+            return [TextDelta(reply), ModelDone("stop")]
+        data = json.loads(reply)
+        text_out = data["display"]["markdown"] if data["display"] else data["speech"]
+        return [TextDelta(text_out[:20]), TextDelta(text_out[20:]), ModelDone("stop")]
+
+
+def tracker_manifest(
+    url: str,
+    plugin_id: str = TRACKER_ID,
+    name: str = "Tracker",
+    version: str = "1.0.0",
+    notify: bool = False,
+) -> dict[str, Any]:
+    return {
+        "schemaVersion": "mia.plugin/1",
+        "id": plugin_id,
+        "version": version,
+        "name": name,
+        "listing": {
+            "description": "Задачи из тестового трекера: список и создание.",
+            "category": "work",
+        },
+        "server": {"kind": "remote", "url": url, "auth": "oauth"},
+        "skills": ["SKILL.md"],
+        "tools": {
+            "list_issues": {"risk": "read", "voice": True},
+            "create_issue": {"risk": "write_external"},
+        },
+        "permissions": {
+            "network": ["mcp.test.example"],
+            "llm": {"viaHost": False},
+            "memory": [],
+            "notify": notify,
+        },
+    }
+
+
+async def prepare(public_origin: str) -> str:
+    """Migrate, empty the disposable database, create the store admin; return its id."""
+    await asyncio.to_thread(migrate_to_head)
+    database = Database(os.environ["MIA_TEST_DATABASE_URL"])
+    async with database.session_factory() as session, session.begin():
+        await session.execute(text("TRUNCATE TABLE users CASCADE"))
+        await session.execute(text("TRUNCATE TABLE plugin_releases"))
+        admin = await UserRepository(session).create(
+            google_sub=ADMIN_SUB,
+            email="admin@example.test",
+            email_verified=True,
+            locale="ru-BY",
+            timezone="Europe/Minsk",
+        )
+    await database.close()
+    return str(admin.id)
+
+
+def build_app(admin_id: str, public_origin: str) -> FastAPI:
+    settings = Settings(
+        app_env="test",
+        log_level="WARNING",
+        database_url=os.environ["MIA_TEST_DATABASE_URL"],
+        redis_url=os.environ["MIA_TEST_REDIS_URL"],
+        google_client_id=CLIENT_ID,
+        public_base_url=public_origin,
+        store_admin_user_ids=admin_id,
+        tools_list_cache_seconds=0,
+        auth_nonce_rate_limit=1000,
+        auth_exchange_rate_limit=1000,
+        auth_authenticated_rate_limit=5000,
+    )
+    auth_composition.GoogleIdTokenVerifier = TokenGoogleVerifier  # type: ignore[misc,assignment]
+    app = create_app(settings, install_modules=False)
+    runtime: Runtime = app.state.runtime
+    auth_service = install_auth(app, settings, database=runtime.database, redis=runtime.redis)
+    bearer = AuthServiceAuthenticator(auth_service)
+    gateway = ScriptedGateway()
+
+    original = models_composition.build_models_stack
+
+    def scripted_stack(*args: Any, **kwargs: Any) -> Any:
+        stack = original(*args, **kwargs)
+        stack.gateway = gateway
+        return stack
+
+    models_composition.build_models_stack = scripted_stack  # type: ignore[assignment]
+    models = install_models(app, settings, runtime, bearer)
+    gateway.connections = models.connections
+
+    clock = RealClock()
+    auth_server = AuthorizationServer(clock=clock, access_ttl=3600)  # type: ignore[arg-type]
+    world = RemoteWorld(auth_server, require_auth=True, camel_case_tool=False)
+    resolver = FakeResolver()
+    oauth = OAuthClient(resolver=resolver, http_transport=transport_factory(world))
+    builtin = build_builtin_plugins(runtime, model_gateway=gateway)  # type: ignore[arg-type]
+    stack = build_catalog_stack(settings, runtime, builtin)
+    from tests.catalog.harness import _Bearer  # noqa: PLC0415
+
+    stack.service._connector_factory = lambda token: McpConnector(  # noqa: SLF001
+        server_factory=builtin.server_factory,
+        credentials=_Bearer(token),
+        resolver=resolver,
+        http_transport=transport_factory(world),
+    )
+    workspace = install_workspace(app, database=runtime.database, catalog=stack.catalog)
+    connections = ConnectionService(
+        runtime.database.session_factory,
+        models.vault,
+        oauth,
+        workspace,
+        public_base_url=public_origin,
+    )
+    workspace.uninstall_hooks.append(connections.revoke_installation)
+    connector = McpConnector(
+        server_factory=builtin.server_factory,
+        credentials=connections,
+        resolver=resolver,
+        http_transport=transport_factory(world),
+    )
+    registry = PluginRegistry(
+        SqlInstallationReader(runtime.database.session_factory), stack.manifest_source
+    )
+    channel = InMemoryDeviceToolChannel()
+    core_tools = CoreToolRegistry()
+    approvals = SqlApprovalService(runtime.database.session_factory)
+    router = McpToolRouter(
+        registry=registry,
+        connector=connector,
+        audit=SqlToolAudit(runtime.database.session_factory),
+        approvals=approvals,
+        device_channel=channel,
+        core_tools=core_tools,
+        config=RouterConfig(call_timeout_s=10, list_cache_s=0, approval_ttl_s=900),
+    )
+    tools = ToolStack(router, approvals, channel, core_tools, registry, connector)
+    install_store(
+        app,
+        settings,
+        runtime,
+        catalog=stack,
+        connections=connections,
+        tools=tools,
+        workspace=workspace,
+    )
+    app.include_router(
+        build_approvals_router(service=approvals, authenticator=request_authenticator(app))
+    )
+    runs = install_runs(
+        app,
+        settings,
+        runtime,
+        authenticator=bearer,
+        model_gateway=gateway,  # type: ignore[arg-type]
+        tool_router=router,
+        approvals=approvals,
+    )
+    app.include_router(
+        build_feed_router(
+            service=FeedService(runtime.database.session_factory),
+            authenticator=request_authenticator(app),
+        )
+    )
+
+    async def publish_remote(plugin_id: str, name: str, version: str, notify: bool) -> None:
+        package = Path(tempfile.mkdtemp(prefix="mia-e2e-")) / plugin_id
+        package.mkdir()
+        manifest = tracker_manifest(
+            "https://mcp.test.example/mcp", plugin_id, name, version, notify
+        )
+        (package / "mia.json").write_text(json.dumps(manifest), "utf-8")
+        (package / "SKILL.md").write_text("---\ndescription: Issues\n---\nUse it.\n", "utf-8")
+        await stack.service.publish(
+            load_package(package), actor_user_id=admin_id, discover_token=auth_server.mint_token()
+        )
+
+    test_routes = APIRouter(prefix="/__e2e")
+
+    @test_routes.post("/publish-updater-v2")
+    async def publish_updater_v2() -> JSONResponse:
+        """A new release that also asks to notify: installed copies must re-consent."""
+        await publish_remote(UPDATER_ID, "Updater", "1.1.0", True)
+        return JSONResponse({"version": "1.1.0"})
+
+    @test_routes.get("/authorize")
+    async def authorize(request: Request) -> JSONResponse:
+        """What the browser does at the provider: consent at once and return the redirect."""
+        url = f"https://auth.test.example/authorize?{request.url.query}"
+        return JSONResponse({"location": await browser_authorize(world, url)})
+
+    @test_routes.get("/world")
+    async def world_state() -> JSONResponse:
+        return JSONResponse(
+            {
+                "calls": world.calls,
+                "revocations": auth_server.revocations,
+                "registrations": len(auth_server.registrations),
+                "authorize_requests": auth_server.authorize_requests,
+            }
+        )
+
+    @test_routes.post("/model-mode")
+    async def model_mode(request: Request) -> JSONResponse:
+        Script.structured = bool((await request.json()).get("structured", True))
+        return JSONResponse({"structured": Script.structured})
+
+    app.include_router(test_routes)
+
+    original_lifespan = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        async with original_lifespan(application), running(world):
+            admin_publish = stack.service.publish
+            for name in sorted(p.parent.name for p in BUILTIN_ROOT.glob("*/mia.json")):
+                built = load_package(BUILTIN_ROOT / name)
+                await admin_publish(
+                    built, actor_user_id=admin_id, store_meta=showcase_for(built.plugin_id)
+                )
+            await publish_remote(TRACKER_ID, "Tracker", "1.0.0", False)
+            await publish_remote(UPDATER_ID, "Updater", "1.0.0", False)
+            yield
+
+    app.router.lifespan_context = lifespan  # type: ignore[assignment]
+    _ = runs
+    return app
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8130)
+    parser.add_argument("--public-origin", default="http://127.0.0.1:5230")
+    args = parser.parse_args()
+    admin_id = asyncio.run(prepare(args.public_origin))
+    app = build_app(admin_id, args.public_origin)
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning", access_log=False)
+
+
+if __name__ == "__main__":
+    main()

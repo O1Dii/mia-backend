@@ -1,97 +1,74 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
-import { LoaderCircle, LogIn, ShieldCheck, Sparkles } from 'lucide-react'
-import { api, type AuthSession } from './api'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { LoaderCircle, ShieldCheck, Sparkles } from 'lucide-react'
+import { api, type User } from './api'
+import { ApiError, messageOf } from './http'
 
-type AuthContext = AuthSession & { reload: () => Promise<void>; logout: () => Promise<void> }
+type AuthContext = { user: User; logout: () => Promise<void> }
 const Context = createContext<AuthContext | null>(null)
 export function useAuth() {
   const value = useContext(Context)
   if (!value) throw new Error('AuthProvider required')
   return value
 }
+
+// The web client id is public by design (it identifies the app to Google); it is set at build time.
+const GOOGLE_CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null)
-  const [error, setError] = useState('')
-  const initial = useRef<Promise<AuthSession> | null>(null)
+  const [state, setState] = useState<
+    | { status: 'loading' }
+    | { status: 'anonymous' }
+    | { status: 'in'; user: User }
+    | { status: 'down'; message: string }
+  >({ status: 'loading' })
+
   const reload = useCallback(async () => {
     try {
-      setSession(await api.auth())
-      setError('')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Сервер недоступен')
+      setState({ status: 'in', user: await api.me() })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) setState({ status: 'anonymous' })
+      else setState({ status: 'down', message: messageOf(error, 'Сервер недоступен.') })
     }
   }, [])
+
   useEffect(() => {
-    let active = true
-    if (!initial.current)
-      initial.current = (async () => {
-        const current = await api.auth()
-        if (new URLSearchParams(location.search).get('signin') === 'google' && current.google_hub) {
-          const url = new URL(location.href)
-          url.searchParams.delete('signin')
-          history.replaceState(null, '', url)
-          await api.hubLogin()
-          return api.auth()
-        }
-        return current
-      })()
-    initial.current
-      .then((value) => {
-        if (active) setSession(value)
-      })
-      .catch(async (e) => {
-        if (active) {
-          setError(e instanceof Error ? e.message : 'Вход не удался')
-          const current = await api.auth().catch(() => null)
-          if (active) setSession(current)
-        }
-      })
-    return () => {
-      active = false
-    }
-  }, [])
-  useEffect(() => {
-    const refresh = () => {
-      void reload()
-    }
-    window.addEventListener('mia:unauthorized', refresh)
-    window.addEventListener('focus', refresh)
-    return () => {
-      window.removeEventListener('mia:unauthorized', refresh)
-      window.removeEventListener('focus', refresh)
-    }
+    void reload()
   }, [reload])
-  async function logout() {
-    await api.logout()
-    location.reload()
-  }
-  if (!session)
+  useEffect(() => {
+    const expired = () => setState((old) => (old.status === 'in' ? { status: 'anonymous' } : old))
+    window.addEventListener('mia:unauthorized', expired)
+    return () => window.removeEventListener('mia:unauthorized', expired)
+  }, [])
+
+  if (state.status === 'loading')
     return (
-      <div className="auth-loading">
+      <div className="mw-center" role="status">
         <LoaderCircle className="spin" />
-        <p>{error || 'Открываем ваше пространство…'}</p>
-        {error && (
-          <button className="button secondary" onClick={reload}>
-            Повторить
-          </button>
-        )}
+        <p>Открываем ваше пространство…</p>
       </div>
     )
+  if (state.status === 'down')
+    return (
+      <div className="mw-center" role="alert">
+        <p>{state.message}</p>
+        <button className="mia-btn mia-btn--secondary" onClick={() => void reload()}>
+          Повторить
+        </button>
+      </div>
+    )
+  if (state.status === 'anonymous') return <Login onSignedIn={reload} />
   return (
-    <Context.Provider key={session.user?.id ?? 'local'} value={{ ...session, reload, logout }}>
-      {session.required && !session.user ? (
-        <Login session={session} error={error} onSuccess={reload} />
-      ) : (
-        children
-      )}
+    <Context.Provider
+      key={state.user.id}
+      value={{
+        user: state.user,
+        logout: async () => {
+          await api.logout().catch(() => undefined)
+          location.assign(import.meta.env.BASE_URL)
+        },
+      }}
+    >
+      {children}
     </Context.Provider>
   )
 }
@@ -108,33 +85,28 @@ type GoogleAPI = {
     }
   }
 }
-function Login({
-  session,
-  error: initialError,
-  onSuccess,
-}: {
-  session: AuthSession
-  error: string
-  onSuccess: () => Promise<void>
-}) {
-  const [error, setError] = useState(initialError)
+
+function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
+  const [error, setError] = useState(
+    GOOGLE_CLIENT_ID ? '' : 'Вход не настроен: не задан VITE_GOOGLE_CLIENT_ID.',
+  )
   useEffect(() => {
-    if (session.google_hub || !session.google_client_id) return
+    if (!GOOGLE_CLIENT_ID) return
     let disposed = false
-    const initialize = async () => {
+    const start = async () => {
       try {
-        const { nonce } = await api.loginNonce()
+        const { nonce } = await api.nonce()
         if (disposed) return
         const google = (window as unknown as { google: GoogleAPI }).google
         google.accounts.id.initialize({
-          client_id: session.google_client_id,
+          client_id: GOOGLE_CLIENT_ID,
           nonce,
           callback: async ({ credential }) => {
             try {
               await api.googleLogin(credential)
-              await onSuccess()
+              await onSignedIn()
             } catch (e) {
-              setError(e instanceof Error ? e.message : 'Вход не удался')
+              setError(messageOf(e, 'Вход не удался.'))
             }
           },
         })
@@ -147,64 +119,43 @@ function Login({
             locale: 'ru',
           })
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Не удалось загрузить Google')
+        setError(messageOf(e, 'Не удалось подготовить вход.'))
       }
     }
-    const existing = document.querySelector<HTMLScriptElement>('script[data-mia-google]')
-    if ((window as unknown as { google?: GoogleAPI }).google) void initialize()
+    if ((window as unknown as { google?: GoogleAPI }).google) void start()
     else {
-      const script = existing ?? document.createElement('script')
+      const script = document.createElement('script')
       script.src = 'https://accounts.google.com/gsi/client'
       script.async = true
-      script.dataset.miaGoogle = 'true'
-      script.onload = () => void initialize()
-      script.onerror = () =>
-        setError('Не удалось загрузить Google. Проверьте подключение и обновите страницу.')
-      if (!existing) document.head.append(script)
+      script.onload = () => void start()
+      script.onerror = () => setError('Не удалось загрузить Google. Проверьте подключение.')
+      document.head.append(script)
     }
     return () => {
       disposed = true
     }
-  }, [session.google_hub, session.google_client_id, onSuccess])
+  }, [onSignedIn])
   return (
-    <main className="login-page">
-      <a className="login-hub" href="/">
-        ← Все приложения
-      </a>
-      <div className="login-card">
-        <span className="brand-symbol">м</span>
-        <span className="eyebrow">МИЯ · ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</span>
-        <h1>
-          Ваш интеллект.
-          <br />
-          <em>Ваш ритм жизни.</em>
-        </h1>
-        <p>
-          Соберите приложения, которые понимают вас.
-          <br />
-          Один аккаунт для моделей, плагинов и маленьких ежедневных ритуалов.
-        </p>
-        <div className="login-features">
-          <span>
-            <Sparkles size={17} /> Любимая AI-модель
+    <main className="mw-login">
+      <div className="mia-glass mia-glass--top mw-login__card mia-rise">
+        <span className="mia-orb mia-orb--lg" data-state="idle" aria-hidden="true" />
+        <span className="mia-card__eyebrow">Мия · ваше личное пространство</span>
+        <h1>Ваш интеллект. Ваш ритм жизни.</h1>
+        <p>Один аккаунт для чата, моделей, плагинов и подтверждений действий.</p>
+        <div className="mw-login__features">
+          <span className="mia-chip">
+            <Sparkles size={14} /> Любимая модель
           </span>
-          <span>
-            <ShieldCheck size={17} /> Личные плагины и дашборд
+          <span className="mia-chip">
+            <ShieldCheck size={14} /> Вы подтверждаете действия
           </span>
         </div>
-        {session.google_hub ? (
-          <a className="button google-login" href={session.login_url}>
-            <LogIn size={18} /> Продолжить с Google
-          </a>
-        ) : (
-          <div id="google-signin" />
-        )}
+        <div id="google-signin" />
         {error && (
-          <p className="error-message" role="alert">
+          <p className="mw-error" role="alert">
             {error}
           </p>
         )}
-        <small>Вход через Google. API-ключи доступны только вашему пространству.</small>
       </div>
     </main>
   )

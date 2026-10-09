@@ -1,340 +1,314 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { ArrowLeft, Link2, LoaderCircle, Star, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
-  ArrowLeft,
-  ArrowUpRight,
-  Check,
-  Download,
-  MessageSquare,
-  Plus,
-  ShieldCheck,
-  Star,
-  Trash2,
-} from 'lucide-react'
-import { api, webPath, type Reviews } from '../lib/api'
-import { useAuth } from '../lib/auth'
-import type { Plugin } from '../plugins/catalog'
-import { permissions } from '../plugins/catalog'
-import { pluginDetails } from '../plugins/details'
-import { PluginArt } from './PluginArt'
+  api,
+  type CatalogDetail,
+  type Installation,
+  type Consent,
+  type ReviewList,
+  type UpdateInfo,
+} from '../lib/api'
+import { messageOf } from '../lib/http'
+import { Link } from '../lib/router'
+import { ConsentDialog } from './StoreConsent'
+import { ConsentSummary, PluginMark, Stars, categoryTitles, connectAccount } from './StoreShared'
 
-export function PluginPage({
-  plugin,
-  installed,
-  onInstall,
-  onOpen,
-}: {
-  plugin?: Plugin
-  installed: boolean
-  onInstall: (plugin: Plugin) => void
-  onOpen: (plugin: Plugin) => void
-}) {
-  const auth = useAuth()
-  const [reviews, setReviews] = useState<Reviews | null>(null)
+export function PluginPage({ pluginId }: { pluginId: string }) {
+  const [detail, setDetail] = useState<CatalogDetail | null>(null)
+  const [installation, setInstallation] = useState<Installation | null>(null)
+  const [update, setUpdate] = useState<UpdateInfo | null>(null)
+  const [reviews, setReviews] = useState<ReviewList | null>(null)
   const [error, setError] = useState('')
-  const [rating, setRating] = useState(5)
-  const [text, setText] = useState('')
+  const [dialog, setDialog] = useState<'install' | 'update' | null>(null)
   const [busy, setBusy] = useState(false)
-  const [shot, setShot] = useState(0)
-  useEffect(() => {
-    setReviews(null)
-    setError('')
-    setShot(0)
-    setText('')
-    if (!plugin || !plugin.id.startsWith('mia.')) return
-    let active = true
-    api
-      .reviews(plugin.id)
-      .then((data) => {
-        if (active) {
-          setReviews(data)
-          const mine = data.items.find((r) => r.mine)
-          if (mine) {
-            setRating(mine.rating)
-            setText(mine.text)
-          }
-        }
-      })
-      .catch((e) => {
-        if (active) setError(e.message)
-      })
-    return () => {
-      active = false
+
+  const load = useCallback(async () => {
+    try {
+      const [entry, installed, list] = await Promise.all([
+        api.plugin(pluginId),
+        api.installations(),
+        api.reviews(pluginId),
+      ])
+      const mine = installed.items.find((i) => i.plugin_id === pluginId) ?? null
+      setDetail(entry)
+      setInstallation(mine)
+      setReviews(list)
+      setUpdate(
+        mine && mine.source === 'catalog' ? await api.updateInfo(mine.id).catch(() => null) : null,
+      )
+      setError('')
+    } catch (e) {
+      setError(messageOf(e, 'Не удалось загрузить плагин.'))
     }
-  }, [plugin?.id])
-  if (!plugin)
+  }, [pluginId])
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function install(consent: Consent) {
+    const created = await api.install(pluginId, consent)
+    setDialog(null)
+    if (consent.requires_connection) {
+      await connectAccount(created.id, `/store/connected?plugin=${encodeURIComponent(pluginId)}`)
+      return
+    }
+    toast.success('Плагин установлен')
+    await load()
+  }
+
+  async function upgrade(consent: Consent) {
+    if (!installation) return
+    await api.upgrade(installation, consent)
+    setDialog(null)
+    toast.success('Плагин обновлён')
+    await load()
+  }
+
+  async function connect() {
+    if (!installation) return
+    setBusy(true)
+    try {
+      await connectAccount(
+        installation.id,
+        `/store/connected?plugin=${encodeURIComponent(pluginId)}`,
+      )
+    } catch (e) {
+      toast.error(messageOf(e))
+      setBusy(false)
+    }
+  }
+
+  if (error)
     return (
-      <div className="empty-state">
-        <h1>Плагин не найден</h1>
-        <a href="#store" className="button secondary">
-          Вернуться в магазин
-        </a>
-      </div>
-    )
-  const details = pluginDetails[plugin.id]
-  const screenshots = details
-    ? [
-        webPath(`/screenshots/${plugin.id.slice(4)}-widget.png`),
-        webPath(`/screenshots/${plugin.id.slice(4)}-dashboard.png`),
-      ]
-    : []
-  const author = plugin.manifest?.author ?? 'Команда Мия'
-  return (
-    <div className="plugin-page">
-      <a href="#store" className="back-link">
-        <ArrowLeft size={16} /> Магазин плагинов
-      </a>
-      <section className={`plugin-detail-hero detail-${plugin.color}`}>
-        <div className="detail-art">
-          <PluginArt kind={plugin.art} />
-        </div>
-        <div className="detail-intro">
-          <span className="eyebrow">
-            {plugin.category} · {author}
-          </span>
-          <h1>{plugin.name}</h1>
-          <p>{plugin.tagline}</p>
-          <div className="detail-facts">
-            <span>
-              <Star size={15} />
-              {reviews?.count
-                ? `${reviews.average?.toFixed(1)} · ${reviews.count} отзывов`
-                : 'Пока без оценок'}
-            </span>
-            <span>Бесплатно</span>
-            <span>{plugin.manifest?.version ?? 'Web preview'}</span>
-          </div>
-          <button
-            className="button primary"
-            onClick={() => (installed ? onOpen(plugin) : onInstall(plugin))}
-          >
-            {installed ? <Check size={17} /> : <Plus size={17} />}{' '}
-            {installed ? 'Открыть плагин' : 'Добавить в пространство'}
-            <ArrowUpRight size={16} />
-          </button>
-        </div>
+      <section className="mw-page">
+        <Link to="/store" className="mw-back">
+          <ArrowLeft size={16} /> Магазин
+        </Link>
+        <p className="mw-error" role="alert">
+          {error}
+        </p>
       </section>
-      <div className="plugin-detail-layout">
-        <div className="detail-main">
-          {screenshots.length > 0 && (
-            <section className="detail-section">
-              <div className="section-heading">
-                <h2>Как это выглядит</h2>
-                <span className="muted">Скриншоты web-версии</span>
-              </div>
-              <a
-                className="screenshot-stage"
-                href={screenshots[shot]}
-                target="_blank"
-                rel="noopener noreferrer"
+    )
+  if (!detail)
+    return (
+      <section className="mw-page" role="status">
+        <LoaderCircle className="spin" /> Загружаем…
+      </section>
+    )
+  const consent = detail.consent
+  return (
+    <section className="mw-page" aria-labelledby="plugin-title">
+      <Link to="/store" className="mw-back">
+        <ArrowLeft size={16} /> Магазин
+      </Link>
+      <header className="mw-plugin-head">
+        <PluginMark entry={detail} size="hero" />
+        <div>
+          <h1 id="plugin-title">{detail.name}</h1>
+          <p className="mw-muted">
+            {detail.author ?? 'Автор не указан'} · версия {detail.version} ·{' '}
+            {categoryTitles[detail.category] ?? detail.category}
+          </p>
+          <p>
+            <Stars average={detail.rating.average} count={detail.rating.count} /> ·{' '}
+            <span className="mw-muted">установок: {detail.installs}</span>
+          </p>
+          <div className="mw-actions">
+            {!installation && (
+              <button className="mia-btn mia-btn--primary" onClick={() => setDialog('install')}>
+                Установить
+              </button>
+            )}
+            {installation && (
+              <span className="mia-chip mia-chip--success" data-testid="installed-chip">
+                Установлено · {installation.version}
+              </span>
+            )}
+            {installation?.status === 'needs_connection' && (
+              <button
+                className="mia-btn mia-btn--primary"
+                disabled={busy}
+                onClick={() => void connect()}
               >
-                <img
-                  src={screenshots[shot]}
-                  alt={`${plugin.name}: ${shot === 0 ? 'интерфейс плагина' : 'виджет на дашборде'}`}
-                />
-              </a>
-              <div className="screenshot-tabs">
-                {['Интерфейс плагина', 'На дашборде'].map((label, index) => (
-                  <button
-                    className={`chip ${index === shot ? 'selected' : ''}`}
-                    key={label}
-                    onClick={() => setShot(index)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-          <section className="detail-section">
-            <h2>Меньше рутины в вашем дне</h2>
-            <p>{details?.about ?? plugin.description}</p>
-            <ul className="feature-list">
-              {(details?.features ?? plugin.manifest?.actions.map((a) => a.description) ?? []).map(
-                (feature) => (
-                  <li key={feature}>
-                    <Check size={16} />
-                    {feature}
-                  </li>
-                ),
-              )}
-            </ul>
-          </section>
-          {details && (
-            <section className="detail-section">
-              <h2>Просто попросите Мию</h2>
-              <div className="example-commands">
-                {details.examples.map((example) => (
-                  <div key={example}>
-                    <MessageSquare size={16} />
-                    <span>«{example}»</span>
-                  </div>
-                ))}
-              </div>
-              <p className="field-note">
-                Мия передаст запрос вашей выбранной модели с навыками установленного плагина.
-              </p>
-            </section>
-          )}
-          <section className="detail-section reviews-section">
-            <div className="section-heading">
-              <h2>Отзывы пользователей</h2>
-              <span className="muted">{reviews?.count ?? 0} отзывов</span>
-            </div>
-            {!details ? (
-              <p>Отзывы появятся после публикации приложения в общем каталоге.</p>
-            ) : (
-              <>
-                {reviews?.items.length === 0 && (
-                  <div className="reviews-empty">
-                    <MessageSquare size={26} />
-                    <h3>Первый опыт — ваш</h3>
-                    <p>Здесь пока нет отзывов. Попробуйте плагин и расскажите, что получилось.</p>
-                  </div>
-                )}
-                {reviews?.items.map((review, index) => (
-                  <article className="review-card" key={`${review.updated_at}-${index}`}>
-                    <header>
-                      <strong>
-                        {review.author}
-                        {review.mine ? ' · ваш отзыв' : ''}
-                      </strong>
-                      <span aria-label={`${review.rating} из 5`}>
-                        {'★'.repeat(review.rating)}
-                        {'☆'.repeat(5 - review.rating)}
-                      </span>
-                    </header>
-                    <p>{review.text}</p>
-                    <small>{new Date(review.updated_at).toLocaleDateString('ru')}</small>
-                    {review.mine && (
-                      <button
-                        className="text-button"
-                        aria-label="Удалить мой отзыв"
-                        disabled={busy}
-                        onClick={async () => {
-                          setBusy(true)
-                          try {
-                            setReviews(await api.deleteReview(plugin.id))
-                            setText('')
-                          } catch (e) {
-                            setError(e instanceof Error ? e.message : 'Ошибка')
-                          } finally {
-                            setBusy(false)
-                          }
-                        }}
-                      >
-                        <Trash2 size={14} /> Удалить
-                      </button>
-                    )}
-                  </article>
-                ))}
-                {auth.user && installed ? (
-                  <form
-                    className="review-form"
-                    onSubmit={async (e) => {
-                      e.preventDefault()
-                      setBusy(true)
-                      setError('')
-                      try {
-                        setReviews(await api.review(plugin.id, rating, text))
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : 'Ошибка')
-                      } finally {
-                        setBusy(false)
-                      }
-                    }}
-                  >
-                    <h3>{reviews?.items.some((r) => r.mine) ? 'Изменить отзыв' : 'Ваш отзыв'}</h3>
-                    <label>
-                      Оценка
-                      <select
-                        aria-label="Оценка плагина"
-                        value={rating}
-                        onChange={(e) => setRating(Number(e.target.value))}
-                      >
-                        {[5, 4, 3, 2, 1].map((n) => (
-                          <option key={n} value={n}>
-                            {n} из 5
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Что понравилось, а что можно улучшить?
-                      <textarea
-                        aria-label="Текст отзыва"
-                        maxLength={2000}
-                        minLength={5}
-                        required
-                        rows={4}
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                      />
-                    </label>
-                    <p className="field-note">
-                      Отзыв и ваше имя из Google будут видны другим пользователям. Email не
-                      публикуется.
-                    </p>
-                    <button className="button primary" disabled={busy || text.trim().length < 5}>
-                      {busy ? 'Сохраняем…' : 'Опубликовать отзыв'}
-                    </button>
-                  </form>
-                ) : (
-                  <p className="field-note">
-                    {auth.user
-                      ? 'Установите плагин, чтобы оставить отзыв.'
-                      : 'Отзывы доступны после входа через Google.'}
-                  </p>
-                )}
-              </>
+                <Link2 size={16} /> Подключить аккаунт
+              </button>
             )}
-            {error && (
-              <p className="error-message" role="alert">
-                {error}
-              </p>
+            {update?.update_available && (
+              <button className="mia-btn mia-btn--secondary" onClick={() => setDialog('update')}>
+                Обновить до {update.latest_version}
+              </button>
             )}
-          </section>
+            {installation && (
+              <Link to="/installed" className="mia-btn mia-btn--ghost">
+                Управление
+              </Link>
+            )}
+          </div>
         </div>
-        <aside className="detail-sidebar">
-          <div className="detail-side-card">
-            <h3>
-              <ShieldCheck size={18} /> Возможности и доступ
-            </h3>
-            {plugin.permissions.map((permission) => (
-              <p key={permission}>{permissions[permission] ?? permission}</p>
-            ))}
-            <p className="field-note">Ключи провайдера не передаются автору плагина.</p>
-          </div>
-          <div className="detail-side-card">
-            <h3>Перед установкой</h3>
-            <p>
-              {details?.limitation ??
-                'Это локально импортированное приложение автора. Проверьте manifest и разрешения перед установкой.'}
-            </p>
-            <p>Интерфейс: web · виджет дашборда</p>
-            {plugin.id === 'mia.digest' && (
-              <a href="#plugin/mia.web" className="text-button">
-                Зависимость: Интернет →
-              </a>
-            )}
-            {plugin.id === 'mia.timer' && (
-              <a className="button secondary" href={webPath('/api/web/downloads/timer.zip')}>
-                <Download size={16} /> Приложение с SDK
-              </a>
-            )}
-            {plugin.manifest?.downloads.map((download) => (
-              <a
-                key={download.url}
-                href={download.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="button secondary"
-              >
-                {download.label} ↗
-              </a>
-            ))}
-          </div>
-        </aside>
+      </header>
+
+      <p className="mw-lead">{detail.description}</p>
+
+      {detail.screenshots.length > 0 && (
+        <ul className="mw-shots" aria-label="Скриншоты">
+          {detail.screenshots.map((src) => (
+            <li key={src}>
+              <img src={src} alt={`${detail.name}: скриншот`} loading="lazy" />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mia-glass mw-block">
+        <ConsentSummary consent={consent} />
       </div>
+
+      <Reviews
+        pluginId={pluginId}
+        reviews={reviews}
+        installed={Boolean(installation)}
+        onChange={load}
+      />
+
+      {dialog === 'install' && (
+        <ConsentDialog
+          title={`Установить «${detail.name}»`}
+          description="Проверьте, что сможет делать плагин. Вы можете удалить его в любой момент."
+          consent={consent}
+          action="Установить"
+          onConfirm={() => install(consent)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'update' && update?.consent && (
+        <ConsentDialog
+          title={`Обновить «${detail.name}»`}
+          description={`Версия ${update.installed_version} → ${update.latest_version}. Новые разрешения отмечены.`}
+          consent={update.consent}
+          added={update.added_grants}
+          action="Обновить"
+          onConfirm={() => upgrade(update.consent!)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+    </section>
+  )
+}
+
+function Reviews({
+  pluginId,
+  reviews,
+  installed,
+  onChange,
+}: {
+  pluginId: string
+  reviews: ReviewList | null
+  installed: boolean
+  onChange: () => Promise<void>
+}) {
+  const mine = reviews?.items.find((r) => r.mine)
+  const [rating, setRating] = useState(mine?.rating ?? 0)
+  const [text, setText] = useState(mine?.text ?? '')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    setRating(mine?.rating ?? 0)
+    setText(mine?.text ?? '')
+  }, [mine?.rating, mine?.text])
+  async function save() {
+    setBusy(true)
+    try {
+      await api.putReview(pluginId, rating, text.trim())
+      toast.success('Отзыв сохранён')
+      await onChange()
+    } catch (e) {
+      toast.error(messageOf(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function remove() {
+    setBusy(true)
+    try {
+      await api.deleteReview(pluginId)
+      setRating(0)
+      setText('')
+      await onChange()
+    } catch (e) {
+      toast.error(messageOf(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mw-block">
+      <h2 className="mw-section">Отзывы</h2>
+      {reviews?.items.length === 0 && (
+        <p className="mw-muted">Пока нет отзывов. Первым может быть ваш.</p>
+      )}
+      <ul className="mw-reviews">
+        {reviews?.items.map((review) => (
+          <li key={review.id} className="mia-glass">
+            <p>
+              <strong>{review.author}</strong> · {'★'.repeat(review.rating)}
+              {'☆'.repeat(5 - review.rating)}
+            </p>
+            {review.text && <p>{review.text}</p>}
+          </li>
+        ))}
+      </ul>
+      {installed && (
+        <form
+          className="mia-glass mw-review-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (rating) void save()
+          }}
+        >
+          <fieldset>
+            <legend>Ваша оценка</legend>
+            <div className="mw-rating" role="radiogroup" aria-label="Оценка">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  role="radio"
+                  aria-checked={rating === value}
+                  aria-label={`${value} из 5`}
+                  className={rating >= value ? 'is-on' : ''}
+                  onClick={() => setRating(value)}
+                >
+                  <Star size={20} />
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <textarea
+            aria-label="Текст отзыва"
+            placeholder="Что понравилось или не хватило?"
+            maxLength={2000}
+            rows={3}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <div className="mw-actions">
+            <button className="mia-btn mia-btn--secondary" disabled={busy || !rating}>
+              {mine ? 'Обновить отзыв' : 'Отправить отзыв'}
+            </button>
+            {mine && (
+              <button
+                type="button"
+                className="mia-btn mia-btn--ghost"
+                disabled={busy}
+                onClick={() => void remove()}
+              >
+                <Trash2 size={16} /> Удалить
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+      {!installed && <p className="mw-muted">Отзыв можно оставить после установки.</p>}
     </div>
   )
 }

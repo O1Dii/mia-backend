@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type Connection, type WidgetLayout } from '../lib/api'
+import { api, type Connection, type WidgetLayout } from '../lib/legacyApi'
 import { useWorkspace } from '../lib/workspace'
 import type { Plugin } from '../plugins/catalog'
 import { Tool } from '../plugins/Tools'

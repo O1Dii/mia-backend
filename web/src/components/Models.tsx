@@ -1,223 +1,254 @@
-import { useAuth } from '../lib/auth'
-import { useState } from 'react'
-import {
-  ArrowUpRight,
-  Check,
-  Cpu,
-  KeyRound,
-  LoaderCircle,
-  Plus,
-  ShieldCheck,
-  Trash2,
-} from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, Cpu, KeyRound, LoaderCircle, Plus, Trash2, Zap } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, providerOptions, type Connection, type ProviderId } from '../lib/api'
+import { api, type ModelConnection, type ModelProvider } from '../lib/api'
+import { errorText } from '../lib/errors'
+import { messageOf } from '../lib/http'
+import { providers, type ProviderInfo } from '../lib/providers'
 import { Dialog } from './Dialog'
 
-export function Models({
-  connections,
-  activeId,
-  select,
-  refresh,
-  serverError,
-}: {
-  connections: Connection[]
-  activeId: string
-  select: (id: string) => Promise<void>
-  refresh: () => Promise<void>
-  serverError: string
-}) {
-  const auth = useAuth()
-  const [adding, setAdding] = useState<ProviderId | null>(null)
-  const [testing, setTesting] = useState('')
-  async function remove(connection: Connection) {
+const statusText: Record<ModelConnection['status'], string> = {
+  active: 'Работает',
+  paused: 'Пауза (лимит провайдера)',
+  needs_reauth: 'Нужен новый ключ',
+}
+
+export function Models() {
+  const [items, setItems] = useState<ModelConnection[] | null>(null)
+  const [error, setError] = useState('')
+  const [adding, setAdding] = useState<ProviderInfo | null>(null)
+  const [busy, setBusy] = useState('')
+
+  const reload = useCallback(async () => {
     try {
-      await api.remove(connection.id)
-      await refresh()
-      toast.success('Подключение и ключ удалены')
+      setItems((await api.models()).items)
+      setError('')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Не удалось удалить подключение')
+      setError(messageOf(e, 'Не удалось загрузить подключения.'))
     }
-  }
-  async function test(connection: Connection) {
-    setTesting(connection.id)
+  }, [])
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  async function act(id: string, work: () => Promise<void>, failure: string) {
+    setBusy(id)
     try {
-      await api.chat(connection.id, [{ role: 'user', content: 'Reply with OK.' }], {
-        use_tools: false,
-      })
-      toast.success(`${connection.label}: модель отвечает`)
+      await work()
+      await reload()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Подключение не удалось')
+      toast.error(messageOf(e, failure))
     } finally {
-      setTesting('')
+      setBusy('')
     }
   }
+
   return (
-    <>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">НЕЗАВИСИМОСТЬ ПО УМОЛЧАНИЮ</span>
-          <h1>
-            Ваш интеллект.
-            <br />
-            <span>Ваш выбор.</span>
-          </h1>
-          <p>Подключите любимую модель. Мия позаботится об инструментах.</p>
-        </div>
-        <span className="heading-icon">
-          <Cpu size={44} strokeWidth={1} />
-        </span>
-      </div>
-      {serverError && (
-        <div className="inline-notice error-notice" role="alert">
-          <p>{serverError}</p>
-          <button className="text-button" onClick={() => void refresh()}>
-            Проверить снова
-          </button>
-        </div>
+    <section className="mw-page" aria-labelledby="models-title">
+      <header className="mw-page__head">
+        <h1 id="models-title">Модели</h1>
+        <p>
+          Подключите свою модель. Ключ хранится на сервере зашифрованным и никогда не показывается
+          снова — видны только последние 4 символа.
+        </p>
+      </header>
+      {error && (
+        <p className="mw-error" role="alert">
+          {error}
+        </p>
       )}
-      <div className="section-heading">
-        <h2>
-          Мои подключения <span className="count-pill">{connections.length}</span>
-        </h2>
-        <span className="muted">Ключи доступны только вашей сессии</span>
-      </div>
-      {connections.length === 0 ? (
-        <div className="empty-state small">
-          <KeyRound size={30} />
-          <h3>Начните с одной модели</h3>
+      <h2 className="mw-section">
+        Мои подключения {items && <span className="mia-chip">{items.length}</span>}
+      </h2>
+      {items === null && !error && (
+        <p className="mw-muted" role="status">
+          <LoaderCircle size={16} className="spin" /> Загружаем…
+        </p>
+      )}
+      {items?.length === 0 && (
+        <div className="mw-empty mia-glass">
+          <KeyRound size={28} aria-hidden="true" />
+          <h2>Начните с одной модели</h2>
           <p>Используйте свой API-ключ или локальную модель без ключа.</p>
         </div>
-      ) : (
-        <div className="connection-list">
-          {connections.map((connection) => {
-            const provider = providerOptions.find((p) => p.id === connection.provider)!
-            return (
-              <div className="connection-row" key={connection.id}>
-                <span className={`provider-mark ${provider.color}`}>{provider.mark}</span>
-                <div>
-                  <h3>{connection.label}</h3>
-                  <p>
-                    {provider.name} · {connection.model}
-                  </p>
-                </div>
-                <div className="connection-actions">
-                  <button
-                    className={`button ${activeId === connection.id ? 'active-model' : 'secondary'}`}
-                    onClick={() => select(connection.id)}
-                  >
-                    {activeId === connection.id ? <Check size={15} /> : null}
-                    {activeId === connection.id ? 'Выбрана' : 'Выбрать'}
-                  </button>
-                  <button
-                    className="button secondary"
-                    disabled={Boolean(testing)}
-                    onClick={() => void test(connection)}
-                  >
-                    {testing === connection.id ? (
-                      <LoaderCircle className="spin" size={15} />
-                    ) : (
-                      <ArrowUpRight size={15} />
-                    )}
-                    Тест API
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label={`Удалить ${connection.label}`}
-                    onClick={() => void remove(connection)}
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
       )}
-      <div className="section-heading provider-heading">
-        <h2>Подключить провайдера</h2>
-        <span className="muted">
-          {auth.required ? 'Облачные модели с вашим ключом' : 'Облако или ваш компьютер'}
-        </span>
-      </div>
-      <div className="providers-grid">
-        {providerOptions
-          .filter((p) => !auth.required || !p.local)
-          .map((provider) => (
-            <button
-              className="provider-card"
-              key={provider.id}
-              onClick={() => setAdding(provider.id)}
-            >
-              <span className={`provider-mark ${provider.color}`}>{provider.mark}</span>
-              <div>
-                <h3>{provider.name}</h3>
-                <span>{provider.local ? 'Локально · без облака' : 'Ваш API-ключ'}</span>
-              </div>
-              <Plus size={18} />
+      <ul className="mw-stack">
+        {items?.map((connection) => (
+          <li key={connection.id} className="mia-glass mw-model" data-model={connection.label}>
+            <Cpu size={22} aria-hidden="true" />
+            <div className="mw-model__body">
+              <h3>{connection.label}</h3>
+              <p className="mw-muted">
+                {providers.find((p) => p.id === connection.provider)?.name ?? connection.provider} ·{' '}
+                {connection.model}
+                {connection.key_last4 ? ` · ключ …${connection.key_last4}` : ''}
+              </p>
+              <p>
+                {connection.is_primary && (
+                  <span className="mia-chip mia-chip--accent">Основная</span>
+                )}{' '}
+                <span
+                  className={`mia-chip ${connection.status === 'active' ? 'mia-chip--success' : 'mia-chip--warning'}`}
+                >
+                  {statusText[connection.status]}
+                </span>{' '}
+                {connection.capability === 'chat_only' && (
+                  <span className="mia-chip">Только чат</span>
+                )}{' '}
+                {connection.last_test_ok === true && (
+                  <span className="mia-chip mia-chip--success">Проверено</span>
+                )}
+                {connection.last_test_ok === false && (
+                  <span className="mia-chip mia-chip--danger">
+                    Проверка не прошла
+                    {connection.last_test_error_code
+                      ? `: ${errorText(connection.last_test_error_code)}`
+                      : ''}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="mw-model__actions">
+              {!connection.is_primary && (
+                <button
+                  className="mia-btn mia-btn--secondary"
+                  disabled={busy === connection.id}
+                  onClick={() =>
+                    void act(
+                      connection.id,
+                      async () =>
+                        void (await api.patchModel(connection.id, { make_primary: true })),
+                      'Не удалось выбрать модель',
+                    )
+                  }
+                >
+                  <Check size={16} /> Сделать основной
+                </button>
+              )}
+              {connection.status === 'paused' && (
+                <button
+                  className="mia-btn mia-btn--secondary"
+                  disabled={busy === connection.id}
+                  onClick={() =>
+                    void act(
+                      connection.id,
+                      async () => void (await api.resumeModel(connection.id)),
+                      'Не удалось возобновить',
+                    )
+                  }
+                >
+                  Возобновить
+                </button>
+              )}
+              <button
+                className="mia-btn mia-btn--secondary"
+                disabled={busy === connection.id}
+                onClick={() =>
+                  void act(
+                    connection.id,
+                    async () => {
+                      const result = await api.testModel(connection.id)
+                      if (result.ok)
+                        toast.success(
+                          `${connection.label}: модель отвечает (${result.latency_ms} мс)`,
+                        )
+                      else
+                        toast.error(
+                          `${connection.label}: ${errorText(result.error_code ?? undefined, 'проверка не прошла')}`,
+                        )
+                    },
+                    'Не удалось проверить подключение',
+                  )
+                }
+              >
+                {busy === connection.id ? (
+                  <LoaderCircle size={16} className="spin" />
+                ) : (
+                  <Zap size={16} />
+                )}{' '}
+                Проверить
+              </button>
+              <button
+                className="mia-btn mia-btn--ghost"
+                aria-label={`Удалить подключение ${connection.label}`}
+                disabled={busy === connection.id}
+                onClick={() =>
+                  void act(
+                    connection.id,
+                    async () => void (await api.removeModel(connection.id)),
+                    'Не удалось удалить',
+                  )
+                }
+              >
+                <Trash2 size={16} /> Удалить
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="mw-section">Добавить модель</h2>
+      <ul className="mw-grid mw-grid--small">
+        {providers.map((provider) => (
+          <li key={provider.id}>
+            <button className="mia-glass mw-provider" onClick={() => setAdding(provider)}>
+              <Plus size={18} aria-hidden="true" />
+              <strong>{provider.name}</strong>
+              <small>{provider.local ? 'Без ключа' : 'API-ключ'}</small>
             </button>
-          ))}
-      </div>
-      <div className="privacy-panel">
-        <ShieldCheck size={24} />
-        <div>
-          <h3>Ваши ключи остаются вашими</h3>
-          <p>
-            Ключи живут в памяти сервера до 8 часов или его перезапуска. Мия не записывает их в
-            браузерное хранилище. Тест API выполняет небольшой запрос к модели.
-          </p>
-        </div>
-      </div>
+          </li>
+        ))}
+      </ul>
       {adding && (
-        <AddConnection
-          providerId={adding}
+        <AddModel
+          provider={adding}
+          first={(items?.length ?? 0) === 0}
           onClose={() => setAdding(null)}
-          onAdded={async (id) => {
-            await refresh()
-            await select(id)
+          onSaved={async () => {
             setAdding(null)
+            toast.success('Подключение сохранено')
+            await reload()
           }}
         />
       )}
-    </>
+    </section>
   )
 }
 
-function AddConnection({
-  providerId,
+function AddModel({
+  provider,
+  first,
   onClose,
-  onAdded,
+  onSaved,
 }: {
-  providerId: ProviderId
+  provider: ProviderInfo
+  first: boolean
   onClose: () => void
-  onAdded: (id: string) => Promise<void>
+  onSaved: () => Promise<void>
 }) {
-  const provider = providerOptions.find((p) => p.id === providerId)!
   const [label, setLabel] = useState(provider.name)
   const [model, setModel] = useState(provider.model)
   const [key, setKey] = useState('')
   const [url, setUrl] = useState(provider.url ?? '')
-  const [toolMode, setToolMode] = useState<'native' | 'json'>('native')
+  const [tools, setTools] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function save() {
     setBusy(true)
     setError('')
     try {
-      const connection = await api.add({
-        provider: providerId,
+      await api.addModel({
+        provider: provider.id as ModelProvider,
         label: label.trim(),
         model: model.trim(),
-        api_key: key.trim(),
-        tool_mode: toolMode,
-        ...(provider.local ? { base_url: url.trim() } : {}),
+        api_key: provider.local ? undefined : key.trim(),
+        base_url: provider.local ? url.trim() : undefined,
+        capability: tools ? 'tools' : 'chat_only',
+        make_primary: first ? true : undefined,
       })
-      setKey('')
-      await onAdded(connection.id)
-      toast.success('Подключение добавлено. Проверьте его кнопкой «Тест API».')
+      await onSaved()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось сохранить подключение.')
-    } finally {
+      setError(messageOf(e))
       setBusy(false)
     }
   }
@@ -226,99 +257,83 @@ function AddConnection({
       title={`Подключить ${provider.name}`}
       description={
         provider.local
-          ? 'Модель должна быть запущена на том же компьютере, что и web API.'
-          : 'Добавьте ключ своего аккаунта и точное имя доступной вам модели.'
+          ? 'Локальная модель не требует ключа.'
+          : 'Ключ шифруется на сервере и не показывается снова.'
       }
-      onClose={() => {
-        setKey('')
-        onClose()
-      }}
+      onClose={busy ? () => undefined : onClose}
     >
       <form
-        className="connection-form"
-        onSubmit={(e) => {
-          e.preventDefault()
+        className="mw-form"
+        onSubmit={(event) => {
+          event.preventDefault()
           void save()
         }}
       >
         <label>
-          Имя подключения
+          <span>Название</span>
           <input
-            aria-label="Имя подключения"
-            required
-            maxLength={60}
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
-        </label>
-        <label>
-          Модель
-          <input
-            aria-label="Модель"
+            maxLength={80}
+            onChange={(event) => setLabel(event.target.value)}
             required
-            pattern="[a-zA-Z0-9_./:@\-]+"
-            maxLength={150}
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
           />
         </label>
-        <p className="field-note">
-          Укажите точный ID из каталога провайдера или имя загруженной локальной модели. Пример
-          можно изменить.
-        </p>
         <label>
-          Вызов действий плагинов
-          <select
-            aria-label="Режим инструментов"
-            value={toolMode}
-            onChange={(e) => setToolMode(e.target.value as 'native' | 'json')}
-          >
-            <option value="native">Native tools — GLM, GPT, Claude, Gemini и др.</option>
-            <option value="json">JSON-совместимость — для моделей без tools</option>
-          </select>
+          <span>ID модели</span>
+          <input
+            value={model}
+            maxLength={160}
+            onChange={(event) => setModel(event.target.value)}
+            required
+          />
         </label>
-        {provider.local && (
+        {provider.local ? (
           <label>
-            Адрес локального API
+            <span>Адрес сервера</span>
+            <input value={url} onChange={(event) => setUrl(event.target.value)} required />
+          </label>
+        ) : (
+          <label>
+            <span>API-ключ</span>
             <input
-              aria-label="Адрес локального API"
+              type="password"
+              autoComplete="off"
+              value={key}
+              maxLength={512}
+              onChange={(event) => setKey(event.target.value)}
               required
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={provider.url}
             />
           </label>
         )}
-        <label>
-          API-ключ {provider.local ? '(необязательно)' : ''}
+        <label className="mw-switch">
           <input
-            aria-label="API-ключ"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            required={!provider.local}
-            maxLength={4096}
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder={
-              provider.local
-                ? 'Оставьте пустым, если сервер без авторизации'
-                : 'Вставьте ключ провайдера'
-            }
+            type="checkbox"
+            checked={tools}
+            onChange={(event) => setTools(event.target.checked)}
           />
+          <span>Модель умеет вызывать инструменты</span>
         </label>
         {error && (
-          <p className="error-message" role="alert">
+          <p className="mw-error" role="alert">
             {error}
           </p>
         )}
-        <button
-          className="button primary full-width"
-          disabled={busy || !model.trim() || !label.trim() || (!provider.local && !key.trim())}
-        >
-          {busy ? <LoaderCircle className="spin" size={17} /> : <KeyRound size={17} />}
-          {busy ? 'Сохраняем…' : 'Сохранить подключение'}
-        </button>
+        <div className="mw-dialog__actions">
+          <button
+            type="button"
+            className="mia-btn mia-btn--secondary"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Отмена
+          </button>
+          <button
+            className="mia-btn mia-btn--primary"
+            disabled={busy || !label.trim() || !model.trim()}
+          >
+            {busy && <LoaderCircle size={16} className="spin" />} Сохранить подключение
+          </button>
+        </div>
       </form>
     </Dialog>
   )

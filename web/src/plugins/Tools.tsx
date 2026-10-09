@@ -13,7 +13,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type Connection, type PluginState } from '../lib/api'
+import { api, type Connection, type PluginState } from '../lib/legacyApi'
 import { useWorkspace } from '../lib/workspace'
 import type { Plugin } from './catalog'
 import { formatDuration, unlockAudio } from './scheduler'
