@@ -1688,7 +1688,86 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M16 inbox
 
-- Нет записей.
+### Resolution update for OI-WEB-002 — Reminder execution outside an open browser
+
+- Status: RESOLVED (by M16; integrator moves it into the source entry)
+- Resolution: backend-задачи переживают закрытую вкладку и рестарт: процесс `python -m app.worker` (Postgres-очередь `SKIP LOCKED` + lease) выполняет jobs и расписания (RRULE + IANA TZ, политики пропусков `skip`/`run_once`/`limited_catch_up`), сам находит наступившие дедлайны `builtin.timer`/`builtin.alarm`/`builtin.focus` (M14 `PluginState`) и доставляет их во входящие и push (FCM HTTP v1). Точный звонок без сети остаётся за телефоном (`device.alarm.set`, M23/M24); веб-напоминания `web_poc` удаляет M31.
+- Evidence: `app/worker/main.py`, `app/modules/jobs/{store,deadlines,recurrence}.py`, `tests/jobs/test_schedules.py`, `tests/jobs/test_process.py`.
+
+### OI-M16-001 — «Пока вас не было» слышит следующий интерактивный run, а не строго голосовой
+
+- Status: OPEN
+- Source session: M16
+- Component: Run engine context / inbox
+- Question: карточка просит сводку для следующего голосового run; `RunFeed.context()` не знает профиль run.
+- Why non-blocking: заметку получает первый voice/chat run основной ленты; job-runs её не потребляют (`suppress_away_summary()`), чат по отдельной теме тоже.
+- Current assumption: `AwaySummaryFeed` оборачивает `runs.engine.feed` и добавляет заметку к сводке ленты один раз (`inbox_items.announced_at`).
+- Options: оставить; M12-хук `context_notes(record)` в `RunExecution.prepare` с профилем; отдельная проверка профиля по run_id.
+- Recommendation: M12-follow-up добавляет профиль в хук и включает заметку только для `voice` (и `chat`, если продукт решит). M50: app-runs стартовать внутри `suppress_away_summary()` до появления хука.
+- Affects sessions: M22/M25 (голос), M50, M60.
+- Revisit trigger/by: M50 или ручная проверка голосом в M60.
+- Resolution:
+- Evidence: `app/modules/notifications/away.py`, `tests/jobs/test_tools.py`.
+
+### OI-M16-002 — Бюджет job: `max_steps` и `max_cost_usd` не применяются per job
+
+- Status: OPEN
+- Source session: M16
+- Component: Jobs / run engine
+- Question: `job.schema.json#/$defs/budget` задаёт шаги и стоимость; движок M12 берёт лимиты из профиля `job` (`RUN_JOB_*`).
+- Why non-blocking: запрос может только ужесточить бюджет (храним min с профилем); `max_duration_seconds` применяет worker (отмена run → `job_budget_exceeded`).
+- Current assumption: шаги и стоимость ограничены профилем `job`; `max_cost_usd` хранится, не проверяется.
+- Options: `NewRun.limits` override в M12; учёт стоимости по `run.completed.usage`.
+- Recommendation: M12-follow-up `NewRun(limits=...)`; стоимость — после M61 (цены моделей).
+- Affects sessions: M50, M61.
+- Revisit trigger/by: до публичного SDK (M50).
+- Resolution:
+- Evidence: `app/modules/jobs/service.py::_budget`, `app/modules/jobs/runner.py::_supervise`.
+
+### OI-M16-003 — Pre-existing date-dependent failure in an M13 test
+
+- Status: OPEN
+- Source session: M16
+- Component: Tests (M13)
+- Question: `tests/tools/test_e2e_runs.py::test_approval_round_trip_through_the_engine[postgres]` fails on `main@be9437f` too once real time passes 2026-10-09 12:02 UTC: `tests/tools/helpers.Clock` is fixed at 12:00 while the Postgres run path uses real time, so the approval is `expired`.
+- Why non-blocking: not related to M16; reproduced on the base commit in a clean worktree.
+- Current assumption: integrator treats it as a known pre-existing failure.
+- Options: start `helpers.Clock` at `datetime.now(UTC)`; inject the same clock into the engine store.
+- Recommendation: MW3 integrator makes `Clock()` start at real now (one-line fix in `tests/tools/helpers.py`).
+- Affects sessions: MW3 integrator.
+- Revisit trigger/by: MW3 gate.
+- Resolution:
+- Evidence: pytest on `be9437f` and on `session/M16-jobs`: same single failure.
+
+### OI-M16-004 — Push payload and delivery semantics for M24
+
+- Status: OPEN
+- Source session: M16
+- Component: Notifications / Android push
+- Question: Android channel id, deep link and grouping are not fixed; delivery is at-least-once (a worker crash mid-send may repeat a push).
+- Why non-blocking: FCM message has `notification{title, body}` + `data{type:"inbox_item", inbox_item_id, source_type, source_id, title, speech}`, `android.priority=HIGH`, `collapse_key=inbox_item_id` (duplicates collapse).
+- Current assumption: M24 opens the inbox item by `inbox_item_id` and dedupes by it.
+- Options: add `android.notification.channel_id`; data-only messages handled by the app.
+- Recommendation: M24 decides channel/deep link and requests additive payload fields.
+- Affects sessions: M24, M31.
+- Revisit trigger/by: M24.
+- Resolution:
+- Evidence: `app/modules/notifications/channels.py::PushChannel.payload`.
+
+### OI-M16-005 — Retention of jobs, inbox items and deliveries
+
+- Status: OPEN
+- Source session: M16
+- Component: Jobs / notifications storage
+- Question: how long to keep `jobs`, `job_attempts`, `inbox_items`, `notification_deliveries`, `push_tokens` invalidated rows?
+- Why non-blocking: pilot volume is small; `deadline_fires` is already pruned after 7 days.
+- Current assumption: kept until the user is deleted (FK cascade).
+- Options: TTL per table in the worker; archive with runs (OI-M12-001).
+- Recommendation: decide together with OI-M12-001 before the pilot (M62).
+- Affects sessions: M62.
+- Revisit trigger/by: M62.
+- Resolution:
+- Evidence: `migrations/versions/20261009_m16_jobs.py`.
 
 ## M17 inbox
 
