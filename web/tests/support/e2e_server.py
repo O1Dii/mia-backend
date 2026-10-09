@@ -192,7 +192,18 @@ class ScriptedGateway:
             for event in self._text(answer("Этот инструмент не установлен.")):
                 yield event
             return
-        if "карточк" in lowered:
+        if "покажи таймеры" in lowered:
+            reply = answer(
+                "Вот ваши таймеры.",
+                {
+                    "kind": "app",
+                    "plugin_id": "builtin.timer",
+                    "resource_uri": "ui://builtin.timer/tile",
+                    "structured_content": {"items": [], "server_time_ms": 0},
+                    "fallback_markdown": "Таймеры: плитка недоступна в этом окне.",
+                },
+            )
+        elif "карточк" in lowered:
             reply = answer(
                 "Вот карточка на экране.",
                 {"kind": "card", "title": "Сегодня", "markdown": "- 10:00 Олег\n- 13:00 Команда"},

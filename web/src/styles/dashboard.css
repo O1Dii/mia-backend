@@ -315,3 +315,24 @@
     flex-wrap: wrap;
   }
 }
+
+/* ---------- MCP Apps card in the conversation ---------- */
+.mw-inline-app {
+  padding: var(--mia-space-2);
+}
+.mw-inline-app__body {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  border-radius: var(--mia-radius-md);
+}
+
+/* Seven tabs on a phone: tighter padding so the labels are not cut. */
+@media (max-width: 767px) {
+  .mw-nav__item {
+    padding-inline: 1px;
+  }
+  .mw-nav__item span:not(.mw-badge) {
+    letter-spacing: -0.02em;
+  }
+}

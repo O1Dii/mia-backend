@@ -1,6 +1,6 @@
 """Public HTTPS/RSS client for the internet and news plugins.
 
-Ported from ``app/web_poc/internet.py`` (the POC stays untouched until M31 removes it):
+Ported from the web POC's ``internet.py`` (the POC was removed in M31):
 DNS answers are resolved once and all must be global addresses, the socket connects to
 the literal IP with the original TLS SNI, redirects are re-validated, size and time are
 bounded and only text is extracted. ``fetch`` is injectable so tests never use the network.

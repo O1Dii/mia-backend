@@ -64,6 +64,7 @@ export type TileSize = '1x1' | '2x1' | '2x2' | '4x2' | '4x4'
 export type ManifestTile = {
   id: string
   title?: string
+  resourceUri?: string
   sizes: TileSize[]
   mobile?: 'card' | 'tile' | 'hidden'
 }

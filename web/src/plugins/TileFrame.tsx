@@ -50,11 +50,17 @@ export function TileFrame({
   tileId,
   title,
   onLoaded,
+  initial,
+  autoRefresh = true,
 }: {
   installationId: string
   tileId: string
   title: string
   onLoaded?: (doc: TileDocument) => void
+  /** A tool result to hand to the app first (an `app` card in the chat carries one). */
+  initial?: Record<string, unknown>
+  /** Call the manifest's refresh tool when the app is ready and then on its schedule. */
+  autoRefresh?: boolean
 }) {
   const [doc, setDoc] = useState<TileDocument | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
@@ -123,7 +129,12 @@ export function TileFrame({
     )
     bridge.current = created
     const refreshSoon = async () => {
-      if (doc.refresh) created.notifyToolResult(await call(doc.refresh.tool, {}))
+      if (initial)
+        created.notifyToolResult({
+          content: [{ type: 'text', text: '' }],
+          structuredContent: initial,
+        })
+      if (autoRefresh && doc.refresh) created.notifyToolResult(await call(doc.refresh.tool, {}))
     }
     return () => {
       created.dispose()
@@ -133,13 +144,13 @@ export function TileFrame({
 
   // Periodic refresh while the tab is visible.
   useEffect(() => {
-    if (!doc?.refresh) return
+    if (!doc?.refresh || !autoRefresh) return
     const every = Math.max(30, doc.refresh.every_seconds) * 1000
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refresh()
     }, every)
     return () => window.clearInterval(timer)
-  }, [doc, refresh])
+  }, [doc, refresh, autoRefresh])
 
   if (error) {
     const hint = problemHint[error.code]

@@ -1,5 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { horizontalOverflow, installTracker, signIn, world } from './support/helpers'
+import {
+  horizontalOverflow,
+  installTracker,
+  installationId,
+  signIn,
+  world,
+} from './support/helpers'
 
 // Key screens at phone, tablet and desktop widths: no horizontal scroll, screenshots for review.
 const widths = [
@@ -19,6 +25,36 @@ async function seed(page: Page) {
       model: 'zai-org/GLM-5.3-Flash',
       api_key: 'sk-test-abcd1234',
     },
+  })
+  const headers = () => ({ 'Idempotency-Key': crypto.randomUUID() })
+  const tracker = await installationId(page, 'team.tracker')
+  const layout = (await (await page.request.get('/v1/dashboard')).json()) as {
+    expected_version: number
+  }
+  await page.request.put('/v1/dashboard', {
+    headers: headers(),
+    data: {
+      expected_version: layout.expected_version,
+      tiles: [
+        {
+          id: crypto.randomUUID(),
+          installation_id: tracker,
+          tile_id: 'issues',
+          size: '2x2',
+          position: 0,
+          mobile: { size: '2x2', position: 0 },
+          settings: {},
+        },
+      ],
+    },
+  })
+  await page.request.post('/v1/memory/facts', {
+    headers: headers(),
+    data: { text: 'Люблю зелёный чай', category: 'interests' },
+  })
+  await page.request.post('/v1/memory/import', {
+    headers: headers(),
+    data: { format: 'text', source: 'chatgpt', content: '- Живу в Минске' },
   })
   await page.goto('/chat')
   const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
@@ -40,6 +76,15 @@ test('key screens fit 390, 768 and 1440 px without horizontal scroll', async ({ 
   // [name, path, what shows that the screen has its data]
   const screens: [string, string, (page: Page) => Locator][] = [
     ['chat', '/chat', (p) => p.getByRole('heading', { name: 'Сегодня', level: 3 })],
+    [
+      'dashboard',
+      '/dashboard',
+      (p) => p.frameLocator('iframe[title="Плитка: Задачи Tracker"]').getByText('Задача A-1'),
+    ],
+    ['memory', '/memory', (p) => p.getByRole('button', { name: /^Запомнить: Живу в Минске/ })],
+    ['inbox', '/inbox', (p) => p.getByRole('heading', { name: 'Входящие и задачи', level: 1 })],
+    ['data', '/data', (p) => p.getByText(/Фактов: 1/)],
+    ['more', '/more', (p) => p.getByRole('link', { name: /Где ваши данные/ })],
     ['approvals', '/approvals', (p) => p.getByRole('button', { name: 'Одобрить' })],
     ['store', '/store', (p) => p.getByRole('link', { name: 'О плагине Tracker' })],
     ['plugin', '/store/plugin/team.tracker', (p) => p.getByText('Что сможет Мия')],

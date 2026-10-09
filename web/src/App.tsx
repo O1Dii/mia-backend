@@ -44,7 +44,7 @@ const tabs: Tab[] = [
   {
     to: '/approvals',
     label: 'Подтверждения',
-    short: 'Одобрения',
+    short: 'Решения',
     icon: ShieldCheck,
     match: /^\/approvals/,
   },

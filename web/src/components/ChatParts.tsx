@@ -12,6 +12,7 @@ import type { Approval, Display, Risk } from '../lib/api'
 import { messageOf } from '../lib/http'
 import { Markdown } from '../lib/markdown'
 import type { ToolStep } from '../lib/chat'
+import { InlineApp } from '../plugins/InlineApp'
 
 export const riskLabel: Record<Risk, string> = {
   read: 'Чтение',
@@ -35,15 +36,7 @@ export function DisplayView({ display, text }: { display: Display | null; text: 
         </div>
       </article>
     )
-  if (display.kind === 'app')
-    return (
-      <article className="mia-card mia-glass mw-display">
-        <span className="mia-card__eyebrow">Мини-приложение</span>
-        <div className="mia-card__body">
-          <Markdown text={display.fallback_markdown ?? `Приложение ${display.plugin_id}`} />
-        </div>
-      </article>
-    )
+  if (display.kind === 'app') return <InlineApp display={display} />
   const safe = /^https:\/\//.test(display.url)
   return (
     <article className="mia-card mia-glass mw-display">

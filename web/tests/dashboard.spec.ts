@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import {
   addTile,
   callTile,
@@ -10,6 +10,10 @@ import {
   tileFrame,
   world,
 } from './support/helpers'
+
+/** create_issue calls the fake remote server has seen so far (it is shared by every test). */
+const issueWrites = async (page: Page) =>
+  (await world(page)).calls.filter(([name]) => name === 'create_issue').length
 
 test.describe('dashboard: tiles are MCP Apps in sandboxed iframes', () => {
   test('an empty dashboard points at the store', async ({ page }) => {
@@ -148,6 +152,7 @@ test.describe('isolation: a hostile tile cannot reach the host', () => {
   }) => {
     await signIn(page)
     await installTracker(page)
+    const writesBefore = await issueWrites(page)
     await addTile(page, 'Проба изоляции', '2x2')
     // A cookie readable by host scripts, the kind an attacker would want.
     await page.evaluate(() => {
@@ -176,22 +181,42 @@ test.describe('isolation: a hostile tile cannot reach the host', () => {
     expect(report.writeExternal).toMatch(/^refused:/)
     expect(report.foreignTool).toMatch(/^refused:/)
     expect(report.rawMethod).toBe('error:-32601')
-    expect((await world(page)).calls.filter(([name]) => name === 'create_issue')).toHaveLength(0)
+    expect(await issueWrites(page)).toBe(writesBefore)
 
     // The host page itself is untouched by the tile.
     await expect(page.locator('#root')).toBeVisible()
+  })
+
+  test('a tile that navigates away from its document is stopped', async ({ page }) => {
+    await signIn(page)
+    await installTracker(page)
+    await addTile(page, 'Проба изоляции', '2x2')
+    const probe = tileFrame(page, 'Проба изоляции')
+    await expect(probe.locator('body[data-done="true"]')).toBeAttached({ timeout: 15_000 })
+    await probe.locator('body').evaluate(() => {
+      location.href = 'about:blank'
+    })
+    await expect(
+      page.getByText('Плитка попыталась уйти со своей страницы и остановлена.'),
+    ).toBeVisible()
+    await expect(page.locator('iframe[title="Плитка: Проба изоляции"]')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Загрузить заново' }).click()
+    await expect(tileFrame(page, 'Проба изоляции').locator('body[data-done="true"]')).toBeAttached({
+      timeout: 15_000,
+    })
   })
 
   test('the host refuses write_external from a tile at the API too', async ({ page }) => {
     await signIn(page)
     await installTracker(page)
     const id = await installationId(page, 'team.tracker')
+    const writesBefore = await issueWrites(page)
     const refused = await callTile(page, id, 'issues', 'create_issue', { title: 'x' })
     expect(refused.status).toBe(403)
     expect(refused.body.error.code).toBe('tool_permission_denied')
     const foreign = await callTile(page, id, 'issues', 'memory.remember', { text: 'x' })
     expect(foreign.status).toBe(404)
-    expect((await world(page)).calls.filter(([name]) => name === 'create_issue')).toHaveLength(0)
+    expect(await issueWrites(page)).toBe(writesBefore)
   })
 
   test("another user's tile is not reachable", async ({ page, browser }) => {
@@ -204,5 +229,43 @@ test.describe('isolation: a hostile tile cannot reach the host', () => {
     const response = await stranger.request.get(`/v1/installations/${id}/tiles/active-timers`)
     expect(response.status()).toBe(404)
     await other.close()
+  })
+})
+
+test.describe('MCP Apps card in the conversation', () => {
+  async function connectModel(page: Page) {
+    await page.request.post('/v1/model-connections', {
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      data: { provider: 'deepinfra', label: 'GLM', model: 'm', api_key: 'sk-test-abcd1234' },
+    })
+  }
+
+  test('an app card runs the plugin tile inside the chat', async ({ page }) => {
+    await signIn(page)
+    await connectModel(page)
+    await installBuiltin(page, 'builtin.timer')
+    const id = await installationId(page, 'builtin.timer')
+    await callTile(page, id, 'active-timers', 'start', { seconds: 300, label: 'Чай' })
+
+    await page.goto('/chat')
+    await expect(page.getByRole('heading', { name: 'С чего начнём?' })).toBeVisible()
+    const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
+    await field.fill('Покажи таймеры')
+    await field.press('Enter')
+    const frame = page.locator('iframe[title="Плитка: Таймеры"]')
+    await expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
+    await expect(tileFrame(page, 'Таймеры').getByText('Чай')).toBeVisible()
+  })
+
+  test('without the plugin the card falls back to text', async ({ page }) => {
+    await signIn(page)
+    await connectModel(page)
+    await page.goto('/chat')
+    await expect(page.getByRole('heading', { name: 'С чего начнём?' })).toBeVisible()
+    const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
+    await field.fill('Покажи таймеры')
+    await field.press('Enter')
+    await expect(page.getByText('Таймеры: плитка недоступна в этом окне.')).toBeVisible()
+    await expect(page.locator('iframe')).toHaveCount(0)
   })
 })

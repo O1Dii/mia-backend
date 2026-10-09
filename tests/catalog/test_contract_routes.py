@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
+from app.api.v1.tiles import install_tiles
+from app.modules.auth.composition import request_authenticator
 
 from tests.catalog.harness import build_store
 from tests.runs.conftest import requires_postgres
@@ -37,6 +39,14 @@ def contract() -> set[tuple[str, str]]:
 @requires_postgres
 async def test_every_store_route_is_in_the_contract_and_the_other_way_round() -> None:
     async with build_store() as store:
+        # The tile host (M31) is mounted by the application composition, not by the store stack.
+        install_tiles(
+            store.app,
+            registry=store.tools.registry,
+            connector=store.tools.connector,
+            router=store.router,
+            authenticator=request_authenticator(store.app),
+        )
         schema = store.app.openapi()["paths"]
     implemented = {
         (method.upper(), re.sub(r"\{[^}:]+(:path)?\}", "{}", path))

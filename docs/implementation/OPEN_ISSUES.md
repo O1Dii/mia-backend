@@ -2503,7 +2503,95 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M31 inbox
 
-- Нет записей.
+### OI-M31-001 — Хост MCP Apps: изоляция без отдельного origin, без `_meta.ui.csp` и `ui/message`
+
+- Status: OPEN
+- Source session: M31
+- Component: Web / MCP Apps
+- Question: достаточно ли для MVP рамки `sandbox="allow-scripts"` с непрозрачным origin вместо отдельного sandbox-origin и поддержки доменов из `_meta.ui.csp`?
+- Why non-blocking: без `allow-same-origin` рамка не видит cookie, storage и DOM страницы, её запросы идут без учётных данных (проверено враждебной плиткой в `web/tests/dashboard.spec.ts`); CSP фиксирован (`default-src 'none'; connect-src 'none'`), все данные приходят через мост. Методы `ui/message`, `ui/update-model-context`, `resources/read` хост отвечает `-32601`.
+- Current assumption: плагин получает данные только вызовами своих инструментов; внешние домены для плитки не разрешаются.
+- Options: (a) оставить; (b) читать `_meta.ui.csp` ресурса и добавлять домены (`img-src`, `connect-src`) после проверки при публикации; (c) отдельный origin для документов плиток (поддомен) и `ui/message`.
+- Recommendation: (a) для MVP; (b) вместе с первым плагином, которому нужны картинки, (c) после публичной беты.
+- Affects sessions: M43, M50, M60.
+- Revisit trigger/by: первый плагин с внешними картинками или картами; запрос M43.
+- Resolution:
+- Evidence: `web/src/plugins/AppBridge.ts`, `app/api/v1/tiles.py`, `web/tests/dashboard.spec.ts` (isolation).
+
+### OI-M31-002 — Плитка не может запускать действия `write_external`
+
+- Status: OPEN
+- Source session: M31
+- Component: Tools / approvals / MCP Apps
+- Question: как плитке выполнять внешние записи (создать задачу в Linear кнопкой), если подтверждение привязано к run (`tool_approvals.run_id`)?
+- Why non-blocking: хост отвечает 403 `tool_permission_denied` и ничего не выполняет; плитки читают и меняют обратимое состояние (таймер, заметки), внешние записи остаются в чате с подтверждением.
+- Current assumption: `POST /v1/installations/{id}/tiles/{tile}/tool-calls` отказывает для `write_external`.
+- Options: (a) оставить; (b) плитка просит хост начать чат-run с готовой фразой (`ui/message`), модель вызывает инструмент, пользователь подтверждает в чате; (c) подтверждения без run для действий пользователя на плитке.
+- Recommendation: (b) после (b) OI-M31-001.
+- Affects sessions: M43, M41, M60.
+- Revisit trigger/by: плагин с кнопкой внешнего действия.
+- Resolution:
+- Evidence: `tests/tiles/test_tiles_postgres.py` (`..._never_writes_externally`), `web/tests/dashboard.spec.ts`.
+
+### OI-M31-003 — Развёртывание и скрипты скриншотов ссылаются на удалённый `app.web_poc`
+
+- Status: OPEN
+- Source session: M31
+- Component: Deploy / design tooling
+- Question: кто переводит `Dockerfile.web`, `deploy/*` и `design/scripts/capture_screenshots.mjs` на единое ядро?
+- Why non-blocking: `app/web_poc` удалён, `Dockerfile.web` (`CMD uvicorn app.web_poc.main:app`) и скрипт скриншотов M33 (`--seed` на `/api/web`) больше не работают; старый web-клиент и так несовместим с `/api/web` с M30. Файлы вне scope M31 (deploy — M60, дизайн — M33).
+- Current assumption: публикация web идёт статикой `web/dist` за nginx на одном origin с `app.main`; скриншоты экранов делает `web/tests/screens.spec.ts`.
+- Options: (a) M60 заменяет `Dockerfile.web`/`deploy/*`; (b) удалить `Dockerfile.web` и `deploy/*` POC целиком.
+- Recommendation: (a) в M60; скрипт скриншотов M33 удалить или перевести на `screens.spec.ts`.
+- Affects sessions: M60, M33, M62.
+- Revisit trigger/by: подготовка пилотного деплоя.
+- Resolution:
+- Evidence: `grep -rn web_poc Dockerfile.web design/scripts`.
+
+### OI-M31-004 — `web/src/styles.css` хранит около 3,5 тыс. строк правил прототипа
+
+- Status: OPEN
+- Source session: M31
+- Component: Web / styles
+- Question: когда вычистить из `src/styles.css` правила старого дашборда и `plugins/**`?
+- Why non-blocking: файл смешивает базовые правила (поля, `.dialog`, `.spin`), которые нужны экранам M30/M31, и классы удалённых компонентов; безопасная чистка требует визуальной регрессии всех экранов, а `styles/**` принадлежит M33.
+- Current assumption: файл не трогаем.
+- Options: (a) оставить; (b) M33/M62 переносит нужное в `styles/` и удаляет остальное, проверяя `screens.spec.ts`.
+- Recommendation: (b) при ближайшей работе над дизайн-системой.
+- Affects sessions: M33, M62.
+- Revisit trigger/by: ревью дизайна web.
+- Resolution:
+- Evidence: `wc -l web/src/styles.css`.
+
+### OI-M31-005 — Чат теряет сообщение, отправленное до загрузки ленты
+
+- Status: OPEN
+- Source session: M31 (найдено в e2e, относится к M30)
+- Component: Web / chat
+- Question: нужно ли не затирать локально показанное сообщение пользователя, когда `GET /v1/feed` отвечает позже отправки?
+- Why non-blocking: воспроизводится только при отправке в первые сотни миллисекунд после открытия `/chat`; run и ответ не теряются (видны после перезагрузки); тесты M31 ждут появления пустого состояния.
+- Current assumption: оставить.
+- Options: (a) объединять результат ленты с локальными элементами; (b) блокировать поле ввода до первой загрузки.
+- Recommendation: (a).
+- Affects sessions: M30 (поправка), M62.
+- Revisit trigger/by: ближайшее изменение `web/src/lib/chat.tsx`.
+- Resolution:
+- Evidence: `web/tests/dashboard.spec.ts` (ожидание «С чего начнём?» перед вводом).
+
+### OI-M31-006 — Отклонённые предложения памяти остаются в журнале невидимыми
+
+- Status: OPEN
+- Source session: M31
+- Component: Memory / web
+- Question: «Отклонить» на вкладке «Предложено» делает `PATCH status=rejected` (путь контракта), запись остаётся зашифрованной в журнале и не показывается; нужен ли экран «Отклонённые» или жёсткое удаление?
+- Why non-blocking: запись не попадает в контекст и в выгрузку активных фактов; «Забыть всё» и удаление аккаунта стирают её.
+- Current assumption: `rejected` скрыт, повторно такой же факт предлагать можно.
+- Options: (a) оставить; (b) вкладка «Отклонённые» с удалением; (c) «Отклонить» = `DELETE`.
+- Recommendation: (c), если продукт не хочет подавлять повторные предложения; иначе (b).
+- Affects sessions: M17 (политика повторных предложений), M24 (то же поведение на Android).
+- Revisit trigger/by: пользовательская проверка страницы памяти.
+- Resolution:
+- Evidence: `web/src/components/Memory.tsx`, `web/tests/memory.spec.ts`.
 
 ## M43 inbox
 

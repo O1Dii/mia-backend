@@ -148,6 +148,7 @@ test.describe('memory page: what Mia knows', () => {
       data: { provider: 'deepinfra', label: 'GLM', model: 'm', api_key: 'sk-test-abcd1234' },
     })
     await page.goto('/chat')
+    await expect(page.getByRole('heading', { name: 'С чего начнём?' })).toBeVisible()
     const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
     await field.fill('Запомни, что Яна — моя жена')
     await field.press('Enter')
