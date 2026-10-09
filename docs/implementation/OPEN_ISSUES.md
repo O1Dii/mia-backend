@@ -113,8 +113,8 @@ Integration session обновляет этот индекс после merge.
 | OI-M23-001 | OPEN | Android device tools | Заполняет ли Telegram поле из `text` в `tg://resolve` | текст ещё и в буфере обмена | UC-MW3-2 / M41 |
 | OI-M23-002 | OPEN | Android device tools | Samsung Clock: нет удаления будильника без UI | `verified` — эвристика | M60 |
 | OI-M23-003 | RESOLVED | Tests | То же, что OI-M16-003 | исправлено M15 | resolved in MW3 integration |
-| OI-M33-001 | OPEN | Design / Android | Шрифт Manrope на Android | системный шрифт | UC-MW3-1 |
-| OI-M33-002 | OPEN | Design / Android | Настоящий backdrop blur на Android | приближение | UC-MW3-1 |
+| OI-M33-001 | DECIDED | Design / Android | Шрифт Manrope на Android | системный шрифт принят на ревью UC-MW3-1 | decided 2026-10-09 (UC-MW3-1 PASS) |
+| OI-M33-002 | DECIDED | Design / Android | Настоящий backdrop blur на Android | приближение принято на ревью UC-MW3-1 | decided 2026-10-09 (UC-MW3-1 PASS) |
 | OI-M33-003 | OPEN | Design / web | Переключатель темы, тосты, браузеры 2024+ | следует системе | M30 |
 | OI-M33-004 | OPEN | Design / web | Унаследованные цвета `light-dark()` в `styles.css` | не подбирались вручную | UC-MW3-1 / M30 |
 

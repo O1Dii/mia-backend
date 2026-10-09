@@ -150,8 +150,13 @@ Gate MW3:
 - расписание переживает рестарт: PASS (M16: настоящий процесс `python -m app.worker`, SIGTERM, пропущенный запуск по
   политике после рестарта; двойной claim невозможен — 8 воркеров × 60 jobs);
 - «Запомни, что Яна…» работает: PASS офлайн через движок на Postgres (M17); живой голосом — UC-MW3-3;
-- device tools на телефоне: **PARTIAL** (M23 на SM-S938B: поиск контакта и будильник голосом PASS; окно разрешения,
-  Telegram и Настройки на переднем плане не проверены — экран был заблокирован) → UC-MW3-2;
+- device tools на телефоне: PASS (2026-10-09, после интеграции, SM-S938B, Android 16, разблокирован): `AndroidDeviceToolsTest`
+  5/5 (окно READ_CONTACTS: отказ → структурная ошибка, разрешение → контакт найден; будильник; Настройки; Telegram),
+  `DeviceToolsVoiceGateTest` 4/4 + запрос разрешения в голосовом ходе 1/1 (речь → STT → backend → tool → TTS). Integrator
+  исправил обвязку gate (Android `f4be59b`): тестовый контакт пишется под shell-идентичностью — выданный приложению
+  WRITE_CONTACTS заставлял Android 16 авто-отклонять окно READ_CONTACTS; повтор после `pm revoke` убран (Android выдаёт
+  разрешение без окна); скриншоты gate в `.gitignore` (личные чаты Telegram). Контрольный прогон исправленного скрипта
+  прерван блокировкой экрана — изменение скрипта только убирает повтор;
 - `GET /v1/feed` отдаёт голос и чат одной лентой: PASS (M18; bearer и cookie; keyset без пропусков при параллельной записи;
   исправлен deadlock `open_turn`, OI-M18-001);
 - токены M33 генерируются для web и Android, style-страница готова к ревью: PASS (drift-тест, контраст ≥ 4.5:1) → UC-MW3-1.
@@ -161,8 +166,8 @@ Gate MW3:
 без drift. Android main (JDK 17): `lint test assembleDebug` + androidTest-сборки `:core:devicetools`, `:feature:voice` —
 BUILD SUCCESSFUL, 250 unit-тестов, 0 failed.
 
-User checks MW3: UC-MW3-1 (ревью дизайна), UC-MW3-2 (оставшийся device gate M23), UC-MW3-3 (Яна живым голосом) — в
-[USER_CHECKS.md](USER_CHECKS.md).
+User checks MW3: UC-MW3-1 ревью дизайна — **PASS** (пользователь 2026-10-09: «дизайн хороший»); UC-MW3-2 device gate M23 —
+PASS (выше); открыта UC-MW3-3 (Яна живым голосом) — [USER_CHECKS.md](USER_CHECKS.md).
 
 Follow-ups MW3 (не блокируют MW4):
 - роутер не сверяет grants (OI-M15-001, нужен backfill установок) и показывает модели app-only `get_state` (OI-M15-005);
@@ -171,8 +176,7 @@ Follow-ups MW3 (не блокируют MW4):
   `telegram.handoff` (карточка M23) — переименовать при следующей правке контрактов;
 - нет публичного удаления аккаунта (OI-M17-004) и отзыва токенов провайдеров при нём (OI-M15-006) — M62.
 
-Готовы к старту (волна MW4): M30, M25, M40, M50, M42 (optional). M41 ждёт M23 COMPLETED (UC-MW3-2: device gate на
-разблокированном телефоне).
+**Gate MW3 — PASS** (2026-10-09). Готовы к старту (волна MW4): M30, M25, M40, M41, M50, M42 (optional).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -189,13 +193,13 @@ Follow-ups MW3 (не блокируют MW4):
 | M15 | MW3 | COMPLETED | M13,M14 | Sonnet 5.5 high | [M15](handoffs/M15.md) | `5f3a245` | магазин, OAuth для MCP, grants; миграция `20261009_m15_store` |
 | M16 | MW3 | COMPLETED | M12,M13 | Opus 5.5 high | [M16](handoffs/M16.md) | `efe55c3` | worker, расписания, inbox, FCM v1; миграция `20261009_m16_jobs` |
 | M17 | MW3 | COMPLETED | M10,M11,M12,M13 | Opus 5.5 high | [M17](handoffs/M17.md) | `6d3a44c` | Memory Ledger, people.resolve, retention, crypto-shred; миграция `20261009_m17_memory` |
-| M23 | MW3 | PARTIAL | M13,M22 | Sonnet 5.5 high | [M23](handoffs/M23.md) | `8cb886d` / Android `1450389` | 4 device tools + backend endpoints; device gate: контакты и будильник PASS, остальное — UC-MW3-2 |
+| M23 | MW3 | COMPLETED | M13,M22 | Sonnet 5.5 high | [M23](handoffs/M23.md) | `8cb886d` / Android `1450389`, gate `f4be59b` | 4 device tools + backend endpoints; device gate PASS на SM-S938B после интеграции (UC-MW3-2) |
 | M18 | MW3 | COMPLETED | M12 | Sonnet 5.5 high | [M18](handoffs/M18.md) | `9079c21` | `GET /v1/feed` (bearer+cookie, keyset); fix deadlock `open_turn` |
 | M33 | MW3 | COMPLETED | M00 | Sonnet 5.5 high | [M33](handoffs/M33.md) | `294b1d9` / Android `3565859` | токены W3C → web+Android, MiaTheme, style-страница; ревью UC-MW3-1 |
 | M30 | MW4 | READY | M15,M18,M33 | Sonnet 5.5 high | — | — | web: чат с голосовым вводом и озвучкой/подтверждения/магазин, стиль M33 |
 | M25 | MW4 | READY | M18,M22,M33 | Sonnet 5.5 high | — | — | Android: чат на runs, голосовой ввод, озвучка, новый UI |
 | M40 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Linear |
-| M41 | MW4 | PENDING | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот; ждёт M23 COMPLETED (UC-MW3-2) |
+| M41 | MW4 | READY | M15,M16,M17,M23 | Sonnet 5.5 high | — | — | Telegram L0 + бот |
 | M42 | MW4 | READY | M15 | Sonnet 5.5 medium | — | — | Google Calendar (optional) |
 | M50 | MW4 | READY | M11,M12,M13,M17 | Opus 5.5 high | — | — | Войти через Mia / API / Mia MCP |
 | M24 | MW5 | PENDING | M16,M22,M30 | Sonnet 5.5 high | — | — | Android WebView + push |
