@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, Request
@@ -15,12 +16,18 @@ from app.modules.auth.google import (
     GoogleVerificationUnavailableError,
     InvalidGoogleTokenError,
 )
+from app.modules.auth.principal import (
+    AuthenticationFailure,
+    RequestAuthenticator,
+)
 from app.modules.auth.schemas import (
     AuthNonceResponse,
     AuthSessionResponse,
     GoogleAuthRequest,
     RefreshRequest,
     UserResponse,
+    WebGoogleSignInRequest,
+    WebSignInResponse,
 )
 from app.modules.auth.service import (
     AuthenticatedAccount,
@@ -63,6 +70,8 @@ class AuthRateLimits:
 
 
 async def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if isinstance(exc, AuthenticationFailure):
+        exc = AuthApiError(exc.status_code, exc.code, exc.message, retryable=exc.retryable)
     if not isinstance(exc, AuthApiError):
         raise exc
     request_id = str(request.state.request_id)
@@ -81,9 +90,15 @@ async def auth_error_handler(request: Request, exc: Exception) -> JSONResponse:
 
 
 def create_auth_router(
-    service: AuthService, cache: RedisAuthCache, limits: AuthRateLimits
+    service: AuthService,
+    cache: RedisAuthCache,
+    limits: AuthRateLimits,
+    *,
+    authenticator: RequestAuthenticator | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1", tags=["Auth"])
+    principal_resolver = authenticator or RequestAuthenticator(service)
+    policy = principal_resolver.policy
 
     async def enforce_rate(scope: str, identity: str, limit: int) -> None:
         try:
@@ -176,13 +191,91 @@ def create_auth_router(
         return Response(status_code=204)
 
     @router.get("/me", response_model=UserResponse)
-    async def me(request: Request, authorization: Authorization = None) -> Any:
+    async def me(request: Request) -> Any:
+        """Same user for ``Authorization: Bearer`` (Android) and the web session cookie."""
         await enforce_rate("me-ip", _client_ip(request), limits.authenticated)
-        account = await _authenticate(service, authorization)
-        await enforce_rate("me-user", str(account.user.id), limits.authenticated)
-        return service.user_response(account.user)
+        principal = await principal_resolver.authenticate(request)
+        await enforce_rate("me-user", principal.user_id, limits.authenticated)
+        return service.user_response(principal.user)
+
+    @router.post("/auth/web/nonce", status_code=201, response_model=AuthNonceResponse)
+    async def create_web_nonce(
+        request: Request, response: Response, idempotency_key: IdempotencyKey
+    ) -> Any:
+        """Issue a Google nonce bound to this browser by an HttpOnly cookie."""
+        del idempotency_key
+        await enforce_rate("nonce-ip", _client_ip(request), limits.nonce)
+        try:
+            issued = await service.create_nonce()
+        except (AuthUnavailableError, SQLAlchemyError) as exc:
+            raise _unavailable() from exc
+        response.set_cookie(
+            policy.nonce_cookie,
+            issued.nonce,
+            max_age=max(1, int((issued.expires_at - _now()).total_seconds())),
+            httponly=True,
+            secure=policy.secure,
+            samesite="strict",
+            path=policy.path,
+        )
+        return issued
+
+    @router.post("/auth/web/google", response_model=WebSignInResponse)
+    async def web_sign_in(
+        payload: WebGoogleSignInRequest,
+        request: Request,
+        response: Response,
+        idempotency_key: IdempotencyKey,
+    ) -> Any:
+        """Exchange a Google ID token for the ``mia_session`` cookie (no token in the body)."""
+        del idempotency_key
+        await enforce_rate("exchange-ip", _client_ip(request), limits.exchange)
+        principal_resolver.enforce_same_origin(request)
+        nonce = request.cookies.get(policy.nonce_cookie, "")
+        if not 32 <= len(nonce) <= 512:
+            raise _invalid_credentials()
+        try:
+            signed_in = await service.sign_in_web(
+                id_token=payload.credential.get_secret_value(), nonce=nonce
+            )
+        except (AuthUnavailableError, GoogleVerificationUnavailableError, SQLAlchemyError) as exc:
+            raise _unavailable() from exc
+        except (InvalidGoogleTokenError, InvalidCredentialsError) as exc:
+            raise _invalid_credentials() from exc
+        response.delete_cookie(policy.nonce_cookie, path=policy.path)
+        response.set_cookie(
+            policy.session_cookie,
+            signed_in.session_token,
+            max_age=max(1, int((signed_in.expires_at - _now()).total_seconds())),
+            httponly=True,
+            secure=policy.secure,
+            samesite="strict",
+            path=policy.path,
+        )
+        return WebSignInResponse(
+            user=service.user_response(signed_in.user), expires_at=signed_in.expires_at
+        )
+
+    @router.post("/auth/web/logout", status_code=204)
+    async def web_logout(request: Request, idempotency_key: IdempotencyKey) -> Response:
+        del idempotency_key
+        await enforce_rate("logout-ip", _client_ip(request), limits.authenticated)
+        principal_resolver.enforce_same_origin(request)
+        cookie = request.cookies.get(policy.session_cookie, "")
+        if cookie and len(cookie) <= 256:
+            try:
+                await service.logout_web_session(cookie)
+            except SQLAlchemyError as exc:
+                raise _unavailable() from exc
+        response = Response(status_code=204)
+        response.delete_cookie(policy.session_cookie, path=policy.path)
+        return response
 
     return router
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 def _client_ip(request: Request) -> str:

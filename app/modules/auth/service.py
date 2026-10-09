@@ -11,7 +11,7 @@ from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.auth.cache import RedisAuthCache
-from app.modules.auth.google import GoogleVerifier
+from app.modules.auth.google import GoogleIdentity, GoogleVerifier
 from app.modules.auth.repositories import (
     AuthRepository,
     DeletedGoogleIdentityError,
@@ -55,6 +55,20 @@ class AuthenticatedAccount:
     user: User
 
 
+@dataclass(frozen=True, slots=True)
+class AuthenticatedWebSession:
+    session_id: UUID
+    user: User
+
+
+@dataclass(frozen=True, slots=True)
+class WebSignIn:
+    session_token: str
+    """Opaque cookie value; only its HMAC is persisted. Never log it."""
+    user: User
+    expires_at: datetime
+
+
 class AuthService:
     def __init__(
         self,
@@ -68,6 +82,8 @@ class AuthService:
         refresh_ttl_days: int = 30,
         rate_window_seconds: int = 60,
         refresh_rate_limit: int = 30,
+        web_session_ttl_days: int = 30,
+        max_web_sessions_per_user: int = 32,
     ) -> None:
         self._session_factory = session_factory
         self._cache = cache
@@ -78,6 +94,8 @@ class AuthService:
         self._refresh_ttl = timedelta(days=refresh_ttl_days)
         self._rate_window_seconds = rate_window_seconds
         self._refresh_rate_limit = refresh_rate_limit
+        self._web_session_ttl = timedelta(days=web_session_ttl_days)
+        self._max_web_sessions = max(1, max_web_sessions_per_user)
 
     async def create_nonce(self, *, now: datetime | None = None) -> AuthNonceResponse:
         current_time = now or datetime.now(UTC)
@@ -101,17 +119,7 @@ class AuthService:
         device: DeviceInput,
         now: datetime | None = None,
     ) -> AuthSessionResponse:
-        if not self._google_client_id:
-            raise AuthUnavailableError("Google authentication is not configured")
-        identity = await self._verifier.verify(
-            id_token, audience=self._google_client_id, nonce=nonce
-        )
-        try:
-            consumed = await self._cache.consume_nonce(nonce)
-        except RedisError as exc:
-            raise AuthUnavailableError("authentication nonce storage is unavailable") from exc
-        if not consumed:
-            raise InvalidCredentialsError("authentication nonce is invalid or already used")
+        identity = await self._verified_identity(id_token, nonce)
         current_time = now or datetime.now(UTC)
         refresh_token = self._tokens.new_refresh_token()
         try:
@@ -138,6 +146,80 @@ class AuthService:
         except (DeletedGoogleIdentityError, DeviceOwnershipError) as exc:
             raise InvalidCredentialsError("credentials cannot be used") from exc
         return self._response(user, auth_session.family_id, refresh_token, now=current_time)
+
+    async def _verified_identity(self, id_token: str, nonce: str) -> GoogleIdentity:
+        """Verify a Google ID token and consume its one-time nonce.
+
+        The account key is always the verified Google ``sub``; email is profile data
+        only and never used to link accounts.
+        """
+        if not self._google_client_id:
+            raise AuthUnavailableError("Google authentication is not configured")
+        identity = await self._verifier.verify(
+            id_token, audience=self._google_client_id, nonce=nonce
+        )
+        try:
+            consumed = await self._cache.consume_nonce(nonce)
+        except RedisError as exc:
+            raise AuthUnavailableError("authentication nonce storage is unavailable") from exc
+        if not consumed:
+            raise InvalidCredentialsError("authentication nonce is invalid or already used")
+        return identity
+
+    async def sign_in_web(
+        self, *, id_token: str, nonce: str, now: datetime | None = None
+    ) -> WebSignIn:
+        """Create a browser cookie session for the same ``users`` row Android uses."""
+        identity = await self._verified_identity(id_token, nonce)
+        current_time = now or datetime.now(UTC)
+        session_token = self._tokens.new_refresh_token()
+        expires_at = current_time + self._web_session_ttl
+        try:
+            async with self._session_factory() as database_session, database_session.begin():
+                repository = AuthRepository(database_session)
+                user = await repository.upsert_user(
+                    google_sub=identity.subject,
+                    email=identity.email,
+                    email_verified=identity.email_verified,
+                    display_name=identity.display_name,
+                    avatar_url=identity.avatar_url,
+                    locale=identity.locale,
+                    now=current_time,
+                )
+                await repository.prune_web_sessions(
+                    user_id=user.id, keep=self._max_web_sessions - 1, now=current_time
+                )
+                await repository.create_web_session(
+                    user_id=user.id,
+                    token_hash=self._tokens.hash_web_session_token(session_token),
+                    expires_at=expires_at,
+                    now=current_time,
+                )
+        except DeletedGoogleIdentityError as exc:
+            raise InvalidCredentialsError("credentials cannot be used") from exc
+        return WebSignIn(session_token=session_token, user=user, expires_at=expires_at)
+
+    async def authenticate_web_session(
+        self, session_token: str, *, now: datetime | None = None
+    ) -> AuthenticatedWebSession:
+        current_time = now or datetime.now(UTC)
+        token_hash = self._tokens.hash_web_session_token(session_token)
+        async with self._session_factory() as database_session:
+            repository = AuthRepository(database_session)
+            web_session = await repository.get_active_web_session(token_hash, now=current_time)
+            if web_session is None:
+                raise InvalidCredentialsError("web session is inactive")
+            user = await repository.get_user(web_session.user_id)
+            if user is None:
+                raise InvalidCredentialsError("web session is inactive")
+        return AuthenticatedWebSession(session_id=web_session.id, user=user)
+
+    async def logout_web_session(self, session_token: str, *, now: datetime | None = None) -> None:
+        current_time = now or datetime.now(UTC)
+        async with self._session_factory() as database_session, database_session.begin():
+            await AuthRepository(database_session).revoke_web_session(
+                self._tokens.hash_web_session_token(session_token), now=current_time
+            )
 
     async def refresh(
         self, refresh_token: str, *, now: datetime | None = None

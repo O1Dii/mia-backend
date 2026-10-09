@@ -1071,7 +1071,47 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M10 inbox
 
-- Нет записей.
+### Resolution update → OI-WEB-001 (identity part)
+
+- Proposed status: identity part RESOLVED by M10; BYOK/vault part stays OPEN for M11.
+- Resolution: web и Android входят в одну запись `users` по проверенному Google `sub` (не email): `POST /v1/auth/web/{nonce,google,logout}` выдаёт HttpOnly `SameSite=Strict` cookie `mia_session` (в Postgres только HMAC, таблица `web_sessions`); `RequestAuthenticator` даёт одинаковый `user_id` для bearer и cookie. Хранение ключей моделей/подключений не входило в M10.
+- Evidence: `app/modules/auth/principal.py`, `tests/auth/test_web_session_postgres.py::test_cookie_and_bearer_yield_the_same_user_and_workspace`, `docs/implementation/handoffs/M10.md`.
+
+### Resolution update → OI-WEB-005 (persistence part)
+
+- Proposed status: installations/state/layout/reviews part RESOLVED by M10; app identity / SDK grants part stays OPEN for M50.
+- Resolution: таблицы `workspaces`, `installations`, `plugin_states`, `widget_instances`, `plugin_reviews` в Postgres (revision `20261009_m10_0001`), API `/v1/installations*`, `/v1/dashboard*` с `expected_version`/409. Перенос web-SQLite — явный скрипт `scripts/migrate_web_sqlite.py` (read-only источник, insert-if-absent, проверка владельца по `sub`, `--owner-sub`, `--dry-run`). Временные SDK grants, cookie-сессии, BYOK и анонимные данные не переносятся.
+- Evidence: `app/modules/workspace/legacy_import.py`, `tests/workspace/test_legacy_import_postgres.py`.
+
+### OI-M10-001 — Hosted web POC accounts from the hub have no Google `sub`
+
+- Status: OPEN
+- Source session: M10
+- Component: Accounts / web data migration
+- Question: как связать аккаунты hosted web POC, созданные через общий hub (`google_sub = "hub:<uuid>"`), с проверенным Google `sub`?
+- Why non-blocking: скрипт переноса пропускает такие аккаунты (`unmapped_hub_identity`) и принимает явную карту `--identity-map {"hub:<uuid>": "<google sub>"}`; новый web-вход (M30) идёт напрямую через Google Identity Services и hub не использует.
+- Current assumption: оператор строит карту из данных hub (если hub хранит Google `sub`) либо пользователь заново входит через Google и данные hub-аккаунта переносятся по его явному выбору.
+- Options: карта из БД hub; endpoint hub, отдающий проверенный `sub`; не переносить hub-данные (пилот начинается с чистого аккаунта).
+- Recommendation: проверить, хранит ли hub Google `sub`; если да — карта на один прогон перед M31 (удаление `web_poc`), иначе явный выбор пользователя.
+- Affects sessions: M30, M31, M62.
+- Revisit trigger/by: до удаления `app/web_poc` (M31) и пилотного деплоя.
+- Resolution:
+- Evidence: `app/web_poc/main.py` (`/api/web/auth/hub`), `app/modules/workspace/legacy_import.py`.
+
+### OI-M10-002 — Web cookie policy is not configurable from Settings
+
+- Status: OPEN
+- Source session: M10
+- Component: Configuration / web auth
+- Question: нужны ли env-настройки `Secure`-флага и доверенных origins для cookie, если web и API окажутся на разных origin?
+- Why non-blocking: `install_auth` берёт `WebCookiePolicy(secure = APP_ENV != "test")`, same-origin по `Host`; web и API в MVP обслуживаются с одного origin.
+- Current assumption: same-origin deployment (`/mia/` за общим nginx).
+- Options: добавить `WEB_COOKIE_SECURE`, `WEB_TRUSTED_ORIGINS` в `app/core/config.py`; оставить код-конфигурацию.
+- Recommendation: integrator/M30 добавляет две настройки, если web выносится на другой origin.
+- Affects sessions: M30, M62.
+- Revisit trigger/by: выбор схемы деплоя web (M30/M62).
+- Resolution:
+- Evidence: `app/modules/auth/principal.py`, `app/modules/auth/composition.py`.
 
 ## M11 inbox
 

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr
 
 
 class DeviceInput(BaseModel):
@@ -56,3 +56,18 @@ class AuthSessionResponse(BaseModel):
     token_type: Literal["Bearer"] = "Bearer"
     expires_in: int
     user: UserResponse
+
+
+class WebGoogleSignInRequest(BaseModel):
+    """Google Identity Services credential; the nonce comes from the HttpOnly cookie."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    credential: SecretStr = Field(min_length=1, max_length=16384)
+
+
+class WebSignInResponse(BaseModel):
+    """The session itself travels only in ``Set-Cookie``."""
+
+    user: UserResponse
+    expires_at: datetime
