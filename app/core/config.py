@@ -79,6 +79,14 @@ class Settings(BaseSettings):
     tools_max_result_chars: int = Field(default=8000, ge=256, le=64000)
     tools_mcp_host_allowlist: str | None = Field(default=None, max_length=8000)
     """Comma-separated hosts; when set, remote MCP hosts must also be listed here."""
+    public_base_url: str = Field(default="http://localhost:8000", min_length=8, max_length=2048)
+    """Externally visible origin of this API; the OAuth callback of plugin connections (M15)."""
+    store_admin_user_ids: str | None = Field(default=None, max_length=4000)
+    """Comma-separated ``users.id`` allowed to publish plugin releases (M15)."""
+    store_packages_dir: str | None = Field(default=None, max_length=1024)
+    """Where published packages (``SKILL.md``, ``ui/``) are materialized; temp dir if unset."""
+    connections_oauth_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    connections_oauth_flow_ttl_seconds: int = Field(default=600, ge=60, le=3600)
 
     @field_validator("log_level")
     @classmethod

@@ -14,6 +14,11 @@ from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
 from app.modules.models import install_models
 from app.modules.plugins.composition import build_builtin_plugins
+from app.modules.plugins.install.composition import (
+    build_catalog_stack,
+    build_connections,
+    install_store,
+)
 from app.modules.realtime import (
     AuthenticatedUser,
     FakeRealtimeProvider,
@@ -122,12 +127,32 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     authenticator = AuthServiceAuthenticator(auth_service)
     models_stack = install_models(app, settings, runtime, authenticator)
     builtin_plugins = build_builtin_plugins(runtime, model_gateway=models_stack.gateway)
-    install_workspace(app, database=runtime.database, catalog=builtin_plugins.catalog)
+    catalog_stack = build_catalog_stack(settings, runtime, builtin_plugins)
+    workspace = install_workspace(app, database=runtime.database, catalog=catalog_stack.catalog)
+    connections = build_connections(
+        settings, runtime, vault=models_stack.vault, workspace=workspace
+    )
     text_provider = _text_provider(settings)
     registry = current_datetime_registry()
     tool_executor = ToolExecutor(runtime.database.session_factory, registry)
     budget = DailyBudget(runtime.redis)
-    tools = install_tools(app, settings, runtime, server_factory=builtin_plugins.server_factory)
+    tools = install_tools(
+        app,
+        settings,
+        runtime,
+        server_factory=builtin_plugins.server_factory,
+        manifest_source=catalog_stack.manifest_source,
+        credentials=connections,
+    )
+    install_store(
+        app,
+        settings,
+        runtime,
+        catalog=catalog_stack,
+        connections=connections,
+        tools=tools,
+        workspace=workspace,
+    )
     runs = install_runs(
         app,
         settings,

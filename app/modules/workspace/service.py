@@ -66,6 +66,9 @@ from app.modules.workspace.schemas import (
 
 IDEMPOTENCY_RETENTION = timedelta(hours=24)
 
+UninstallHook = Callable[["WorkspaceContext", uuid.UUID], Awaitable[object]]
+"""Called before an installation row is deleted (M15 revokes its connection tokens)."""
+
 
 @dataclass(frozen=True, slots=True)
 class WorkspaceContext:
@@ -100,7 +103,8 @@ def request_hash(operation: str, target: str, body: Any) -> str:
 
 
 def custom_plugin_id(url: str) -> str:
-    return "custom." + hashlib.sha256(url.encode()).hexdigest()[:16]
+    """``custom.u<15 hex>``: the leading letter keeps the id valid for ``mia.json`` (M15)."""
+    return "custom.u" + hashlib.sha256(url.encode()).hexdigest()[:15]
 
 
 def installation_view(row: Installation) -> InstallationView:
@@ -143,6 +147,7 @@ class WorkspaceService:
         self._session_factory = session_factory
         self._catalog = catalog
         self._max_installations = max_installations
+        self.uninstall_hooks: list[UninstallHook] = []
 
     # ----------------------------------------------------------------- context
 
@@ -317,6 +322,9 @@ class WorkspaceService:
         delete_data: bool,
         idempotency_key: str,
     ) -> MutationResult:
+        for hook in self.uninstall_hooks:
+            await hook(ctx, installation_id)
+
         async def work(session: AsyncSession) -> MutationResult:
             tiles = await session.scalar(
                 select(func.count())
@@ -576,6 +584,18 @@ class WorkspaceService:
             return list(rows)
 
     # ---------------------------------------------------------------- internals
+
+    async def mutate(
+        self,
+        ctx: WorkspaceContext,
+        idempotency_key: str,
+        fingerprint: str,
+        work: Callable[[AsyncSession], Awaitable[MutationResult]],
+    ) -> MutationResult:
+        """Run ``work`` in one transaction with the idempotency claim (for sibling modules)."""
+        return await self._mutate(
+            ctx, idempotency_key, request_hash("mutate", "", fingerprint), work
+        )
 
     async def _mutate(
         self,
