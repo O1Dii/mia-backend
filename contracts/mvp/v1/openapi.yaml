@@ -114,6 +114,30 @@ paths:
           description: Result accepted
           headers: *rid
         default: *error
+  /v1/approvals:
+    get:
+      tags: [Approvals]
+      operationId: listApprovals
+      summary: The caller's approvals, newest first (pending by default)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: {type: string, enum: [pending, approved, denied, expired, cancelled], default: pending}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Approvals of the authenticated user only
+          headers: *rid
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Approval'}}
+        default: *error
   /v1/approvals/{approval_id}:
     parameters: [{$ref: '#/components/parameters/ApprovalId'}]
     get:
@@ -140,7 +164,11 @@ paths:
             schema: {$ref: '#/components/schemas/ApprovalDecisionRequest'}
       responses:
         '200':
-          description: Decision recorded (409 approval_args_mismatch / approval_expired otherwise)
+          description: >-
+            Decision recorded. 409 approval_args_mismatch / approval_expired /
+            approval_already_decided (a retry with the same decision returns 200); 404
+            approval_not_found for a missing or foreign approval. Bearer decisions are recorded
+            with channel android, same-origin cookie decisions with channel web.
           headers: *rid
           content:
             application/json:

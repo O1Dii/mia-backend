@@ -124,5 +124,166 @@
     "retryable": false,
     "public_message": "Voice runs always use the main feed.",
     "owner": "M12"
+  },
+  {
+    "code": "tool_invalid_arguments",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The tool arguments are invalid.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_permission_denied",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The tool call is not permitted.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_consent_required",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The plugin changed its tools; review and consent again.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_not_active",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The plugin is not active.",
+    "owner": "M13"
+  },
+  {
+    "code": "connection_required",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The plugin needs a connected account.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_host_blocked",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The plugin server address is not allowed.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_unavailable",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The plugin server is unavailable.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_timeout",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The tool did not answer in time.",
+    "owner": "M13"
+  },
+  {
+    "code": "tool_execution_failed",
+    "http_status": null,
+    "retryable": true,
+    "public_message": "The tool could not complete the request.",
+    "owner": "M13"
+  },
+  {
+    "code": "approval_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The approval was not found.",
+    "owner": "M13"
+  },
+  {
+    "code": "approval_args_mismatch",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The arguments differ from the approved ones.",
+    "owner": "M13"
+  },
+  {
+    "code": "approval_already_decided",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "The approval was already decided.",
+    "owner": "M13"
+  },
+  {
+    "code": "approval_mismatch",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The approval belongs to another action.",
+    "owner": "M13"
+  },
+  {
+    "code": "approval_pending",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The approval is still pending.",
+    "owner": "M13"
+  },
+  {
+    "code": "approval_already_used",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The approval was already used.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_unavailable",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "No connected device can run this tool.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_unsupported_tool",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The device does not support this tool.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_invalid_arguments",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The device rejected the arguments.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_os_permission_denied",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The device permission is missing.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_locked",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "Unlock the device to continue.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_user_cancelled",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The action was cancelled on the device.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_timeout",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The device did not answer in time.",
+    "owner": "M13"
+  },
+  {
+    "code": "device_execution_failed",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The device could not complete the action.",
+    "owner": "M13"
   }
 ]

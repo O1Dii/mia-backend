@@ -108,8 +108,8 @@ class AuditRow:
 
     user_id: UUID
     call_id: UUID
-    turn_id: UUID
-    response_id: UUID
+    turn_id: UUID | None
+    response_id: UUID | None
     name: str
     status: str
     result: Mapping[str, Any] | None

@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
+import httpx2
 import pytest
 from app.core.circuit import (
     GuardedRealtimeSession,
@@ -187,7 +188,7 @@ def build_realtime_client(
     return TestClient(app), store
 
 
-def create_session(client: TestClient, key: str) -> httpx.Response:
+def create_session(client: TestClient, key: str) -> httpx2.Response:
     response = client.post(
         "/v1/realtime/sessions",
         headers={"Authorization": f"Bearer {TOKEN}", "Idempotency-Key": key},
@@ -198,7 +199,7 @@ def create_session(client: TestClient, key: str) -> httpx.Response:
             "output_audio": OUTPUT_AUDIO_FORMAT.model_dump(mode="json"),
         },
     )
-    assert isinstance(response, httpx.Response)
+    assert isinstance(response, httpx2.Response)
     return response
 
 
