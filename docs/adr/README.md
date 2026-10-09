@@ -19,7 +19,7 @@ rewriting their meaning.
 | 0011 | [Run profiles and the speech/display response contract](0011-run-profiles-and-response-contract.md) | Accepted |
 | 0012 | [Memory Ledger and privacy V1](0012-memory-ledger-and-privacy-v1.md) | Accepted |
 | 0013 | [«Войти через Mia»: OAuth 2.1 authorization server for apps](0013-sign-in-with-mia.md) | Accepted |
-| 0014 | [One primary product model until the MVP is accepted](0014-single-primary-product-model.md) | Proposed — pending M01 |
+| 0014 | [One primary product model until the MVP is accepted](0014-single-primary-product-model.md) | Accepted |
 | 0015 | [The MVP plan supersedes S28, S31-R1 and S33](0015-supersede-s28-s31r1-s33.md) | Accepted |
 
 ADR-0010…0015 record the MVP architecture (variant E) from

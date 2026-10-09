@@ -11,8 +11,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import fakes  # noqa: E402
 import run_spike as rs  # noqa: E402
+
+import fakes  # noqa: E402
 
 
 def test_iter_sse_parses_events_comments_and_multiline() -> None:

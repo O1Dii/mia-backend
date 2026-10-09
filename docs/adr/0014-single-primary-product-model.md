@@ -1,6 +1,6 @@
 # ADR-0014: One primary product model until the MVP is accepted
 
-- Status: Proposed — decision pending M01 (`spikes/m01/DECISION.md`)
+- Status: Accepted (MW0 integration, 2026-10-09; outcome of M01, `spikes/m01/DECISION.md`)
 - Date: 2026-10-09
 - Sources: [Review](../Mia_Architecture_Review.md) §5.5, §9, §2;
   [MVP plan](../implementation/MVP_SESSION_PLAN.md) §3 («Модель продукта»), M01, M61
@@ -29,17 +29,32 @@ or DeepInfra GLM-5.3-flash through an OpenAI-compatible API.
    tokens is forbidden. Claude and Gemini subscriptions are not connected.
    The `chatgpt-plan` adapter is a separate provider next to the OpenAI API.
 
-## Decision (pending M01)
+## Decision (outcome of M01)
 
-<!-- MW0 integrator: replace this section with the outcome of
-     spikes/m01/DECISION.md and set Status to Accepted. -->
+Transplanted verbatim by the MW0 integrator from the M01 handoff
+([M01](../implementation/handoffs/M01.md), [DECISION](../../spikes/m01/DECISION.md)).
 
-- Primary model: **TBD by M01** — GPT on ChatGPT Plus if all four spike
-  checks pass (client registration and sign-in, Responses API with
-  `store: false` + `stream: true`, function calling on the plan, models and
-  limits of Plus); otherwise DeepInfra GLM-5.3-flash (default fallback).
-- Evidence: `spikes/m01/DECISION.md`.
-- Adapter and configuration names for M11: TBD by M01.
+**Decision.** Основная модель MIA на время разработки и в MVP — GPT на плане ChatGPT через
+официальный Sign in with ChatGPT (OAuth Authorization Code + PKCE, loopback
+`http://127.0.0.1:<port>/auth/callback`, динамическая регистрация клиента
+`dynamic_agent_client` → выданный `oaiapp_…`, scope
+`openid profile email offline_access resource.invoke chatgpt.tokens.use.direct`,
+`resource=https://api.openai.com/v1`) и Responses API (`POST https://api.openai.com/v1/responses`,
+`store:false`, `stream:true`, tools только function). Адаптер `chatgpt-plan` — отдельный
+провайдер Model Gateway (M11). Резервный и generic OpenAI-compatible провайдер —
+DeepInfra `zai-org/GLM-5.3-Flash` (chat completions, `reasoning_content` возвращается в
+следующих ходах). Токены Codex CLI и ChatGPT в обход официального потока не используются.
+
+**Evidence.** Spike M01 (2026-10-09, `spikes/m01/DECISION.md`): вход и refresh с ротацией
+прошли; function calling с продолжением прошло на `gpt-6.1-sol`; видимых моделей 7;
+first-event p50 1340 мс, первый content-токен p50 2411 мс; GLM: 1405/2763 мс.
+
+**Consequences.** Нужны: сериализованный refresh (access ≈ 1 ч, refresh ≈ 30 дней с
+ротацией), проверка подписи ID-токена по JWKS, шифрованное хранение токенов, обработка
+`subscription_sharing_usage_limit_exceeded` как паузы с переключением на запасного
+провайдера. Использование плана допустимо для локально/самостоятельно размещённого
+приложения владельца; многопользовательское облако требует заявки OpenAI (OI-M01-002).
+Численные лимиты Plus неизвестны (OI-M01-001).
 
 ## Consequences
 

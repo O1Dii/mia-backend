@@ -44,6 +44,12 @@ Integration session обновляет этот индекс после merge.
 | OI-W6-017 | OPEN | Barge-in | Два механизма перебивания сразу: локальный flush и provider-side interrupt | не измерены вместе | S31-R1 |
 | OI-W6-018 | OPEN | CI | Кто и когда запускает credential smoke? | документированный ручной шаг | S33 |
 | OI-W6-019 | RESOLVED | Android voice | Голосовая сессия иногда обрывается сама через 7–45 с | клиент сам закрывал сокет кодом 1013 | resolved in S25-R3 |
+| OI-M00-001 | OPEN | MVP contracts | Где реестр кодов ошибок mvp/v1? | коды в схемах, без общего реестра | M12/M13 |
+| OI-M00-002 | OPEN | Memory contract | Категории памяти и `Fact.scope` окончательные? | предварительные | M17 |
+| OI-M00-003 | RESOLVED | Backend tooling | Какую версию Python закрепить для `uv sync`? | `.python-version` = 3.13 | resolved in MW0 integration |
+| OI-M01-001 | OPEN | Model gateway | Численные лимиты Plus для SIWC? | неизвестны; 429 → пауза и переключение на GLM | M11, M61 |
+| OI-M01-002 | OPEN | Model gateway / terms | Можно ли использовать план в многопользовательской MIA? | только локально/у владельца; нужна заявка OpenAI и ручное чтение terms | before hosted pilot (M62) |
+| OI-M01-003 | OPEN | Model gateway latency | Safety buffering и более быстрая модель (`gpt-6-luna`)? | не проверено | M11, M61 |
 
 ## Record template
 
@@ -1001,7 +1007,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M00-003 — Версия Python окружения разработки
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M00
 - Component: Backend tooling
 - Question: какую версию Python закрепить для `uv sync`?
@@ -1011,7 +1017,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: integrator MW0 добавляет `.python-version` (`3.13`) в корень — общий файл вне scope M00.
 - Affects sessions: все backend-сессии MW1+ (M10, M11, M12, M13…).
 - Revisit trigger/by: интеграция MW0.
-- Resolution:
+- Resolution: MW0 integration (2026-10-09) добавила корневой `.python-version` = `3.13`; `uv sync` без флага берёт 3.13.1, полный pytest 222 passed / 63 skipped.
 - Evidence: локальный прогон M00 (handoff M00, раздел Verification).
 
 ## M01 inbox

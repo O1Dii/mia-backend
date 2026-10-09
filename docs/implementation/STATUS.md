@@ -9,17 +9,25 @@
 Текущий план: [MVP_SESSION_PLAN.md](MVP_SESSION_PLAN.md); архитектура —
 [Mia_Architecture_Review.md](../Mia_Architecture_Review.md). Старые S28, S31-R1 и
 S33 заменены (SUPERSEDED) сессиями M20, M22 и M60; S27 остаётся DEFERRED.
-Готовы к старту: M00 и M01 (волна MW0, параллельно).
+**MW0 integrated 2026-10-09** (integrator: Opus 5.5 high, вместо Sonnet 5.5 high по правилу «более сильная модель»).
+Merge: M00 → `3f904b6`, M01 → `f52cc2a`, integration commit поверх них. Gate MW0 PASS:
+ADR-0010…0015 Accepted (ADR-0014 заполнен решением M01); `validate_contracts.py` PASS
+(mvp/v1: 24 examples, 13 run events, 48 operations); pytest 222 passed / 63 skipped;
+spike tests 13 passed; mypy (136 files) и `mypy --strict` ports/fakes PASS; ruff PASS.
+Основная модель: **GPT на плане ChatGPT через Sign in with ChatGPT**; резерв — DeepInfra
+GLM-5.3-Flash. Применены shared-file запросы M00: `.python-version` = 3.13, `pyyaml`/`referencing`
+в dev-группе, `PyYAML` в `contracts/requirements.txt`.
+Готовы к старту: M10, M11, M12, M20, M21 (волна MW1, параллельно; не больше пяти активных, по умолчанию четыре).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| M00 | MW0 | READY | — | Opus 5.5 high | — | — | ADR и контракты MVP |
-| M01 | MW0 | READY | — | Sonnet 5.5 high | — | — | spike основной модели; нужен интерактивный вход пользователя своим Plus |
-| M10 | MW1 | PENDING | M00 | Opus 5.5 high | — | — | единые аккаунты/workspace |
-| M11 | MW1 | PENDING | M00,M01 | Sonnet 5.5 high | — | — | Model Gateway + подключения |
-| M12 | MW1 | PENDING | M00 | Opus 5.5 high | — | — | run engine |
-| M20 | MW1 | PENDING | M00 | Sonnet 5.5 high | — | — | Android VIS; заменяет S28 |
-| M21 | MW1 | PENDING | M00 | Opus 5.5 high | — | — | Android STT GigaAM |
+| M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
+| M01 | MW0 | COMPLETED | — | Sonnet 5.5 high | [M01](handoffs/M01.md) | `f52cc2a` | основная = GPT-plan (SIWC), резерв GLM-5.3-Flash |
+| M10 | MW1 | READY | M00 | Opus 5.5 high | — | — | единые аккаунты/workspace |
+| M11 | MW1 | READY | M00,M01 | Sonnet 5.5 high | — | — | Model Gateway + подключения |
+| M12 | MW1 | READY | M00 | Opus 5.5 high | — | — | run engine |
+| M20 | MW1 | READY | M00 | Sonnet 5.5 high | — | — | Android VIS; заменяет S28 |
+| M21 | MW1 | READY | M00 | Opus 5.5 high | — | — | Android STT GigaAM |
 | M13 | MW2 | PENDING | M10,M12 | Opus 5.5 high | — | — | Tool Router/policy/MCP/approvals |
 | M14 | MW2 | PENDING | M00,M10 | Sonnet 5.5 high | — | — | builtin + declarative плагины |
 | M22 | MW2 | PENDING | M12,M20,M21 | Opus 5.5 high | — | — | каскадный голос; заменяет S31-R1 |
