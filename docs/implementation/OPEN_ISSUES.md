@@ -1085,7 +1085,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M20-001 — Нужна ли отдельная activity для запуска ассистента
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M20
 - Component: Android assistant
 - Question: жест запускает `MainActivity` через `startAssistantActivity`; на SM-S938B нужно подтвердить, что она открывается в отдельной assistant-задаче поверх экрана и поверх блокировки, а не смешивается с обычной задачей приложения.
@@ -1095,8 +1095,23 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: сначала прогнать device gate по handoff M20; отдельная activity — только если проявятся смешение задач или утечка истории на заблокированном экране.
 - Affects sessions: M22.
 - Revisit trigger/by: device gate M20 на SM-S938B (или раньше MW1 gate).
-- Resolution:
-- Evidence:
+- Resolution: `MainActivity` is enough: the assist launch opens it in its own `type=assistant` task, separate from the normal task, and it shows over a secure keyguard; back returns to the lock screen without exposing conversations.
+- Evidence: device gate on SM-S938B, handoff M20 (`dumpsys activity activities`, `dumpsys window`).
+
+### OI-M20-003 — Роль ассистента нельзя запросить диалогом, нужны Настройки
+
+- Status: RESOLVED
+- Source session: M20
+- Component: Android assistant
+- Question: `RoleManager.createRequestRoleIntent(ROLE_ASSISTANT)` работает?
+- Why non-blocking: найдено и исправлено в device gate.
+- Current assumption: нет; `RequestRoleActivity` завершается с «Role is not requestable».
+- Options: открывать `Settings.ACTION_VOICE_INPUT_SETTINGS`.
+- Recommendation: так и сделано (`59acb88`).
+- Affects sessions: M22 (UX онбординга).
+- Revisit trigger/by: —
+- Resolution: экран ассистента открывает системную страницу «Цифровой помощник»; на One UI Mia в списке «Другие приложения».
+- Evidence: logcat на SM-S938B, handoff M20.
 
 ### OI-M20-002 — Заглушка RecognitionService в метаданных VIS
 
