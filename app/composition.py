@@ -21,6 +21,7 @@ from app.modules.realtime import (
     build_realtime_router,
 )
 from app.modules.realtime.provider import RealtimeProviderFactory, RealtimeProviderSession
+from app.modules.runs.composition import install_runs
 from app.modules.tools import ToolExecutor, ToolRegistry, current_datetime_registry
 from app.providers.ai.base import TextAIProvider
 from app.providers.ai.fake import FakeAIProvider
@@ -119,6 +120,8 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     registry = current_datetime_registry()
     tool_executor = ToolExecutor(runtime.database.session_factory, registry)
     budget = DailyBudget(runtime.redis)
+    # M12 run engine; MW1 integrator passes M11's gateway as model_gateway=...
+    install_runs(app, settings, runtime, authenticator=authenticator)
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,
