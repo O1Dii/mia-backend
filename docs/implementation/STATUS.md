@@ -388,6 +388,8 @@ M60 теперь зависит и от MW5b.
 1 failed — известный flaky `tests/jobs/test_process.py` под нагрузкой Gradle, отдельно 3/3 PASS; web `tsc`, build, Prettier PASS,
 Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 тест, 0 failed). Выкладка: образ `sha256:973e7af5…`, APK `0.1.0 (bf7666d)` 42 013 139 байт — PASS без отката; снаружи `/mia/` 200, health 200, анонимный `/mia/v1/feed` 401, соседние приложения 200; установка Linear по URL (76 tools) на сервере теперь разбирается, webhook бота без ошибок. Проверки пользователя — UC-M41-2, UC-M40-1.
 
+**MW5b-1 частичная интеграция 2026-10-10** (integrator: Opus 5.5 high): M73 → `61ed80e`, M74 → `cd6706f`, без конфликтов; миграция `20261010_m74_chats` — head. Проверки: ruff, format, mypy, контракты (mvp/v1: 121 operations, 92 error codes) PASS; pytest с PostgreSQL+Redis 1436 tests, 0 failures, 6 skipped. M75, M76 запущены от этого main; M70 интегрируется отдельно.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -423,13 +425,13 @@ Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 т
 | M62-T1 | MW5 | COMPLETED | M51-R1 (main) | Opus 5.5 high | [M62-T1](handoffs/M62-T1.md) | `e4539f7` | MVP на mindmapgen.xyz/mia, APK для скачивания, ChatGPT из «Модели» |
 | M41-R1 | MW5b | COMPLETED | M41 | Opus 5.5 high | [M41-R1](handoffs/M41-R1.md) | `0624293` / Android bf7666d | кнопки «только для экрана» (`_meta["mia/action"]`), «Открыть Telegram» в web/Android; ссылка не видна модели |
 | M15-R1 | MW5b | COMPLETED | M15 | Opus 5.5 high | [M15-R1](handoffs/M15-R1.md) | `0624293` | лимит 96 на плагин и общий бюджет, выбор инструментов по URL, `needs_attention`, `/installations/{id}/health`, читаемые логи |
-| M70 | MW5b | READY | ADR-0016 | Opus 5.5 high | — | — | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
-| M73 | MW5b | READY | — | Sonnet 5.5 high | — | — | встроенный поиск, короткие ответы без задачи, журнал инструментов |
-| M74 | MW5b | READY | ADR-0017 | Opus 5.5 high | — | — | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |
+| M70 | MW5b | IN_PROGRESS | ADR-0016 | Opus 5.5 high | — | — | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
+| M73 | MW5b | COMPLETED | — | Sonnet 5.5 high | [M73](handoffs/M73.md) | `61ed80e` | встроенный поиск, короткие ответы без задачи, журнал инструментов |
+| M74 | MW5b | COMPLETED | ADR-0017 | Opus 5.5 high | [M74](handoffs/M74.md) | `cd6706f` | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |
 | M71 | MW5b | PENDING | M70 | Sonnet 5.5 high | — | — | Android: согласие, настройки разрешений, будильник Mia, WebView только `/mia/` |
 | M72 | MW5b | PENDING | M70 | Sonnet 5.5 medium | — | — | магазин: «Где работает», возможности устройства |
-| M75 | MW5b | PENDING | M74, M73 | Sonnet 5.5 high | — | — | web: чаты, «Сейчас» |
-| M76 | MW5b | PENDING | M74 | Sonnet 5.5 high | — | — | Android: чаты, кнопка = новый диалог, «Сейчас» |
+| M75 | MW5b | IN_PROGRESS | M74, M73 | Sonnet 5.5 high | — | — | web: чаты, «Сейчас» |
+| M76 | MW5b | IN_PROGRESS | M74 | Sonnet 5.5 high | — | — | Android: чаты, кнопка = новый диалог, «Сейчас» |
 | M77 | MW5b | PENDING | M70 | Sonnet 5.5 high | — | — | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
