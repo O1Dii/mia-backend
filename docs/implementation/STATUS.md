@@ -390,6 +390,26 @@ Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 т
 
 **MW5b-1 частичная интеграция 2026-10-10** (integrator: Opus 5.5 high): M73 → `61ed80e`, M74 → `cd6706f`, без конфликтов; миграция `20261010_m74_chats` — head. Проверки: ruff, format, mypy, контракты (mvp/v1: 121 operations, 92 error codes) PASS; pytest с PostgreSQL+Redis 1436 tests, 0 failures, 6 skipped. M75, M76 запущены от этого main; M70 интегрируется отдельно.
 
+**MW5b integrated 2026-10-10** (integrator: Opus 5.5 high; сессии — отдельными агентами по модели карточки: M70, M74 Opus 5.5
+high; M73, M75, M76, M71, M71-F1, M77 Sonnet 5.5 high; M72 Sonnet 5.5 medium). Порядок merge: M73, M74 → M70 → M75, M76 → M71 → M72
+→ M77 → M71-F1. Конфликты только аддитивные: `error-codes.json` (M74/M70), `plugin-manifest.schema.json` (M72 `whereItRuns` + M77
+`provides`). Миграции в линейную цепочку `20261009_m50_oauth → 20261010_m74_chats → 20261010_m70_device_access →
+20261010_m77_notify_channels` (head). Правки integrator-а по запросам сессий: `device_consent` в `approval.requested` (OI-M70-001),
+«Пока вас не было» в явно выбранном чате (OI-M74-001), push будильника/таймера data-only с TTL 600 с (OI-M71-001). M77 добавлена в
+волну планом от 05:31 (коммит `67c5bf4`); Android-экран «Уведомления» — follow-up M71-F1.
+
+Gate MW5b — PASS офлайн, живые проверки за пользователем:
+- ruff, format, mypy (280 файлов app), контракты (mvp/v1: 40 examples, 14 run events, 129 operations, 101 error codes) PASS;
+  pytest с PostgreSQL+Redis на свободной машине **1532 passed, 6 skipped, 0 failed**. Под нагрузкой Gradle/Playwright дважды
+  наблюдались сбои: `test_twenty_parallel_runs_do_not_mix_events[postgres]` (таймаут 10 с; отдельно 3/3 PASS за 2–4 с) и одно
+  зависание полного прогона (сессии `idle in transaction` на `runs`), не воспроизвелось — кандидат в M60 (OI-MW5b-001 ниже);
+- web: `tsc -b`, build, Prettier PASS; Playwright **95 passed, 2 skipped** (порты 5183/8110 — 5173 был занят чужим dev-сервером);
+- Android main `05fff9d` (дерево = проверенная ветка M71-F1): `lint test assembleDebug` PASS, 691 unit-тест, 0 failed;
+- согласие на устройстве, «Где работает», встроенный поиск, журнал инструментов, чаты, «Сейчас», каналы уведомлений — покрыты
+  тестами; device gates M71/M76 не выполнены (телефон не подключён) → UC-M71-1, UC-M71-F1, UC-M76-1. Живой FCM на сервере не
+  настроен (UC-M24-1), без него согласие и звонок будильника в фоне на сервере не проверить.
+Проверки пользователя MW5b: UC-M73-1, UC-M74-1, UC-M75-1, UC-M76-1, UC-M71-1, UC-M71-F1, UC-M72-1, UC-M77-1, повтор UC-M41-2.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -428,12 +448,12 @@ Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 т
 | M70 | MW5b | COMPLETED | ADR-0016 | Opus 5.5 high | [M70](handoffs/M70.md) | `4f98651` | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
 | M73 | MW5b | COMPLETED | — | Sonnet 5.5 high | [M73](handoffs/M73.md) | `61ed80e` | встроенный поиск, короткие ответы без задачи, журнал инструментов |
 | M74 | MW5b | COMPLETED | ADR-0017 | Opus 5.5 high | [M74](handoffs/M74.md) | `cd6706f` | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |
-| M71 | MW5b | IN_PROGRESS | M70 | Sonnet 5.5 high | — | — | Android: согласие, настройки разрешений, будильник Mia, WebView только `/mia/` |
-| M72 | MW5b | IN_PROGRESS | M70 | Sonnet 5.5 medium | — | — | магазин: «Где работает», возможности устройства |
+| M71 | MW5b | COMPLETED | M70 | Sonnet 5.5 high | [M71](handoffs/M71.md), [M71-F1](handoffs/M71-F1.md) | `d163c10`, `ebbc29e` / Android `0712b39`, `05fff9d` | Android: согласие, настройки разрешений, будильник Mia, WebView только `/mia/` |
+| M72 | MW5b | COMPLETED | M70 | Sonnet 5.5 medium | [M72](handoffs/M72.md) | `cdc44e8` | магазин: «Где работает», возможности устройства |
 | M75 | MW5b | COMPLETED | M74, M73 | Sonnet 5.5 high | [M75](handoffs/M75.md) | `140c3d3` | web: чаты, «Сейчас» |
 | M76 | MW5b | COMPLETED | M74 | Sonnet 5.5 high | [M76](handoffs/M76.md) | `c714300` / Android `f24a87a` | Android: чаты, кнопка = новый диалог, «Сейчас» |
-| M77 | MW5b | IN_PROGRESS | M70 | Sonnet 5.5 high | — | — | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
-| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
+| M77 | MW5b | COMPLETED | M70 | Sonnet 5.5 high | [M77](handoffs/M77.md) | `f11f35a` | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
+| M60 | MW6 | READY | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 

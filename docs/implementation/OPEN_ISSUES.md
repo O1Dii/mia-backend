@@ -130,7 +130,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M40-001 | OPEN | Plugins / Linear | Набор tools официального сервера Linear не проверен вживую | 14 имён по памяти; расхождение = `tools_mismatch` | UC-M40-1 |
 | OI-M40-002 | OPEN | MCP Apps | Отдаёт ли реальный Linear `structuredContent` для `list_issues` | плитка читает только `structuredContent` | UC-M40-1 |
 | OI-M41-001 | OPEN | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
-| OI-M41-002 | DECIDED | Notifications | Telegram не входит в каналы доставки по умолчанию | пользователь сам настраивает каналы и типы событий; новый канал спрашивает при подключении | M77 |
+| OI-M41-002 | RESOLVED | Notifications | Telegram не входит в каналы доставки по умолчанию | пользователь сам настраивает каналы и типы событий; новый канал спрашивает при подключении | resolved in M77 (каналы × типы, вопрос при подключении) |
 | OI-M41-003 | OPEN | Android device tools | `telegram.handoff` успешен на заблокированном телефоне | M23-R: `device_locked` при keyguard (опц.) | M60 |
 | OI-M41-004 | OPEN | Telegram bot | Webhook вне `/v1`, регистрация вручную | `python -m app.modules.notifications.telegram_webhook set` | M62 |
 | OI-M42-001 | OPEN | Connections / Google | Google OAuth без DCR/CIMD — нет преднастроенного клиента | smoke ждёт OI-M15-004 | M51 / по ёмкости |
@@ -163,13 +163,13 @@ Integration session обновляет этот индекс после merge.
 | OI-M51-R1-002 | OPEN | Connections UX | Add-by-URL сервера, у которого AS — Mia: согласие показывает «Mia» | общий грант клиента подключений Mia | UC-M51R1-2 / M60 |
 | OI-M51-R1-003 | OPEN | OAuth storage | Строка `oauth_tokens` на каждый вызов `mia_token` | выпуск на каждый вызов | M62 (retention/кэш) |
 | OI-UX-001 | OPEN | Android / web IA | Где живут разделы в приложении: внутри «Дашборда» вся web-оболочка с вкладкой «Чат»; что уйти в настройки, что в верхние вкладки | пока как есть (не критично, решение пользователя 2026-10-10) | дизайн-решение до M60 / отдельная сессия |
-| OI-LIVE-001 | OPEN | Web / Android chat | Markdown-таблицы в ответах не рендерятся (web `lib/markdown.tsx` — подмножество без таблиц; Android аналогично) | таблица показывается строкой | M75 / M76 |
-| OI-LIVE-002 | OPEN | Custom servers / approvals | Каждый вызов сервера по URL (даже чтение) просит подтверждения; ошибочные вызовы модели множат подтверждения | все инструменты URL-сервера `write_external` (OI-M15-002) | M72 (риск по MCP-аннотациям `readOnlyHint`/`destructiveHint`, правка пользователем) |
-| OI-LIVE-003 | OPEN | Tools UX | Неудачные вызовы («list projects · не удалось» ×4) не показывают причину, модель угадывает аргументы | причина ошибки скрыта | M73 (журнал и причина ошибки шага) |
+| OI-LIVE-001 | RESOLVED | Web / Android chat | Markdown-таблицы в ответах не рендерятся (web `lib/markdown.tsx` — подмножество без таблиц; Android аналогично) | таблица показывается строкой | resolved in M75/M76 (GFM-таблицы) |
+| OI-LIVE-002 | RESOLVED | Custom servers / approvals | Каждый вызов сервера по URL (даже чтение) просит подтверждения; ошибочные вызовы модели множат подтверждения | все инструменты URL-сервера `write_external` (OI-M15-002) | resolved in M72 (риск из MCP-аннотаций, правка на экране) |
+| OI-LIVE-003 | RESOLVED | Tools UX | Неудачные вызовы («list projects · не удалось» ×4) не показывают причину, модель угадывает аргументы | причина ошибки скрыта | resolved in M73/M75/M76 (аргументы и причина шага) |
 | OI-M41-R1-001 | OPEN | Screen actions | Внешние (remote) плагины не могут показывать кнопки | только in-process | по запросу |
-| OI-M41-R1-002 | OPEN | Web chat | После обрыва потока кнопка появляется только с перезагрузкой ленты | Run без actions | M75 |
-| OI-M41-R1-003 | OPEN | Retention | Истёкшая ссылка остаётся в `run_events`/ленте до очистки | URL скрыт после срока | M74 (retention) |
-| OI-M15-R1-001 | OPEN | Tools router | Роутер не ограничивает итоговый список 128 инструментами модели | бюджет плагинов 96 + ~20 ядра | M70 (владелец router) |
+| OI-M41-R1-002 | RESOLVED | Web chat | После обрыва потока кнопка появляется только с перезагрузкой ленты | Run без actions | resolved in M75 (перечитывание ленты после обрыва) |
+| OI-M41-R1-003 | DECIDED | Retention | Истёкшая ссылка остаётся в `run_events`/ленте до очистки | URL скрыт после срока | M74: истёкшие ссылки вычищаются из ленты; `run_events` — с retention run |
+| OI-M15-R1-001 | RESOLVED | Tools router | Роутер не ограничивает итоговый список 128 инструментами модели | бюджет плагинов 96 + ~20 ядра | resolved in M70 (роутер режет до 128) |
 | OI-M15-R1-002 | OPEN | Custom servers | Любое изменение инструментов сервера по URL блокирует его до пересогласия | «Требует внимания» | по ёмкости |
 | OI-M15-R1-003 | OPEN | Model context | До 96 описаний инструментов в каждом ходе чата | обрезка описаний | M73 / M61 |
 | OI-M22-R1-001 | OPEN | Android voice | Перебивание живым голосом поверх ответа (double talk) не проверено автоматически | AEC может глушить и пользователя; тогда перебить — между ответами или «Стоп» | UC-R-0110 |
@@ -181,9 +181,61 @@ Integration session обновляет этот индекс после merge.
 | OI-M24-R1-001 | OPEN | Web layout | Вёрстка вне диалогов опирается на `vh`/`dvh` | WebView теперь MATCH_PARENT | вместе с OI-UX-001 |
 | OI-M24-R1-002 | OPEN | Web / WebView | Точка-индикатор под обложкой видна поверх диалога | косметика | по ёмкости |
 | OI-M24-R1-003 | RESOLVED | Web tests | Нестабильный Playwright «a server added by URL» | ожидание истории в `journey.spec.ts` (M15-R1); корень — OI-M31-005 | resolved in M15-R1 integration |
-| OI-M62-T1-001 | OPEN | Android WebView | WebView считает весь origin mindmapgen.xyz своим (не только `/mia/`) | ссылки на другие приложения домена остаются в WebView | Android follow-up |
+| OI-M62-T1-001 | RESOLVED | Android WebView | WebView считает весь origin mindmapgen.xyz своим (не только `/mia/`) | ссылки на другие приложения домена остаются в WebView | resolved in M71 (WebView только под `/mia/`) |
 | OI-M62-T1-002 | OPEN | Deploy | Данные и ключи тестового сервера только на VM | нет внешних бэкапов | M62 |
 | OI-M62-T1-003 | OPEN | Backend tests | `tests/jobs/test_process.py` чувствителен к времени (SIGTERM через 1,5 с) | flaky под нагрузкой | по ёмкости |
+| OI-M70-001 | RESOLVED | run engine  (, владелец M73 | Событие `approval.requested` не несёт `device_consent` | M73/integrator добавит в `approval_payload` после блока `decision`: `if approval.device_c… | resolved in MW5b integration (approval.requested несёт device_consent) |
+| OI-M70-002 | OPEN | M17 | `people.resolve` и `builtin.telegram.send_message` из браузера не доходят до телефона | так и остаётся в MVP; WebView и нативное приложение работают как раньше (run несёт провер… | UC M71 «web-запрос → телефон». |
+| OI-M70-003 | OPEN | worker | Фоновые задачи и сторонние приложения не получают инструменты телефона | job и app → deny; инструменты не перечисляются. | задача, которой нужен телефон; второй экземпляр A… |
+| OI-M70-004 | OPEN | M70 | Целевое устройство = телефон, последним объявивший инструменты | последний по `device_tool_declarations.updated_at`. | второй телефон или ПК-узел. |
+| OI-M70-005 | OPEN | M24 hand-off | Старые web-сессии WebView не привязаны к устройству | миграция не трогает старые сессии. | первая живая проверка WebView после выкладки. |
+| OI-M70-006 | OPEN | M70 | Хранение журнала обращений и строк грантов | как выше. | ревью retention. |
+| OI-M70-007 | DECIDED | M70 | «Ещё в Часах»: предпочтение хранится в памяти, а не в плагине | плагин помнит только, что предложение сделано (`clock_offer` в состоянии плагина): текст… | если нужна явная настройка в UI — новый инструмен… |
+| OI-M73-001 | OPEN | реестр инструментов | «Интернет» нельзя отключить пользователю | всегда включён; своя установка пользователя с актуальным дайджестом сохраняется как есть,… | запрос на отключение поиска. |
+| OI-M73-002 | RESOLVED | web /журнал шагов, Android ; события | Клиенты ещё не показывают аргументы и причину ошибки шага | показ в M75 (web) и M76 (Android); формат полей описан в handoff M73. | resolved in M75 (web) и M76 (Android) |
+| OI-M73-003 | OPEN | M73 | Вызов несуществующего инструмента не попадает в журнал событий | только лог сервера. | жалоба на «пустой» журнал. |
+| OI-M73-004 | OPEN | Google News RSS | «За сегодня» — это окно новостей 48 часов | окно 48 часов, отбор по дате делает модель. | живая проверка «новости за сегодня» с устаревшими… |
+| OI-M74-001 | RESOLVED | владелец M70 в MW5b | «Пока вас не было» не звучит в чатах, выбранных явно | файл не в scope M74, не менялся. | resolved in MW5b integration (заметка в любом чате) |
+| OI-M74-002 | DECIDED | M74 | Контекст фоновой задачи: скрытая беседа, а не чат-источник | job runs пишут в скрытую беседу пользователя `kind = background` (не видна в списке чатов… | жалоба «задача не помнит, о чём говорили». |
+| OI-M74-003 | OPEN | M74 | Чат «Telegram»: подтверждения и разметка | как выше. | живая проверка Telegram-диалога (UC в USER_CHECKS… |
+| OI-M74-004 | DECIDED | M74 | Хранение чатов: детали политики | проверка раз в час в процессе API (не в worker), безопасна при нескольких экземплярах (`S… | ревью retention перед бетой. |
+| OI-M74-005 | OPEN | S-era), Android | Legacy `/v1/conversations` рядом с `/v1/chats` |  | после M76. |
+| OI-M75-001 | DECIDED | web | Новый чат создаётся с первым сообщением, а не по кнопке | «Новый чат» открывает черновик (`/chat/new`, строка «Новый чат · Ещё без сообщений» в спи… | жалоба «хочу назвать чат до первого сообщения». |
+| OI-M75-002 | DECIDED | web  (внутри | «Сейчас» показывается только на экране чата | полоса живёт в экране чата (над лентой), общая для всех чатов (ADR-0017: таймеры, будильн… | живая проверка MW5b. |
+| OI-M75-003 | OPEN | web | Журнал шагов виден только у живого ответа, после перезагрузки его нет | показ только вживую. | жалоба «не вижу, почему тогда не получилось». |
+| OI-M75-004 | OPEN | backend, ), web | Превью чата содержит Markdown как есть |  | M76. |
+| OI-M75-005 | OPEN | web | Карточка результата ведёт во «Входящие», а не к записи |  | жалоба «не нашла задачу во входящих». |
+| OI-M75-006 | OPEN | web  (, M31) и  (, M74 | Два срока хранения: «история разговоров» в Памяти и «Хранить чаты» в списке чатов |  | живая проверка MW5b. |
+| OI-M75-007 | OPEN | web  (30 с, 4 с пока есть фоновая задач… | Список чатов и «Сейчас» обновляются опросом |  | жалоба «ответ в Telegram-чате появился не сразу». |
+| OI-M76-001 | DECIDED | Android  (), , голосовой экран | Новый диалог по боковой кнопке создаётся лениво, пустой чат не остаётся | боковая кнопка (и холодный запуск ассистентом) делает текущую цель «новый диалог» и в фон… | живая проверка UC-M76-1. |
+| OI-M76-002 | OPEN | кнопка «Продолжить: <название>» | «Продолжить прошлый» показывается только на голосовом экране | кнопка только на голосовом экране, пять минут после последнего ответа (окно считает серве… | UC-M76-1. |
+| OI-M76-003 | DECIDED | M76 | Переключение чата во время работающего ответа | ответ, который идёт в чате A, не отменяется при переходе в чат B: подписка на события зак… | жалоба на потерянное подтверждение. |
+| OI-M76-004 | OPEN | +  (feature/chat | Таймер в шторке: обновляется, пока живёт процесс приложения | достаточно для «вызвал голосом — видно в шторке». | UC-M76-1 п. 4. |
+| OI-M76-005 | RESOLVED | app | Разрешение на уведомления для таймера | без настроенного FCM push-стек разрешение не просит, поэтому первый активный таймер на An… | resolved in M71 (общий запрос разрешения) |
+| OI-M76-006 | OPEN | M76 | Legacy `HttpConversationRemote` не удалён |  | после MW5b. |
+| OI-M76-007 | DECIDED | M76 | Markdown-таблицы и журнал шагов: что покрыто | OI-LIVE-001 (Android): GFM-таблицы разбираются по строкам вида `/ a / b /` + строка вырав… | — |
+| OI-M76-008 | OPEN | M76 | Результат фоновой задачи в ленте: карточка без перехода |  | UC-M76-1 п. 6. |
+| OI-M71-001 | RESOLVED | backend | Push будильника/таймера должен быть data-only, иначе в фоне телефон не зазвонит | диф вносит интегратор MW5b / M77 (владелец `notifications/**` после M70). | resolved in MW5b integration (`555bc0b`: data-only, TTL 600 с) |
+| OI-M71-002 | DECIDED | M71 | Таймер звонит так же, как будильник | звонят `builtin.alarm` и `builtin.timer` (один экран и канал; заголовок «Будильник»/«Тайм… | UC-M71-1. |
+| OI-M71-003 | DECIDED | M71 | Согласие в foreground открывает экран, в фоне — уведомление | push `device_consent` при открытом приложении сразу открывает экран согласия «<клиент> пр… | UC-M71-1. |
+| OI-M71-004 | OPEN | device tools with OS-permission prompt | Вызовы очереди выполняются в процессе, который разбудил push | пользователь один раз выдал разрешение «Контакты» в приложении. | UC-M71-1, пункты «web-запрос → телефон». |
+| OI-M71-005 | OPEN | M71 | Нет «Отложить» у будильника Mia | выключить и поставить новый голосом. | отзыв по UC-M71-1. |
+| OI-M71-006 | DECIDED | раздел «Будильники и таймеры Мии» | Полноэкранный будильник на Android 14+ можно выключить в системе | объявлено `USE_FULL_SCREEN_INTENT`; в настройках приложения (live-сборка) есть кнопка «Пр… | UC-M71-1. |
+| OI-M71-007 | RESOLVED | M71 | Экран «Уведомления» в настройках приложения ждёт M77 | отдельный follow-up после интеграции M77 (место: новый раздел `SettingsRoute`, рядом с «Д… | resolved in M71-F1 |
+| OI-M71-008 | OPEN | M71 | Старые сессии WebView (OI-M70-005) не сбрасываются | (a) из OI-M70-005 — не трогать. | UC-M71-1, пункт «WebView на телефоне не просит со… |
+| OI-M71-009 | RESOLVED | M71 | Resolution update → OI-M62-T1-001 (WebView только под `/mia/`) | вариант (a): `WebNavigationPolicy` разрешает навигацию только на origin Mia **и** под пут… | resolution update → OI-M62-T1-001 |
+| OI-M71-010 | RESOLVED | M71 | Resolution update → OI-M76-005 (общий запрос разрешения на уведомления) | таймеры (`NowNotificationPermissionEffect`) и push/будильник/согласие (`PushRegistrationE… | resolution update → OI-M76-005 |
+| OI-M71-011 | OPEN | backend push | «Обновить Сейчас» data-push (OI-M76-004) не реализован | оставить. | жалоба на «таймер не видно в шторке». |
+| OI-M71-012 | DECIDED | M71 | «Уведомления» на телефоне: таблица карточками и откат при ошибке | (1) таблица «тип события × канал» на телефоне — не сетка, а по карточке на тип события со… | UC-M71-1 / UC-M77-1: замечания по размеру элемент… |
+| OI-M72-001 | DECIDED | M72 | Неразмеченный инструмент сервера по URL считается внешним действием | `readOnlyHint:true` → read; `destructiveHint:false` → write_reversible; всё остальное, вк… | M60. |
+| OI-M72-002 | OPEN | каталог | Опубликованные релизы не получают «Где работает» без повторной публикации | перепубликация при следующем релизе пакета. | выкладка MW5b. |
+| OI-M72-003 | OPEN | Android store (если появится), web | Блок «Где работает» ещё не на Android и в «Моих плагинах» | только страница плагина и экран согласия. | M60. |
+| OI-M72-004 | OPEN | Tool Router | Кнопки на экран от удалённых плагинов (OI-M41-R1-001) | вариант (b) остаётся рекомендацией: только `https`-ссылки на хост `server.url`/`permissio… | первый удалённый плагин с кнопкой. |
+| OI-M77-001 | OPEN | M77 | После выкладки: перерегистрировать webhook бота и включить Telegram тем, кто привязан дав… | при выкладке выполнить `python -m app.modules.notifications.telegram_webhook set` (нужны… | выкладка MW5b. |
+| OI-M77-002 | OPEN | M77 | Событие «подтверждения» покрывает только фоновые задачи | оставить так. Явные `delivery.channels` задачи относятся к её результату и к уведомлению… | живая проверка ADR-0016 на телефоне. |
+| OI-M77-003 | OPEN | M77 | Канал плагина: только точка расширения в манифесте | первый канал плагина добавит сессия, которой он понадобится (регистрация через `app.state… | первый плагин с каналом. |
+| OI-M77-004 | OPEN | M77 | `delivery.channels` задачи без явных каналов показывает заглушку `[inbox, push]` | оставить; миграция пометила `auto` существующие задачи и расписания с каналами ровно `[in… | экран задач с каналами. |
+| OI-MW5b-001 | OPEN | Runs / DB pool | Под нагрузкой: таймаут 20 параллельных runs и одно зависание полного pytest | нагрузка машины; на свободной — PASS | M60 |
 
 ## Record template
 
@@ -3323,7 +3375,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M70-001 — Событие `approval.requested` не несёт `device_consent`
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M70
 - Component: run engine `approval_payload` (`app/modules/runs/engine.py`, владелец M73)
 - Question: клиенты (web M75, Android M71) должны показывать «Подтвердите на телефоне» вместо кнопок для согласия, которое решает только телефон. `Approval.device_consent` есть в `GET /v1/approvals*` и в контракте события (оно ссылается на `Approval`), но движок собирает payload по полям и его не копирует.
@@ -3333,6 +3385,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) при интеграции MW5b-1.
 - Affected future sessions: M73, M75, M71, MW5b-integrator.
 - Revisit trigger/deadline: интеграция MW5b-1.
+- Resolution: Integrator MW5b (`4f98651`): `approval_payload` копирует `device_consent` в событие `approval.requested`.
 
 ### OI-M70-002 — `people.resolve` и `builtin.telegram.send_message` из браузера не доходят до телефона
 
@@ -3418,7 +3471,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M71-001 — Push будильника/таймера должен быть data-only, иначе в фоне телефон не зазвонит
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M71
 - Component: backend `app/modules/notifications/channels.py` (`PushChannel.payload`), `app/modules/notifications/fcm.py`
 - Question: сработавший облачный будильник/таймер уже уходит push-ом `inbox_item` (`source_type=plugin`, `source_id=builtin.alarm:<id>` / `builtin.timer:<id>`, `title`, `speech`), но с блоком `notification`. Пока приложение в фоне или убито, Android сам показывает обычное уведомление и `onMessageReceived` не вызывается: полноэкранный будильник со звуком не запустить. В foreground приложение уже звонит.
@@ -3429,6 +3482,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a).
 - Affected future sessions: M77, MW5b-integrator, M60.
 - Revisit trigger/deadline: UC-M71-1, пункт «будильник при заблокированном экране».
+- Resolution: Integrator MW5b (`555bc0b`): `PushChannel.payload` для `builtin.alarm:`/`builtin.timer:` — data-only, TTL 600 с; тест `tests/notifications/test_push_payload.py`.
 
 ### OI-M71-002 — Таймер звонит так же, как будильник
 
@@ -3661,7 +3715,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M74-001 — «Пока вас не было» не звучит в чатах, выбранных явно
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M74
 - Component: `app/modules/notifications/away.py` (`AwaySummaryFeed.context`, владелец M70 в MW5b)
 - Question: обёртка добавляет заметку о новых входящих только когда run идёт без `conversation_id`. С чатами (ADR-0017) web/Android всегда передают `conversation_id`, и заметка перестанет звучать.
@@ -3671,6 +3725,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) — одна строка; M70 или integrator MW5b.
 - Affected future sessions: M70, M75, M76, M60.
 - Revisit trigger/deadline: интеграция MW5b.
+- Resolution: Integrator MW5b (`4f98651`): условие `or conversation_id is not None` убрано, тест `test_note_reaches_an_explicitly_chosen_chat`.
 
 ### OI-M74-002 — Контекст фоновой задачи: скрытая беседа, а не чат-источник
 
@@ -3898,6 +3953,21 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: после M60 — кнопка «Открыть во входящих» в web-поверхности M24.
 - Affected future sessions: M60, M75.
 - Revisit trigger/deadline: UC-M76-1 п. 6.
+
+## MW5b integration inbox
+
+### OI-MW5b-001 — Параллельные runs на Postgres под нагрузкой машины
+
+- Status: OPEN
+- Source session: MW5b integrator
+- Component: run engine / пул соединений (тест `tests/runs/test_stream.py::test_twenty_parallel_runs_do_not_mix_events[postgres]`)
+- Question: при параллельной сборке Gradle и Playwright тест 20 параллельных runs однажды не уложился в 10 с, а один полный прогон pytest завис на ~40 мин: в Postgres висели сессии `idle in transaction` с `SELECT … FROM runs`. Это только нагрузка или исчерпание пула (сессия держит транзакцию и ждёт вторую из того же пула — новые обёртки ленты M74/M70)?
+- Why non-blocking: на свободной машине полный прогон 1532 passed; тест отдельно 3/3 за 2–4 с; зависание не воспроизвелось.
+- Current assumption: нагрузка машины.
+- Options: (a) оставить; (b) в M60 прогнать нагрузочный сценарий (20–50 runs) с `pool_timeout` и логом ожидания пула; (c) `pytest-timeout` в dev-зависимостях, чтобы зависание падало с трассой.
+- Recommendation: (b) + (c) в M60.
+- Affected future sessions: M60, M62.
+- Revisit trigger/deadline: M60 или повтор зависания.
 
 ## M60 inbox
 
