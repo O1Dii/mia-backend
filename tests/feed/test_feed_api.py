@@ -127,7 +127,7 @@ async def test_incognito_runs_are_not_in_the_feed(world: FeedWorld) -> None:
         )
         await collect(service, user_id, hidden.id)
         empty = await client.get("/v1/feed", headers=headers)
-        assert empty.json() == {"items": [], "next_cursor": None}
+        assert empty.json()["items"] == [] and empty.json()["next_cursor"] is None
 
         shown, _ = await service.start(
             NewRun(user_id=user_id, profile="chat", input_text="обычный вопрос")
@@ -244,7 +244,11 @@ async def test_empty_feed_and_bad_input(world: FeedWorld) -> None:
     async with world.harness.client() as client:
         headers, user_id = await world.alice_bearer(client, "sub-alice")
         empty = await client.get("/v1/feed", headers=headers)
-        assert empty.status_code == 200 and empty.json() == {"items": [], "next_cursor": None}
+        assert empty.status_code == 200 and empty.json() == {
+            "items": [],
+            "next_cursor": None,
+            "conversation_id": None,
+        }
         # a read never creates the feed
         async with world.harness.factory() as session:
             assert (
@@ -278,7 +282,11 @@ async def test_bearer_and_web_cookie_read_the_same_feed(world: FeedWorld) -> Non
 
     async with world.harness.client() as stranger:
         await world.web_user(stranger, "sub-mallory")
-        assert (await stranger.get("/v1/feed")).json() == {"items": [], "next_cursor": None}
+        assert (await stranger.get("/v1/feed")).json() == {
+            "items": [],
+            "next_cursor": None,
+            "conversation_id": None,
+        }
 
 
 async def test_unauthenticated_requests_are_rejected(world: FeedWorld) -> None:

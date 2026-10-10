@@ -14,7 +14,11 @@ REGISTRY = Path("contracts/mvp/v1/error-codes.json")
 def test_application_mounts_the_feed() -> None:
     app = create_app(Settings(app_env="test"))
     operation = app.openapi()["paths"]["/v1/feed"]["get"]
-    assert {parameter["name"] for parameter in operation["parameters"]} == {"before", "limit"}
+    assert {parameter["name"] for parameter in operation["parameters"]} == {
+        "before",
+        "limit",
+        "conversation_id",
+    }
 
 
 def test_feed_error_code_is_registered() -> None:

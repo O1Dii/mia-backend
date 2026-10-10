@@ -18,7 +18,7 @@ from app.modules.conversations import (
 )
 from app.modules.conversations.models import Conversation, Entry, Turn, TurnSource, TurnStatus
 from app.modules.conversations.repositories import ConversationNotFoundError
-from app.modules.runs import NewRun, VoiceFeedOnlyError
+from app.modules.runs import NewRun
 from app.modules.runs.models import RunRow
 from app.modules.runs.summarizer import ModelFeedSummarizer
 from sqlalchemy import inspect, select, text
@@ -130,20 +130,23 @@ async def test_incognito_and_failed_runs(pg_world: RunWorld) -> None:
 async def test_conversation_rules(pg_world: RunWorld) -> None:
     factory = pg_world.session_factory
     assert factory is not None
-    service = pg_world.service(scripted(text_step(answer("Ок."))), with_feed=True)
+    service = pg_world.service(
+        scripted(text_step(answer("Ок.")), text_step(answer("Ок."))), with_feed=True
+    )
     topic = await ConversationService(factory).create_conversation(
         user_id=pg_world.user, idempotency_key="topic-conversation-01", title="Тема"
     )
 
-    with pytest.raises(VoiceFeedOnlyError):
-        await service.start(
-            NewRun(
-                user_id=pg_world.user,
-                profile="voice",
-                input_text="x",
-                conversation_id=topic.value.id,
-            )
+    voice, _ = await service.start(  # voice may target any chat (M74, ADR-0017)
+        NewRun(
+            user_id=pg_world.user,
+            profile="voice",
+            input_text="x",
+            conversation_id=topic.value.id,
         )
+    )
+    voice_events = await collect(service, pg_world.user, voice.id)
+    assert payload_of(voice_events, "run.started")["conversation_id"] == str(topic.value.id)
     with pytest.raises(ConversationNotFoundError):
         await service.start(
             NewRun(

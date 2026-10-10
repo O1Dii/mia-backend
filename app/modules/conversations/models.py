@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -69,6 +70,23 @@ class Modality(StrEnum):
     AUDIO = "audio"
 
 
+class ChatKind(StrEnum):
+    """What a conversation is to the user (ADR-0017); ``NULL`` = a legacy S-era conversation."""
+
+    CHAT = "chat"
+    TELEGRAM = "telegram"
+    """The dialog with the Mia Telegram bot; one per user, ``/new`` turns it into a plain chat."""
+    BACKGROUND = "background"
+    """Hidden per-user context of job runs; never listed as a chat."""
+
+
+class TitleSource(StrEnum):
+    AUTO = "auto"
+    """Provisional title from the first message; the model may replace it."""
+    MODEL = "model"
+    USER = "user"
+
+
 class DeliveryStatus(StrEnum):
     PENDING = "pending"
     STREAMING = "streaming"
@@ -88,6 +106,27 @@ class Conversation(Base):
             unique=True,
             postgresql_where=text("is_primary_feed"),
         ),
+        CheckConstraint(
+            "kind IS NULL OR kind IN ('chat', 'telegram', 'background')",
+            name="ck_conversations_kind",
+        ),
+        CheckConstraint(
+            "title_source IS NULL OR title_source IN ('auto', 'model', 'user')",
+            name="ck_conversations_title_source",
+        ),
+        Index("ix_conversations_user_kind_activity", "user_id", "kind", "last_message_at"),
+        Index(
+            "uq_conversations_telegram_chat",
+            "user_id",
+            unique=True,
+            postgresql_where=text("kind = 'telegram'"),
+        ),
+        Index(
+            "uq_conversations_background",
+            "user_id",
+            unique=True,
+            postgresql_where=text("kind = 'background'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -101,7 +140,7 @@ class Conversation(Base):
     is_primary_feed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    """The user's single continuous feed (Review §5.2(f)); voice always writes here."""
+    """The chat created implicitly when a user has none (formerly the single feed, M12)."""
     next_sequence: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=1, server_default="1"
     )
@@ -112,6 +151,37 @@ class Conversation(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kind: Mapped[str | None] = mapped_column(String(16))
+    """:class:`ChatKind` value; ``NULL`` for legacy conversations (not chats)."""
+    title_source: Mapped[str | None] = mapped_column(String(8))
+    """:class:`TitleSource` value of ``title``."""
+    pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """Pinned chats are listed first and never removed by retention."""
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """Last user or assistant message; retention counts inactivity from here."""
+    last_assistant_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """Last assistant answer («Продолжить прошлый» within a few minutes)."""
+
+
+class ChatSettingsRow(Base):
+    """Per-user chat settings; a missing row means the defaults (60 days)."""
+
+    __tablename__ = "chat_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "retention_days IS NULL OR retention_days IN (30, 60, 180)",
+            name="ck_chat_settings_retention_days",
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    retention_days: Mapped[int | None] = mapped_column(Integer)
+    """Days of inactivity before an unpinned chat is deleted; ``NULL`` = never."""
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class Turn(Base):

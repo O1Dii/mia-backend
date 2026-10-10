@@ -68,8 +68,6 @@ class RunService:
         request_hash: str | None = None,
     ) -> tuple[RunRecord, bool]:
         """Create the run and start executing it; a replayed key returns the existing run."""
-        if new.profile == "voice" and new.conversation_id is not None:
-            raise VoiceFeedOnlyError("voice runs always use the primary feed")
         feed = self.engine.feed
         if new.conversation_id is not None and feed is not None:
             if not await feed.owns_conversation(

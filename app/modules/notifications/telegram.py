@@ -8,19 +8,26 @@ people (Review §7.5), which is why sending to a person is the L0 hand-off of th
 
 The channel delivers M16 inbox items: ``skipped`` without a linked chat, ``retry`` for transient
 errors, and a blocked bot or deleted chat unlinks the user.
+
+Chat «Telegram» (M74, ADR-0017 §5): when the app wires runs and chats
+(:class:`TelegramConversation`), a plain message from the linked user is a ``chat`` run in the
+user's Telegram chat and the answer is sent back; ``/new`` keeps the current dialog as an
+ordinary chat and starts a fresh one. Approvals are given in the app (the bot says so).
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import re
 import secrets
+import time
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from sqlalchemy import delete, select, update
@@ -32,6 +39,10 @@ from app.core.runtime import Runtime
 from app.modules.notifications.channels import ChannelRegistry, DeliveryResult, OutboundMessage
 from app.modules.notifications.telegram_api import HttpTelegramBotApi, TelegramBotApi
 from app.modules.notifications.telegram_models import TelegramLinkRow, TelegramLinkTokenRow
+
+if TYPE_CHECKING:
+    from app.modules.conversations.chats import ChatService
+    from app.modules.runs.service import RunService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +59,16 @@ REPLY_HELP = (
     "Я присылаю уведомления Mia: результаты фоновых задач и напоминания. "
     "Команда /stop отключает уведомления."
 )
+REPLY_CHAT_HELP = (
+    "Пишите сюда — я отвечу, как в приложении Mia. "
+    "/new — начать новый диалог, /stop — отключить Telegram."
+)
+REPLY_NEW_CHAT = "Начала новый диалог. Прошлый сохранён в списке чатов Mia."
+REPLY_TEXT_ONLY = "Пока я понимаю здесь только текст."
+REPLY_APPROVAL = "Нужно ваше подтверждение — откройте Mia в приложении или на сайте."
+REPLY_FAILED = "Не получилось ответить. Попробуйте ещё раз чуть позже."
+INPUT_MAX_CHARS = 16000
+ANSWER_WAIT_S = 30 * 60
 
 
 def utc_now() -> datetime:
@@ -69,6 +90,7 @@ class LinkedChat:
     user_id: uuid.UUID
     chat_id: int
     created_at: datetime
+    telegram_user_id: int | None = None
 
 
 class TelegramLinks:
@@ -169,6 +191,20 @@ class TelegramLinks:
             return None
         return LinkedChat(user_id=row.user_id, chat_id=row.chat_id, created_at=row.created_at)
 
+    async def user_for_chat(self, chat_id: int) -> LinkedChat | None:
+        async with self._sessions() as session:
+            row = await session.scalar(
+                select(TelegramLinkRow).where(TelegramLinkRow.chat_id == chat_id)
+            )
+        if row is None:
+            return None
+        return LinkedChat(
+            user_id=row.user_id,
+            chat_id=row.chat_id,
+            created_at=row.created_at,
+            telegram_user_id=row.telegram_user_id,
+        )
+
     async def unlink_user(self, user_id: uuid.UUID) -> bool:
         async with self._sessions() as session, session.begin():
             result = await session.execute(
@@ -188,12 +224,119 @@ def _int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def answer_text(response: Mapping[str, Any] | None) -> str:
+    """The text a Telegram user gets for a run's answer: display markdown, else speech."""
+    if not response:
+        return ""
+    display = response.get("display")
+    if isinstance(display, Mapping):
+        markdown = display.get("markdown")
+        if isinstance(markdown, str) and markdown.strip():
+            return markdown
+        if display.get("kind") == "link" and isinstance(display.get("url"), str):
+            return f"{response.get('speech') or ''}\n\n{display['url']}".strip()
+    speech = response.get("speech")
+    return speech if isinstance(speech, str) else ""
+
+
+class TelegramConversation:
+    """Messages of a linked user become runs in their Telegram chat; answers go back."""
+
+    def __init__(
+        self,
+        runs: RunService,
+        chats: ChatService,
+        api: TelegramBotApi,
+        *,
+        poll_s: float = 1.0,
+        wait_s: float = ANSWER_WAIT_S,
+    ) -> None:
+        self._runs = runs
+        self._chats = chats
+        self._api = api
+        self._poll_s = poll_s
+        self._wait_s = wait_s
+        self._tasks: set[asyncio.Task[None]] = set()
+
+    async def new_chat(self, linked: LinkedChat) -> None:
+        await self._chats.start_new_telegram_chat(user_id=linked.user_id)
+        await self._api.send_message(linked.chat_id, REPLY_NEW_CHAT)
+
+    async def ask(self, linked: LinkedChat, text: str, update_id: int | None) -> uuid.UUID | None:
+        """Start the run; the answer is sent by a background task. None for a replayed update."""
+        from app.modules.runs.domain import NewRun
+
+        conversation_id = await self._chats.telegram_chat_id(user_id=linked.user_id)
+        record, replayed = await self._runs.start(
+            NewRun(
+                user_id=linked.user_id,
+                profile="chat",
+                input_text=text[:INPUT_MAX_CHARS],
+                conversation_id=conversation_id,
+            ),
+            idempotency_key=None if update_id is None else f"telegram-update-{update_id}",
+            request_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        )
+        if replayed:
+            return None
+        task = asyncio.create_task(self._reply(linked, record.id))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return record.id
+
+    async def _reply(self, linked: LinkedChat, run_id: uuid.UUID) -> None:
+        deadline = time.monotonic() + self._wait_s
+        asked_approval = False
+        try:
+            while True:
+                if self._runs.is_live(run_id):
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(self._runs.wait_finished(run_id)),
+                            timeout=self._poll_s,
+                        )
+                    except TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(self._poll_s)
+                record = await self._runs.get(user_id=linked.user_id, run_id=run_id)
+                if record.terminal:
+                    break
+                if record.status == "waiting_approval" and not asked_approval:
+                    asked_approval = True
+                    await self._api.send_message(linked.chat_id, REPLY_APPROVAL)
+                if time.monotonic() > deadline:
+                    return
+            text = answer_text(record.response) if record.status == "completed" else ""
+            await self._api.send_message(linked.chat_id, text.strip() or REPLY_FAILED)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("telegram_answer_failed")
+
+    async def wait_idle(self) -> None:
+        """Wait until every pending answer is sent (tests)."""
+        while self._tasks:
+            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+
+    async def aclose(self) -> None:
+        for task in list(self._tasks):
+            task.cancel()
+        await asyncio.gather(*list(self._tasks), return_exceptions=True)
+
+
 class TelegramBot:
     """Handles webhook updates; never raises for a malformed update."""
 
-    def __init__(self, links: TelegramLinks, api: TelegramBotApi) -> None:
+    def __init__(
+        self,
+        links: TelegramLinks,
+        api: TelegramBotApi,
+        conversation: TelegramConversation | None = None,
+    ) -> None:
         self._links = links
         self._api = api
+        self.conversation = conversation
 
     async def handle_update(self, update_body: Mapping[str, Any]) -> None:
         message = update_body.get("message")
@@ -215,8 +358,32 @@ class TelegramBot:
         elif command == "/stop":
             await self._links.unlink_chat(chat_id)
             await self._api.send_message(chat_id, REPLY_UNLINKED)
-        else:
+        elif self.conversation is None:
             await self._api.send_message(chat_id, REPLY_HELP)
+        else:
+            await self._converse(update_body, chat_id, sender_id, command, text)
+
+    async def _converse(
+        self,
+        update_body: Mapping[str, Any],
+        chat_id: int,
+        sender_id: int,
+        command: str,
+        text: object,
+    ) -> None:
+        conversation = self.conversation
+        assert conversation is not None
+        linked = await self._links.user_for_chat(chat_id)
+        if linked is None or linked.telegram_user_id not in (None, sender_id):
+            await self._api.send_message(chat_id, REPLY_NO_TOKEN)
+        elif command == "/new":
+            await conversation.new_chat(linked)
+        elif command.startswith("/"):
+            await self._api.send_message(chat_id, REPLY_CHAT_HELP)
+        elif not isinstance(text, str) or not text.strip():
+            await self._api.send_message(chat_id, REPLY_TEXT_ONLY)
+        else:
+            await conversation.ask(linked, text.strip(), _int(update_body.get("update_id")))
 
     async def _start(self, chat_id: int, sender_id: int, token: str) -> None:
         if not token:
@@ -320,6 +487,10 @@ def install_telegram(
     stack = build_telegram(settings, runtime, api=api)
     if stack.channel is not None:
         channels.register(stack.channel)
+    chats = getattr(app.state, "chats", None)
+    runs = getattr(app.state, "runs", None)
+    if stack.bot is not None and stack.api is not None and chats is not None and runs is not None:
+        stack.bot.conversation = TelegramConversation(runs, chats.chats, stack.api)
     app.state.telegram = stack
     app.include_router(build_telegram_router(stack=stack, authenticator=request_authenticator(app)))
     return stack

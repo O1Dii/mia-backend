@@ -3333,7 +3333,65 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M74 inbox
 
-- Нет записей.
+### OI-M74-001 — «Пока вас не было» не звучит в чатах, выбранных явно
+
+- Status: OPEN
+- Source session: M74
+- Component: `app/modules/notifications/away.py` (`AwaySummaryFeed.context`, владелец M70 в MW5b)
+- Question: обёртка добавляет заметку о новых входящих только когда run идёт без `conversation_id`. С чатами (ADR-0017) web/Android всегда передают `conversation_id`, и заметка перестанет звучать.
+- Why non-blocking: входящие и push работают; заметка — удобство. Клиенты, ещё не перешедшие на чаты, её получают.
+- Current assumption: файл не в scope M74, не менялся.
+- Options: (a) убрать условие `or conversation_id is not None` (job runs и так подавлены `suppress_away_summary`); (b) заметка только в чате по умолчанию.
+- Recommendation: (a) — одна строка; M70 или integrator MW5b.
+- Affected future sessions: M70, M75, M76, M60.
+- Revisit trigger/deadline: интеграция MW5b.
+
+### OI-M74-002 — Контекст фоновой задачи: скрытая беседа, а не чат-источник
+
+- Status: DECIDED
+- Source session: M74
+- Component: `app/modules/jobs/runner.py`, `app/modules/conversations/chats.py`
+- Question: в каком контексте выполняется run задачи и где лежат её «вопрос/ответ»?
+- Decision: job runs пишут в скрытую беседу пользователя `kind = background` (не видна в списке чатов, чистится retention). В чат-источник попадает только карточка результата (`FeedItem.card`, текст результата в истории модели), и тот же результат — во входящие. Так промпт задачи не появляется в чате как реплика пользователя, а соседний чат его не видит.
+- Options: (a) так; (b) run задачи в чате-источнике (модель видит переписку, но промпт задачи виден в чате).
+- Recommendation: (a); цель задачи формулируется словами пользователя (M73), поэтому контекст чата не нужен. Пересмотреть, если задачам понадобится переписка.
+- Affected future sessions: M73, M75, M76, M60.
+- Revisit trigger/deadline: жалоба «задача не помнит, о чём говорили».
+
+### OI-M74-003 — Чат «Telegram»: подтверждения и разметка
+
+- Status: OPEN
+- Source session: M74
+- Component: `app/modules/notifications/telegram.py` (`TelegramConversation`)
+- Question: (1) подтверждение инструмента из Telegram-диалога даётся только в приложении — бот пишет «Нужно ваше подтверждение…»; (2) ответ отправляется как обычный текст (markdown без `parse_mode`); (3) сообщения, отправленные в этот чат из web/Android, в Telegram не дублируются.
+- Why non-blocking: диалог работает; подтверждение видно в приложении и в общем списке подтверждений.
+- Current assumption: как выше.
+- Options: кнопки «Одобрить/Отклонить» в Telegram (inline keyboard + callback) — отдельная сессия; `parse_mode=MarkdownV2` с экранированием.
+- Recommendation: после M60, если Telegram-диалог будет популярен.
+- Affected future sessions: M41-owner, M60.
+- Revisit trigger/deadline: живая проверка Telegram-диалога (UC в USER_CHECKS).
+
+### OI-M74-004 — Хранение чатов: детали политики
+
+- Status: DECIDED
+- Source session: M74
+- Component: `ChatRetention` (`app/modules/conversations/chats.py`)
+- Decision: проверка раз в час в процессе API (не в worker), безопасна при нескольких экземплярах (`SKIP LOCKED`); чат удаляется через N дней после `last_message_at` (N = 30/60/180, по умолчанию 60, `null` = никогда); закреплённые не удаляются; пустой незакреплённый чат удаляется через 24 ч всегда (кнопка/новый чат без сообщений); скрытая беседа задач — по тем же правилам; legacy-беседы (`kind IS NULL`) не трогаются. Удаление чата удаляет его ходы и записи; память, задачи, входящие и run'ы остаются (у run `conversation_id` → NULL).
+- Resolution update for OI-M41-R1-003: та же проверка убирает `url` у истёкших действий в записях ленты (остаются `label`, `expires_at`, `expired: true`). В `run_events.payload` ссылка остаётся — это владение M12/M73 (retention событий run).
+- Affected future sessions: M73, M75, M76.
+- Revisit trigger/deadline: ревью retention перед бетой.
+
+### OI-M74-005 — Legacy `/v1/conversations` рядом с `/v1/chats`
+
+- Status: OPEN
+- Source session: M74
+- Component: `app/modules/conversations/router.py` (S-era), Android `HttpConversationRemote`
+- Question: старый API бесед (bearer + Idempotency-Key, `contracts/openapi/v1`) всё ещё смонтирован и используется Android (`AppContainer` → `HttpConversationRemote`). Чаты живут под `/v1/chats`, чтобы не ломать его. Старый список теперь включает и чаты (у всех бесед один формат).
+- Why non-blocking: пути не пересекаются; новые клиенты используют `/v1/chats` и `/v1/feed`.
+- Options: удалить legacy API и Android-клиент после M76; или оставить.
+- Recommendation: M76 убирает `HttpConversationRemote`, затем отдельная cleanup-сессия снимает роутер.
+- Affected future sessions: M76, M60.
+- Revisit trigger/deadline: после M76.
 
 ## M75 inbox
 

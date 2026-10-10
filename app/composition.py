@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from pydantic import SecretStr
 
 from app.api.v1.device_tools import install_device_tools
-from app.api.v1.feed import build_feed_router
 from app.api.v1.tiles import install_tiles
 from app.api.v1.web_handoff import install_web_handoff
 from app.core.circuit import GuardedRealtimeSession, GuardedTextProvider, ProviderCircuit
@@ -15,7 +14,7 @@ from app.modules.auth.composition import install_auth, request_authenticator
 from app.modules.auth.service import AuthService, InvalidCredentialsError
 from app.modules.auth.tokens import InvalidAccessTokenError
 from app.modules.connections.resources import PluginResources
-from app.modules.conversations.feed import FeedService
+from app.modules.conversations.composition import install_chats
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
 from app.modules.jobs.composition import install_jobs
@@ -187,13 +186,8 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
     )
     tools.device_channel.bind_publisher(runs.publish)
     jobs = install_jobs(app, settings, runtime, runs=runs, core_tools=tools.core_tools)
+    install_chats(app, runtime, runs=runs, gateway=models_stack.gateway)
     install_telegram_plugin(app, settings, runtime, jobs=jobs, memory=memory, tools=tools)
-    app.include_router(
-        build_feed_router(
-            service=FeedService(runtime.database.session_factory),
-            authenticator=request_authenticator(app),
-        )
-    )
     memory.tools.bind_publisher(runs.publish)
     install_device_tools(
         app,

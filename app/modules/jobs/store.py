@@ -25,7 +25,10 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.conversations.chats import BACKGROUND_TITLE, singleton_chat_id
+from app.modules.conversations.models import ChatKind
 from app.modules.conversations.repositories import IdempotencyRepository
+from app.modules.jobs.chats import delivery_channels, post_result_card
 from app.modules.jobs.domain import (
     Job,
     JobError,
@@ -224,6 +227,11 @@ class SqlJobStore:
             return None
         return job_from_row(row)
 
+    async def background_conversation(self, user_id: uuid.UUID) -> uuid.UUID:
+        """The hidden conversation job runs read and write (never a listed chat, M74)."""
+        async with self._session_factory() as session, session.begin():
+            return await singleton_chat_id(session, user_id, ChatKind.BACKGROUND, BACKGROUND_TITLE)
+
     async def job_for_run(self, run_id: uuid.UUID) -> Job | None:
         async with self._session_factory() as session:
             row = await session.scalar(select(JobRow).where(JobRow.run_id == run_id).limit(1))
@@ -397,6 +405,8 @@ class SqlJobStore:
     async def _add_inbox(
         session: AsyncSession, row: JobRow, draft: InboxDraft, now: datetime
     ) -> None:
+        """Inbox item and deliveries; plus the result card in the source chat (M74)."""
+        chat = await post_result_card(session, row, draft, now)
         await add_item(
             session,
             user_id=row.user_id,
@@ -404,7 +414,7 @@ class SqlJobStore:
             source_id=str(row.id),
             title=draft.title,
             response=draft.response,
-            channels=tuple(row.delivery.get("channels") or ()),
+            channels=delivery_channels(row, chat),
             now=now,
         )
 

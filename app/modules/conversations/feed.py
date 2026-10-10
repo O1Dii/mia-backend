@@ -1,9 +1,10 @@
-"""The user's continuous feed with an episodic summary of its older part (Review §5.2(f)).
+"""Chat feeds with an episodic summary of their older part (M12/M18, ADR-0017).
 
-One primary conversation per user collects voice, chat and job results. Runs
-(M12) read a bounded window of recent entries plus ``Conversation.summary``
-and append the user's input and the final answer as ordinary entries, so the
-existing conversation/entries API keeps working on the same data.
+Every chat (``chats.py``) is one conversation with its own history and summary. Runs
+(M12) read a bounded window of recent entries plus ``Conversation.summary`` of *their*
+chat and append the user's input and the final answer as ordinary entries. Without an
+explicit conversation, runs and ``GET /v1/feed`` use the default chat (the most recently
+active one), which keeps single-feed clients working.
 """
 
 from __future__ import annotations
@@ -17,11 +18,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
-from sqlalchemy import func, select, text, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.ports.screen_action import listed_action
+from app.core.ports.screen_action import ACTION_KINDS, LABEL_MAX, listed_action
+from app.modules.conversations.chats import LISTED_KINDS, default_chat_id, mark_message
 from app.modules.conversations.models import (
     Conversation,
     DeliveryStatus,
@@ -39,7 +40,6 @@ from app.modules.conversations.repositories import (
 )
 from app.modules.users.models import User
 
-FEED_TITLE = "Mia"
 SUMMARY_MAX_CHARS = 4000
 _TEXT_KINDS = (EntryKind.TEXT, EntryKind.TRANSCRIPT)
 _DIALOG_ROLES = (EntryRole.USER, EntryRole.ASSISTANT)
@@ -123,12 +123,16 @@ class FeedItem:
     sequence: int
     actions: tuple[dict[str, Any], ...] = ()
     """Screen-only actions of the answer (M41-R1); expired ones come without ``url``."""
+    card: dict[str, Any] | None = None
+    """A result card posted into the chat (M74), e.g. ``{"type": "job_result", ...}``."""
 
 
 @dataclass(frozen=True, slots=True)
 class FeedPage:
     items: tuple[FeedItem, ...]
     next_cursor: str | None
+    conversation_id: uuid.UUID | None = None
+    """The chat the page belongs to (the default chat when none was asked for)."""
 
 
 def _run_id_of(idempotency_key: str) -> uuid.UUID | None:
@@ -141,12 +145,33 @@ def _run_id_of(idempotency_key: str) -> uuid.UUID | None:
         return None
 
 
+def _stored_action(raw: object, now: datetime) -> dict[str, Any] | None:
+    """A stored action as listed; one whose URL retention already removed stays disabled."""
+    if isinstance(raw, dict) and raw.get("expired") is True and "url" not in raw:
+        kind, label = raw.get("kind"), raw.get("label")
+        if kind not in ACTION_KINDS or not isinstance(label, str) or not label.strip():
+            return None
+        action: dict[str, Any] = {"kind": kind, "label": label.strip()[:LABEL_MAX]}
+        if isinstance(raw.get("expires_at"), str):
+            action["expires_at"] = raw["expires_at"]
+        action["expired"] = True
+        return action
+    return listed_action(raw, now)
+
+
 def _actions_of(entry: Entry, now: datetime) -> tuple[dict[str, Any], ...]:
     raw = entry.content.get("actions")
     if entry.role != EntryRole.ASSISTANT or not isinstance(raw, list):
         return ()
-    listed = (listed_action(item, now) for item in raw)
+    listed = (_stored_action(item, now) for item in raw)
     return tuple(action for action in listed if action is not None)
+
+
+def _card_of(entry: Entry) -> dict[str, Any] | None:
+    card = entry.content.get("card")
+    if entry.role != EntryRole.ASSISTANT or not isinstance(card, dict):
+        return None
+    return dict(card)
 
 
 def _display_of(entry: Entry) -> dict[str, Any] | None:
@@ -221,30 +246,23 @@ class FeedService:
             return found is not None
 
     async def primary_feed_id(self, *, user_id: uuid.UUID) -> uuid.UUID:
+        """The default chat (most recently active), created when the user has none."""
         async with self._session_factory() as session, session.begin():
-            return await self._primary_feed_id(session, user_id)
+            return await self._default_chat_id(session, user_id)
 
-    async def _primary_feed_id(self, session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
-        await session.execute(
-            insert(Conversation)
-            .values(id=uuid.uuid4(), user_id=user_id, title=FEED_TITLE, is_primary_feed=True)
-            .on_conflict_do_nothing(index_elements=["user_id"], index_where=text("is_primary_feed"))
-        )
-        feed_id = await session.scalar(
-            select(Conversation.id).where(
-                Conversation.user_id == user_id, Conversation.is_primary_feed.is_(True)
-            )
-        )
-        if feed_id is None:
-            raise RuntimeError("primary feed reservation was not visible")
-        return feed_id
+    @staticmethod
+    async def _default_chat_id(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
+        found = await default_chat_id(session, user_id, create=True)
+        if found is None:
+            raise RuntimeError("default chat was not created")
+        return found
 
     async def context(
         self, *, user_id: uuid.UUID, conversation_id: uuid.UUID | None = None
     ) -> FeedContext:
-        """Recent dialog plus the episodic summary; ``None`` selects the primary feed."""
+        """Recent dialog plus the episodic summary of one chat; ``None`` = the default chat."""
         async with self._session_factory() as session, session.begin():
-            target = conversation_id or await self._primary_feed_id(session, user_id)
+            target = conversation_id or await self._default_chat_id(session, user_id)
             conversation = await ConversationRepository(session).get_owned(
                 user_id=user_id, conversation_id=target
             )
@@ -322,7 +340,7 @@ class FeedService:
                 content={"text": input_text},
                 delivery_status=DeliveryStatus.DELIVERED,
             )
-            await self._touch(session, conversation_id)
+            await mark_message(session, conversation_id, at=self._clock(), first_text=input_text)
             return FeedTurn(conversation_id=conversation_id, turn_id=turn.id)
 
     async def record_answer(
@@ -353,6 +371,7 @@ class FeedService:
                 content=content,
                 delivery_status=DeliveryStatus.DELIVERED,
             )
+            await mark_message(session, turn.conversation_id, at=self._clock(), assistant=True)
             await self._finish_turn(session, turn, TurnStatus.COMPLETED)
 
     async def close_turn(self, *, turn: FeedTurn, status: TurnStatus) -> None:
@@ -408,23 +427,37 @@ class FeedService:
             return bool(getattr(result, "rowcount", 0))
 
     async def history(
-        self, *, user_id: uuid.UUID, before: str | None = None, limit: int = 50
+        self,
+        *,
+        user_id: uuid.UUID,
+        before: str | None = None,
+        limit: int = 50,
+        conversation_id: uuid.UUID | None = None,
     ) -> FeedPage:
-        """A page of the primary feed, newest first, older than the ``before`` cursor.
+        """A page of one chat, newest first, older than the ``before`` cursor.
 
-        Keyset on ``entries.sequence`` (allocated under the conversation row lock, so it is
-        committed in order): entries written meanwhile are newer than every cursor already
-        handed out, hence pages never skip or repeat an entry. Read-only: an absent feed
-        yields an empty page and rejects any cursor.
+        ``conversation_id`` selects the chat (``ConversationNotFoundError`` for a foreign,
+        hidden or missing one); ``None`` reads the default chat. Keyset on
+        ``entries.sequence`` (allocated under the conversation row lock, so it is committed
+        in order): entries written meanwhile are newer than every cursor already handed out,
+        hence pages never skip or repeat an entry. Read-only: a user without chats gets an
+        empty page and any cursor is rejected.
         """
         if limit < 1:
             raise ValueError("limit must be positive")
         async with self._session_factory() as session:
-            feed_id = await session.scalar(
-                select(Conversation.id).where(
-                    Conversation.user_id == user_id, Conversation.is_primary_feed.is_(True)
+            if conversation_id is not None:
+                feed_id = await session.scalar(
+                    select(Conversation.id).where(
+                        Conversation.id == conversation_id,
+                        Conversation.user_id == user_id,
+                        Conversation.kind.in_(LISTED_KINDS),
+                    )
                 )
-            )
+                if feed_id is None:
+                    raise ConversationNotFoundError("conversation was not found")
+            else:
+                feed_id = await default_chat_id(session, user_id, create=False)
             if feed_id is None:
                 if before is not None:
                     raise InvalidFeedCursorError("cursor belongs to another feed")
@@ -461,13 +494,14 @@ class FeedService:
                 created_at=entry.created_at,
                 sequence=entry.sequence,
                 actions=_actions_of(entry, now),
+                card=_card_of(entry),
             )
             for entry, source, key in page
         )
         next_cursor = (
             FeedCursor(feed_id, items[-1].sequence).encode() if len(rows) > limit else None
         )
-        return FeedPage(items=items, next_cursor=next_cursor)
+        return FeedPage(items=items, next_cursor=next_cursor, conversation_id=feed_id)
 
     @staticmethod
     async def _touch(session: AsyncSession, conversation_id: uuid.UUID) -> None:
