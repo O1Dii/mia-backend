@@ -18,8 +18,8 @@ unchanged and keep serving the PoC until their consumers move.
 | `device-access.schema.json` | ADR-0016: `DeviceConsent` (`Approval.device_consent`, only the target device decides), grants, access log, capability settings, queued calls, FCM data `device_consent` / `device_tool_call`, manifest `requires.deviceCapabilities` items | M70 (server), M71 (Android), M72 (store) |
 | `memory.schema.json` | `Fact`, `Person`, `Preference`, `MemorySuggestion` | M17 |
 | `notifications.schema.json` | M77: `NotificationSettings` (channels with connected / not connected, per-channel switch, «event type × channel» table), `UpdateNotificationSettingsRequest`, the Telegram bot's question; explicit `delivery.channels` win over it | M77 (server, web), M71 (Android) |
-| `job.schema.json` | `Job`, `Schedule`, `InboxItem`, create requests | M16 |
-| `openapi.yaml` | path skeleton; bodies `$ref` the schemas above | M10…M50 |
+| `job.schema.json` | `Job`, `Schedule`, `InboxItem` (`text` = full text, M74-R1), create requests | M16 |
+| `openapi.yaml` | path skeleton; bodies `$ref` the schemas above; `FeedItem.steps` / `FeedStep` and `GET /v1/inbox/{item_id}` added by M74-R1 | M10…M50 |
 
 Conventions:
 
