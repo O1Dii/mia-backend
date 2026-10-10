@@ -21,14 +21,19 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import and_, bindparam, cast, func, literal, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.conversations.chats import BACKGROUND_TITLE, singleton_chat_id
 from app.modules.conversations.models import ChatKind
 from app.modules.conversations.repositories import IdempotencyRepository
-from app.modules.jobs.chats import delivery_channels, event_type_of, post_result_card
+from app.modules.jobs.chats import (
+    delivery_channels,
+    event_type_of,
+    post_result_card,
+    source_chat,
+)
 from app.modules.jobs.domain import (
     Job,
     JobError,
@@ -62,6 +67,9 @@ CREATE_JOB_ENDPOINT = "POST /v1/jobs"
 CREATE_SCHEDULE_ENDPOINT = "POST /v1/schedules"
 RUN_SCHEDULE_ENDPOINT = "POST /v1/schedules/{id}/run"
 _WRITE_EVIDENCE = ("succeeded", "uncertain", "running")
+_INTERNAL_TOOLS = ("notify",)
+"""Inside a job ``notify`` only drafts the job's result (M74-R1): not an external write."""
+MAX_NOTES = 20
 
 
 def job_from_row(row: JobRow) -> Job:
@@ -139,6 +147,10 @@ class FiredSchedule:
 class Reclaimed:
     job: Job
     requeued: bool
+
+
+def _notes_or_empty() -> Any:
+    return func.coalesce(JobRow.notes, cast(literal("[]"), JSONB))
 
 
 def _job_row(new: NewJob, *, now: datetime, max_attempts: int) -> dict[str, Any]:
@@ -239,6 +251,35 @@ class SqlJobStore:
         async with self._session_factory() as session:
             row = await session.scalar(select(JobRow).where(JobRow.run_id == run_id).limit(1))
         return None if row is None else job_from_row(row)
+
+    async def add_note(self, job_id: uuid.UUID, run_id: uuid.UUID, note: dict[str, Any]) -> bool:
+        """Keep a ``notify`` text of the job's live run for its single result (M74-R1).
+
+        ``False`` when the run is not the job's current run any more (the job finished,
+        was retried or lost its lease) or the job already holds ``MAX_NOTES`` notes.
+        """
+        now = self.clock()
+        async with self._session_factory() as session, session.begin():
+            result = await session.execute(
+                update(JobRow)
+                .where(
+                    JobRow.id == job_id,
+                    JobRow.run_id == run_id,
+                    JobRow.status.in_(("running", "waiting_approval")),
+                    func.jsonb_array_length(_notes_or_empty()) < MAX_NOTES,
+                )
+                .values(
+                    notes=_notes_or_empty().op("||")(bindparam("note", [note], type_=JSONB)),
+                    updated_at=now,
+                )
+                .returning(JobRow.id)
+            )
+            return result.first() is not None
+
+    async def notes(self, job_id: uuid.UUID) -> list[dict[str, Any]]:
+        async with self._session_factory() as session:
+            value = await session.scalar(select(JobRow.notes).where(JobRow.id == job_id))
+        return [dict(note) for note in value or () if isinstance(note, dict)]
 
     async def list_jobs(
         self, *, user_id: uuid.UUID, limit: int = 50, cursor: str | None = None
@@ -390,6 +431,7 @@ class SqlJobStore:
                     status=status,
                     result=result,
                     error=error,
+                    notes=None,
                     finished_at=now,
                     updated_at=now,
                     lease_owner=None,
@@ -408,9 +450,10 @@ class SqlJobStore:
     async def _add_inbox(
         session: AsyncSession, row: JobRow, draft: InboxDraft, now: datetime
     ) -> None:
-        """Inbox item and deliveries; plus the result card in the source chat (M74)."""
-        chat = await post_result_card(session, row, draft, now)
-        await add_item(
+        """The job's one result: inbox item and deliveries, plus the result card in the
+        source chat (M74) naming that item (M74-R1)."""
+        chat = await source_chat(session, row)
+        item = await add_item(
             session,
             user_id=row.user_id,
             source_type="job",
@@ -421,6 +464,8 @@ class SqlJobStore:
             now=now,
             event_type=event_type_of(row),
         )
+        if chat is not None:
+            await post_result_card(session, row, draft, now, chat=chat, inbox_item_id=item.id)
 
     async def notify_waiting_approval(self, job: Job) -> None:
         """«Approval» event (M77): a background run waits for the user's confirmation.
@@ -456,6 +501,7 @@ class SqlJobStore:
                     lease_owner=None,
                     lease_expires_at=None,
                     run_id=None,
+                    notes=None,
                     updated_at=now,
                 )
                 .returning(JobRow.id)
@@ -543,7 +589,8 @@ class SqlJobStore:
                     row.status = "failed"
                     row.finished_at = now
                     row.error = public_error("job_interrupted", retryable=True)
-                    await self._add_inbox(session, row, failure_draft(row.goal), now)
+                    await self._add_inbox(session, row, failure_draft(row.goal, row.notes), now)
+                row.notes = None
                 row.lease_owner = None
                 row.lease_expires_at = None
                 row.updated_at = now
@@ -563,6 +610,7 @@ class SqlJobStore:
                 ToolExecution.run_id == run_id,
                 ToolExecution.risk.in_(("write_reversible", "write_external")),
                 ToolExecution.status.in_(_WRITE_EVIDENCE),
+                ToolExecution.name.not_in(_INTERNAL_TOOLS),
             )
             .limit(1)
         )
