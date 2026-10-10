@@ -23,6 +23,7 @@ import tempfile
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -78,6 +79,7 @@ from app.modules.tools.mcp_client import McpConnector  # noqa: E402
 from app.modules.tools.router import McpToolRouter, RouterConfig  # noqa: E402
 from app.modules.users import UserRepository  # noqa: E402
 from app.modules.workspace.composition import install_workspace  # noqa: E402
+from app.plugins.builtin.telegram.host import BotLinkOffer, bind_host  # noqa: E402
 from app.worker.main import Worker  # noqa: E402
 from fastapi import APIRouter, FastAPI, Request  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -124,6 +126,35 @@ class Script:
     structured = True
     model_calls = 0
     """How many times the model was asked: dashboard tiles must never raise it."""
+    link_leaks = 0
+    """Model requests that contained a Telegram link (M41-R1: must stay 0)."""
+
+
+BOT_LINK = "https://t.me/mia_e2e_bot?start=E2E-ONE-TIME-TOKEN"
+
+
+class E2ETelegramHost:
+    """``builtin.telegram`` without a phone or the Bot API: only ``connect_bot`` works.
+
+    «просроченн…» in the user's message yields a link that has already expired.
+    """
+
+    expired_next = False
+
+    async def candidates(self, identity: Any, to: str) -> list[Any]:
+        return []
+
+    async def hand_off(self, identity: Any, recipient: Any, text_value: str) -> Any:
+        raise RuntimeError("no phone in the web tests")
+
+    async def bot_link(self, identity: Any) -> BotLinkOffer:
+        shift = -60 if E2ETelegramHost.expired_next else 15 * 60
+        expires = datetime.now(UTC) + timedelta(seconds=shift)
+        return BotLinkOffer(
+            already_linked=False,
+            deep_link=BOT_LINK,
+            expires_at=expires.isoformat().replace("+00:00", "Z"),
+        )
 
 
 def answer(speech: str, display: dict[str, Any] | None = None, followups: list[str] | None = None):
@@ -152,6 +183,8 @@ class ScriptedGateway:
 
     async def stream(self, request: ModelRequest) -> AsyncIterator[ModelEvent]:
         Script.model_calls += 1
+        if any("t.me" in (m.content or "") for m in request.messages):
+            Script.link_leaks += 1
         last = request.messages[-1]
         names = [tool.name for tool in request.tools]
         user = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
@@ -159,7 +192,9 @@ class ScriptedGateway:
         if last.role == "tool":
             body = json.loads(last.content) if last.content.startswith("{") else {}
             status = body.get("status")
-            if status == "succeeded" and "запомни" in lowered:
+            if status == "succeeded" and "бота" in lowered:
+                reply = answer("Открой ссылку на экране: «Открыть Telegram», затем Start.")
+            elif status == "succeeded" and "запомни" in lowered:
                 reply = answer("Предложила запомнить: подтвердите на странице «Память».")
             elif status == "succeeded":
                 reply = answer(
@@ -192,6 +227,9 @@ class ScriptedGateway:
             )
         elif "список задач" in lowered:
             wanted = ("list_issues", {})
+        elif "бота" in lowered:
+            E2ETelegramHost.expired_next = "просроченн" in lowered
+            wanted = ("connect_bot", {})
         if wanted is not None:
             name = next((n for n in names if n == f"memory.{wanted[0]}"), None) or next(
                 (n for n in names if n.endswith(f".{wanted[0]}") and n != "memory.remember"), None
@@ -357,6 +395,7 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     resolver = FakeResolver()
     oauth = OAuthClient(resolver=resolver, http_transport=transport_factory(world))
     builtin = build_builtin_plugins(runtime, model_gateway=gateway)  # type: ignore[arg-type]
+    bind_host(E2ETelegramHost())  # type: ignore[arg-type]
     stack = build_catalog_stack(settings, runtime, builtin)
     from tests.catalog.harness import _Bearer  # noqa: PLC0415
 
@@ -494,6 +533,7 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
                 "registrations": len(auth_server.registrations),
                 "authorize_requests": auth_server.authorize_requests,
                 "model_calls": Script.model_calls,
+                "link_leaks": Script.link_leaks,
             }
         )
 

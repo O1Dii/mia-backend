@@ -9,7 +9,9 @@ events. Guarantees:
   step, and the tool-call budget by skipping calls over it;
 - cancellation aborts model streaming and approval waits at once; a tool call in
   flight is allowed to finish (an external write must not be torn);
-- time spent waiting for a human approval does not count against the budget.
+- time spent waiting for a human approval does not count against the budget;
+- a tool's screen-only action (M41-R1) goes to ``tool.call.completed`` and to the
+  feed entry of the answer, never into a message the model sees.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from app.core.ports.model_gateway import (
     TextDelta,
     ToolCallRequested,
 )
+from app.core.ports.screen_action import parse_action
 from app.core.ports.tool_router import (
     ToolCallRequest,
     ToolCallStatus,
@@ -68,6 +71,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 DELTA_MAX_CHARS = 8000
 _UI_URI_PREFIX = "ui://"
+MAX_SCREEN_ACTIONS = 4
 _TOOL_STATUSES = frozenset({"succeeded", "failed", "denied", "expired", "uncertain", "cancelled"})
 
 
@@ -101,7 +105,11 @@ class RunFeed(Protocol):
         text_value: str,
         response: dict[str, Any],
         modality: Modality = Modality.TEXT,
-    ) -> None: ...
+        actions: Sequence[Mapping[str, Any]] = (),
+    ) -> None:
+        """``actions``: screen-only actions of the run's tool calls (M41-R1), kept with
+        the answer for the UI and never part of the model's history."""
+        ...
 
     async def close_turn(self, *, turn: FeedTurn, status: TurnStatus) -> None: ...
 
@@ -249,6 +257,8 @@ class RunExecution:
         self.usage = _Usage()
         self.descriptors: dict[str, ToolDescriptor] = {}
         self.seen_calls: dict[str, tuple[str, str]] = {}
+        self.actions: list[dict[str, Any]] = []
+        """Screen-only actions of succeeded calls, stored with the answer (M41-R1)."""
         self.conversation_id: uuid.UUID | None = None
         self.turn: FeedTurn | None = None
         self.locale = "en"
@@ -515,7 +525,10 @@ class RunExecution:
                     {"tool_call_id": call.call_id, "status": "cancelled"},
                 )
                 raise
-        await self.emit("tool.call.completed", _completed_payload(call.call_id, outcome))
+        payload = _completed_payload(call.call_id, outcome)
+        if "action" in payload and len(self.actions) < MAX_SCREEN_ACTIONS:
+            self.actions.append(payload["action"])
+        await self.emit("tool.call.completed", payload)
         content = _model_result(
             outcome.status,
             content=outcome.content,
@@ -648,6 +661,7 @@ class RunExecution:
                 text_value=parsed.feed_text,
                 response=parsed.response,
                 modality=Modality.AUDIO if self.record.profile == "voice" else Modality.TEXT,
+                actions=tuple(self.actions),
             )
         except Exception:
             logger.warning("run_feed_write_failed", extra={"run_id": str(self.record.id)})
@@ -696,6 +710,9 @@ def _completed_payload(call_id: str, outcome: ToolOutcome) -> dict[str, Any]:
     uri = outcome.ui_resource_uri
     if uri and uri.startswith(_UI_URI_PREFIX) and len(uri) <= 512:
         payload["ui_resource_uri"] = uri
+    action = parse_action(outcome.action) if status == "succeeded" else None
+    if action is not None:
+        payload["action"] = action
     if status != "succeeded":
         payload["error"] = tool_error(status, outcome.error_code)
     return payload

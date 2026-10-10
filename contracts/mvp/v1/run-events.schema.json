@@ -95,6 +95,13 @@
         },
         "structured_content": { "$ref": "common.schema.json#/$defs/jsonObject" },
         "ui_resource_uri": { "$ref": "common.schema.json#/$defs/uiResourceUri" },
+        "action": {
+          "description": "Screen-only action of a succeeded call (M41-R1): a button for the user, never model content",
+          "allOf": [
+            { "$ref": "common.schema.json#/$defs/screenAction" },
+            { "required": ["url"], "not": { "required": ["expired"] } }
+          ]
+        },
         "error": { "$ref": "common.schema.json#/$defs/publicError" }
       }
     },

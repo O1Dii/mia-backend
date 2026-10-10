@@ -82,6 +82,8 @@ class McpResult:
     text: str
     structured: object | None
     is_error: bool
+    meta: dict[str, Any] | None = None
+    """The result's ``_meta`` (screen-only actions of trusted servers, M41-R1)."""
 
 
 def _leaves(error: BaseException) -> Iterable[BaseException]:
@@ -283,6 +285,7 @@ class McpConnector:
             text=result_text(result),
             structured=result.structured_content,
             is_error=bool(result.is_error),
+            meta=result.meta if isinstance(result.meta, dict) else None,
         )
 
     async def read_resource(

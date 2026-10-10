@@ -110,6 +110,12 @@
       "status": "succeeded",
       "structured_content": {
         "message_id": 991
+      },
+      "action": {
+        "kind": "open_url",
+        "url": "https://t.me/mia_example_bot?start=EXAMPLE",
+        "label": "Открыть Telegram",
+        "expires_at": "2026-10-09T10:15:07Z"
       }
     }
   },

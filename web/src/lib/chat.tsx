@@ -8,7 +8,15 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { api, type Approval, type Display, type FeedItem, type Risk, type Run } from './api'
+import {
+  api,
+  type Approval,
+  type Display,
+  type FeedItem,
+  type Risk,
+  type Run,
+  type ScreenAction,
+} from './api'
 import { ApiError, messageOf, newKey } from './http'
 import { errorText } from './errors'
 import { plainText } from './markdown'
@@ -34,6 +42,8 @@ export type ChatMessage = {
   error?: string
   steps: ToolStep[]
   approvals: Approval[]
+  /** Screen-only actions of the run's tools (M41-R1): buttons the model never sees. */
+  actions: ScreenAction[]
   notes: string[]
   dictated: boolean
   createdAt?: string
@@ -47,6 +57,7 @@ const blank = (patch: Partial<ChatMessage> & Pick<ChatMessage, 'key' | 'role'>):
   pending: false,
   steps: [],
   approvals: [],
+  actions: [],
   notes: [],
   dictated: false,
   ...patch,
@@ -60,7 +71,14 @@ export function fromFeed(item: FeedItem): ChatMessage {
     display: item.role === 'assistant' ? item.display : null,
     runId: item.run_id,
     createdAt: item.created_at,
+    actions: item.role === 'assistant' ? (item.actions ?? []) : [],
   })
+}
+
+function withAction(actions: ScreenAction[], action: ScreenAction | undefined): ScreenAction[] {
+  if (!action || actions.some((a) => a.url === action.url && a.label === action.label))
+    return actions
+  return [...actions, action]
 }
 
 export function textOfDisplay(display: Display | null, fallback: string): string {
@@ -92,6 +110,7 @@ export function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
         steps: message.steps.map((s) =>
           s.id === payload.tool_call_id ? { ...s, status: payload.status } : s,
         ),
+        actions: withAction(message.actions, payload.action as ScreenAction | undefined),
       }
     case 'approval.requested': {
       const approval = payload.approval as Approval

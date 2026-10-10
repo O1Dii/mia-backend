@@ -3133,7 +3133,44 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M41-R1 inbox
 
-- Нет записей.
+### OI-M41-R1-001 — Действия на экран только от встроенных плагинов
+
+- Status: OPEN
+- Source session: M41-R1
+- Component: Tool Router (`_call_plugin`) / `app/core/ports/screen_action.py`
+- Question: `_meta["mia/action"]` принимается только от in-process серверов (builtin/declarative). Удалённый MCP-сервер не может показать кнопку, даже со ссылкой на свой домен. Нужно ли это сторонним плагинам (OAuth-страница, «Открыть в Linear»)?
+- Why non-blocking: единственный потребитель сейчас — `builtin.telegram.connect_bot`; удалённые плагины отдают ссылки текстом/`structuredContent`, как раньше.
+- Current assumption: удалённые серверы игнорируются (защита от фишинговых кнопок с чужим текстом).
+- Options: (a) оставить; (b) разрешить удалённым только `https`-ссылки на хост `server.url`/`permissions.network` манифеста и показывать домен на кнопке; (c) отдельный grant в согласии.
+- Recommendation: (b), если появится сценарий; решать вместе с M72 («Где работает»).
+- Affected future sessions: M70, M72, M75, M76.
+- Revisit trigger/deadline: первый удалённый плагин, которому нужна кнопка.
+
+### OI-M41-R1-002 — Кнопка не видна после потери потока до перезагрузки ленты
+
+- Status: OPEN
+- Source session: M41-R1
+- Component: web `finalizeFromRun` / Android `ChatPresenter` (ConnectionLost) / `GET /v1/runs/{id}`
+- Question: действие приходит в `tool.call.completed` и в `FeedItem.actions`, но не в ресурсе Run. Если поток событий оборвался после шага, web дорисовывает ответ из `GET /v1/runs/{id}` — без кнопки, пока чат не перезагрузит ленту; Android при повторном follow получает события заново (кнопка есть).
+- Why non-blocking: перезагрузка/возврат в чат показывает кнопку из ленты, пока ссылка не истекла (15 мин).
+- Current assumption: Run-ресурс не меняется (owner M12/M73).
+- Options: (a) оставить; (b) `Run.actions` аддитивно в openapi; (c) web после `lost` перечитывает ленту.
+- Recommendation: (c) в M75 (web) — без изменения контракта.
+- Affected future sessions: M73, M75.
+- Revisit trigger/deadline: жалоба «кнопка пропала».
+
+### OI-M41-R1-003 — Ссылка из действия хранится в событиях run
+
+- Status: OPEN
+- Source session: M41-R1
+- Component: `run_events` (M12) / feed entry `content.actions` (M18)
+- Question: одноразовая ссылка лежит в `run_events.payload` (как раньше в `structured_content`) и в записи ленты. Лента после `expires_at` отдаёт действие без `url`, но в БД оно остаётся до удаления run/ленты.
+- Why non-blocking: токен одноразовый, живёт 15 мин, на сервере хранится только его хэш; после истечения ссылка бесполезна.
+- Current assumption: хранится как остальное содержимое run.
+- Options: (a) оставить; (b) периодическая очистка `url` у истёкших действий (retention-задача M17/M16); (c) хранить в ленте только ссылку на run и брать действие из событий.
+- Recommendation: (b) вместе с retention-политикой событий run.
+- Affected future sessions: M73, M74.
+- Revisit trigger/deadline: ревью retention перед бетой.
 
 ## M15-R1 inbox
 

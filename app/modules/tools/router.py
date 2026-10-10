@@ -14,7 +14,9 @@ Policy per call: lookup in the caller's own tool table (unknown/foreign →
 ``tool_not_found``), JSON-Schema arguments, profile/scopes, ``write_external`` →
 approval bound to ``args_hash`` (single use, expiring), ``operation_id`` audited
 before dispatch, one attempt only (timeout of a write → ``uncertain``). Tool
-output reaches the model only framed as untrusted data.
+output reaches the model only framed as untrusted data. A screen-only action
+(``_meta["mia/action"]``, M41-R1) of an in-process server is validated and handed
+to the UI with the outcome; remote servers cannot attach one.
 """
 
 from __future__ import annotations
@@ -45,6 +47,7 @@ from app.core.ports.device_tool_channel import (
     DeviceToolDeclaration,
 )
 from app.core.ports.model_gateway import ToolSpec
+from app.core.ports.screen_action import action_from_meta
 from app.core.ports.tool_router import (
     ToolCallRequest,
     ToolCallStatus,
@@ -615,6 +618,7 @@ class McpToolRouter:
         ui_resource_uri: str | None,
         status: ToolCallStatus = "succeeded",
         error_code: str | None = None,
+        action: JsonObject | None = None,
     ) -> ToolOutcome:
         return ToolOutcome(
             call_id=request.call_id,
@@ -625,6 +629,7 @@ class McpToolRouter:
             ),
             ui_resource_uri=ui_resource_uri if status == "succeeded" else None,
             error_code=error_code,
+            action=action if status == "succeeded" else None,
         )
 
     async def _call_plugin(
@@ -654,11 +659,14 @@ class McpToolRouter:
                 status="failed",
                 error_code="tool_execution_failed",
             )
+        # Only trusted in-process servers may put a button on the user's screen.
+        trusted = plugin.manifest.server.in_process
         return self._success(
             request,
             text=result.text,
             structured=result.structured,
             ui_resource_uri=entry.ui_resource_uri,
+            action=action_from_meta(result.meta) if trusted else None,
         )
 
     @staticmethod

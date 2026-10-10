@@ -51,6 +51,7 @@ export type World = {
   revocations: unknown[]
   registrations: number
   model_calls: number
+  link_leaks: number
 }
 export async function world(page: Page): Promise<World> {
   return (await (await page.request.get('/__e2e/world')).json()) as World

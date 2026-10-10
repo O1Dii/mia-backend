@@ -18,7 +18,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 from pydantic import Field
 
-from app.modules.plugins.builtin.kit import PluginKit, ok
+from app.modules.plugins.builtin.kit import PluginKit, ok, screen_action
 from app.modules.plugins.builtin.services import HostServices
 from app.plugins.builtin.telegram.host import (
     HostUnavailableError,
@@ -29,6 +29,7 @@ from app.plugins.builtin.telegram.host import (
 
 PLUGIN_ID = "builtin.telegram"
 MAX_CANDIDATES = 5
+BOT_LINK_LABEL = "Открыть Telegram"
 
 Target = Annotated[
     str,
@@ -117,10 +118,19 @@ def build_server(
                 "Telegram-бот Mia уже подключён.",
                 {"linked": True},
             )
+        if not offer.deep_link:
+            raise ToolError("Не получилось создать ссылку для бота. Попробуй позже.")
+        try:
+            button = screen_action(offer.deep_link, BOT_LINK_LABEL, expires_at=offer.expires_at)
+        except ValueError:
+            raise ToolError("Не получилось создать ссылку для бота. Попробуй позже.") from None
+        # The one-time link is a bearer secret: a button on screen only, never model text.
         return ok(
-            "Ссылка для подключения бота показана пользователю на экране; "
-            "она одноразовая и действует недолго.",
-            {"linked": False, "deep_link": offer.deep_link, "expires_at": offer.expires_at},
+            "Кнопка «Открыть Telegram» показана пользователю на экране под этим шагом; "
+            "ссылка одноразовая и действует недолго. Попроси нажать кнопку, затем Start "
+            "в боте. Не пересказывай и не придумывай ссылку.",
+            {"linked": False, "expires_at": offer.expires_at},
+            action=button,
         )
 
     kit.verify_tools()

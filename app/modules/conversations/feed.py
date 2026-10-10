@@ -12,7 +12,7 @@ import base64
 import binascii
 import json
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
@@ -21,6 +21,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.ports.screen_action import listed_action
 from app.modules.conversations.models import (
     Conversation,
     DeliveryStatus,
@@ -120,6 +121,8 @@ class FeedItem:
     run_id: uuid.UUID | None
     created_at: datetime
     sequence: int
+    actions: tuple[dict[str, Any], ...] = ()
+    """Screen-only actions of the answer (M41-R1); expired ones come without ``url``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +139,14 @@ def _run_id_of(idempotency_key: str) -> uuid.UUID | None:
         return uuid.UUID(value)
     except ValueError:
         return None
+
+
+def _actions_of(entry: Entry, now: datetime) -> tuple[dict[str, Any], ...]:
+    raw = entry.content.get("actions")
+    if entry.role != EntryRole.ASSISTANT or not isinstance(raw, list):
+        return ()
+    listed = (listed_action(item, now) for item in raw)
+    return tuple(action for action in listed if action is not None)
 
 
 def _display_of(entry: Entry) -> dict[str, Any] | None:
@@ -193,12 +204,14 @@ class FeedService:
         *,
         recent_entries: int = 20,
         summary_batch: int = 20,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         if recent_entries < 1 or summary_batch < 1:
             raise ValueError("feed windows must be positive")
         self._session_factory = session_factory
         self._recent = recent_entries
         self._batch = summary_batch
+        self._clock: Callable[[], datetime] = clock or (lambda: datetime.now(UTC))
 
     async def owns_conversation(self, *, user_id: uuid.UUID, conversation_id: uuid.UUID) -> bool:
         async with self._session_factory() as session:
@@ -320,7 +333,15 @@ class FeedService:
         text_value: str,
         response: dict[str, Any],
         modality: Modality = Modality.TEXT,
+        actions: Sequence[Mapping[str, Any]] = (),
     ) -> None:
+        """Store the final answer; ``actions`` (screen-only, M41-R1) ride along for the UI.
+
+        The model's history (:meth:`context`) reads only ``content["text"]``.
+        """
+        content: dict[str, Any] = {"text": text_value, "response": response}
+        if actions:
+            content["actions"] = [dict(action) for action in actions]
         async with self._session_factory() as session, session.begin():
             await ConversationRepository(session).append_entry(
                 user_id=user_id,
@@ -329,7 +350,7 @@ class FeedService:
                 role=EntryRole.ASSISTANT,
                 kind=EntryKind.TEXT,
                 modality=modality,
-                content={"text": text_value, "response": response},
+                content=content,
                 delivery_status=DeliveryStatus.DELIVERED,
             )
             await self._finish_turn(session, turn, TurnStatus.COMPLETED)
@@ -428,6 +449,7 @@ class FeedService:
                 statement = statement.where(Entry.sequence < position.sequence)
             rows = (await session.execute(statement)).all()
         page = rows[:limit]
+        now = self._clock()
         items = tuple(
             FeedItem(
                 id=entry.id,
@@ -438,6 +460,7 @@ class FeedService:
                 run_id=_run_id_of(key),
                 created_at=entry.created_at,
                 sequence=entry.sequence,
+                actions=_actions_of(entry, now),
             )
             for entry, source, key in page
         )
