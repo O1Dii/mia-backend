@@ -526,7 +526,10 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     # The Telegram bot with a fake Bot API (M77): linking, the «Присылать сюда…» question, delivery.
     bot_api = E2EBotApi()
     telegram = build_telegram(
-        settings, runtime, api=bot_api, preferences=jobs.notifications.preferences  # type: ignore[arg-type]
+        settings,
+        runtime,
+        api=bot_api,
+        preferences=jobs.notifications.preferences,  # type: ignore[arg-type]
     )
     assert telegram.channel is not None and telegram.bot is not None
     jobs.notifications.channels.register(telegram.channel)

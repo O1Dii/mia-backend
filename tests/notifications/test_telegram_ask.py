@@ -15,6 +15,7 @@ from app.modules.notifications.telegram import (
     NOTIFY_NO_DATA,
     NOTIFY_YES_DATA,
     REPLY_LINKED,
+    REPLY_NO_TOKEN,
     REPLY_NOTIFY_OFF,
     REPLY_NOTIFY_ON,
     TelegramStack,
@@ -210,3 +211,33 @@ async def _plugin_state_more(world: JobsWorld, now: datetime) -> None:
         state.data = {
             "items": [*state.data["items"], _item("t2", "Чай", now - timedelta(seconds=1))]
         }
+
+
+async def test_start_again_asks_a_user_who_linked_before_the_question_existed(
+    world: JobsWorld,
+) -> None:
+    bot = Bot(world)
+    # Linked by the old flow: a link row, no stored answer.
+    offer = await bot.telegram.links.create_offer(world.user)
+    await bot.telegram.links.bind(token=offer.token, chat_id=CHAT, telegram_user_id=SENDER)
+    assert bot.api.sent == []
+    assert (await bot.telegram_status())["decided"] is False
+
+    assert bot.telegram.bot is not None
+    plain_start = start("").copy()
+    plain_start["message"]["text"] = "/start"
+    await bot.telegram.bot.handle_update(plain_start)
+    [(chat, text, buttons)] = bot.api.buttons
+    assert (chat, text, len(buttons)) == (CHAT, ASK_NOTIFY, 2)
+
+    await bot.answer(NOTIFY_YES_DATA)
+    bot.api.sent.clear()
+    await bot.telegram.bot.handle_update(plain_start)  # answered: a short confirmation only
+    assert bot.api.sent == [(CHAT, REPLY_LINKED)]
+
+    # Somebody else's chat is told how to link.
+    bot.api.sent.clear()
+    await bot.telegram.bot.handle_update(
+        {**plain_start, "message": {**plain_start["message"], "chat": {"id": 5, "type": "private"}}}
+    )
+    assert [text for _, text in bot.api.sent] == [REPLY_NO_TOKEN]

@@ -419,6 +419,15 @@ class TelegramBot:
 
     async def _start(self, chat_id: int, sender_id: int, token: str) -> None:
         if not token:
+            # A user who linked before notifications were configurable never answered the
+            # question: pressing Start again asks it.
+            linked = (
+                await self._links.user_for_chat(chat_id) if self.preferences is not None else None
+            )
+            if linked is not None and linked.telegram_user_id in (None, sender_id):
+                if not await self._ask_notifications(chat_id, linked.user_id):
+                    await self._api.send_message(chat_id, REPLY_LINKED)
+                return
             await self._api.send_message(chat_id, REPLY_NO_TOKEN)
             return
         bound = (
@@ -430,16 +439,17 @@ class TelegramBot:
         if bound is not None:
             await self._ask_notifications(chat_id, bound)
 
-    async def _ask_notifications(self, chat_id: int, user_id: uuid.UUID) -> None:
-        """A newly connected channel asks before it is used (M77)."""
+    async def _ask_notifications(self, chat_id: int, user_id: uuid.UUID) -> bool:
+        """A newly connected channel asks before it is used (M77); False when nothing to ask."""
         preferences = self.preferences
         if preferences is None or await preferences.decided(user_id, "telegram"):
-            return
+            return False
         await self._api.send_message(
             chat_id,
             ASK_NOTIFY,
             [InlineButton(ASK_YES, NOTIFY_YES_DATA), InlineButton(ASK_NO, NOTIFY_NO_DATA)],
         )
+        return True
 
     async def _answer(self, callback: Mapping[str, Any]) -> None:
         """«Да» / «Нет» under the question: only the linked Telegram user may answer."""
