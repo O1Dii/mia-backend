@@ -363,7 +363,15 @@ def build_big_server(calls: list[tuple[str, dict[str, Any]]]) -> MCPServer:
         return tool
 
     for name in big_tool_names():
-        server.add_tool(make(name), name=name, description=f"{name.replace('_', ' ')}.")
+        # Like Linear's server: reads say so, deletions say so, the rest says nothing (M72).
+        hints = None
+        if name.startswith(("list_", "get_", "search_")):
+            hints = ToolAnnotations(read_only_hint=True)
+        elif name.startswith(("delete_", "archive_")):
+            hints = ToolAnnotations(destructive_hint=True)
+        server.add_tool(
+            make(name), name=name, description=f"{name.replace('_', ' ')}.", annotations=hints
+        )
     return server
 
 

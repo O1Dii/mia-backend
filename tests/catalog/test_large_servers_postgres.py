@@ -7,7 +7,6 @@ installation on every run with only a redacted log line.
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import logging
 import uuid
@@ -110,23 +109,16 @@ async def test_a_76_tool_server_is_added_picked_consented_and_called(store: Stor
     active = _json(await _consent(store, user, iid, found, chosen), 200)
     assert active["status"] == "active" and active["tools_digest"] == found["tools_digest"]
 
-    # 4. The chat run lists exactly those tools, and a call works after approval.
+    # 4. The chat run lists exactly those tools. The server marks list_issues read-only (M72),
+    # so it runs at once; a destructive tool still waits for the user's approval.
     offered = await _plugin_tools(store, ctx, plugin_id)
     assert sorted(offered) == sorted(chosen)
     request = ToolCallRequest("call_1", f"{plugin_id}.list_issues", {"query": "open"})
-    pending = await store.router.call(ctx, request)
-    assert pending.status == "approval_required" and pending.approval is not None
-    await store.tools.approvals.decide(
-        user_id=ctx.user_id,
-        approval_id=pending.approval.id,
-        decision="approve",
-        args_hash=pending.approval.args_hash,
-        channel="web",
-    )
-    done = await store.router.call(
-        ctx, dataclasses.replace(request, approval_id=pending.approval.id)
-    )
+    done = await store.router.call(ctx, request)
     assert done.status == "succeeded"
+    destructive = ToolCallRequest("call_2", f"{plugin_id}.delete_comment", {"query": "x"})
+    pending = await store.router.call(ctx, destructive)
+    assert pending.status == "approval_required" and pending.approval is not None
     assert store.remote.big_calls == [("list_issues", {"query": "open"})]
     # A tool the user left out is not there.
     skipped = await store.router.call(ctx, ToolCallRequest("c2", f"{plugin_id}.delete_issue", {}))
