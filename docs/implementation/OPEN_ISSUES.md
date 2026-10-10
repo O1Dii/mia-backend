@@ -163,6 +163,12 @@ Integration session обновляет этот индекс после merge.
 | OI-M51-R1-002 | OPEN | Connections UX | Add-by-URL сервера, у которого AS — Mia: согласие показывает «Mia» | общий грант клиента подключений Mia | UC-M51R1-2 / M60 |
 | OI-M51-R1-003 | OPEN | OAuth storage | Строка `oauth_tokens` на каждый вызов `mia_token` | выпуск на каждый вызов | M62 (retention/кэш) |
 | OI-UX-001 | OPEN | Android / web IA | Где живут разделы в приложении: внутри «Дашборда» вся web-оболочка с вкладкой «Чат»; что уйти в настройки, что в верхние вкладки | пока как есть (не критично, решение пользователя 2026-10-10) | дизайн-решение до M60 / отдельная сессия |
+| OI-M41-R1-001 | OPEN | Screen actions | Внешние (remote) плагины не могут показывать кнопки | только in-process | по запросу |
+| OI-M41-R1-002 | OPEN | Web chat | После обрыва потока кнопка появляется только с перезагрузкой ленты | Run без actions | M75 |
+| OI-M41-R1-003 | OPEN | Retention | Истёкшая ссылка остаётся в `run_events`/ленте до очистки | URL скрыт после срока | M74 (retention) |
+| OI-M15-R1-001 | OPEN | Tools router | Роутер не ограничивает итоговый список 128 инструментами модели | бюджет плагинов 96 + ~20 ядра | M70 (владелец router) |
+| OI-M15-R1-002 | OPEN | Custom servers | Любое изменение инструментов сервера по URL блокирует его до пересогласия | «Требует внимания» | по ёмкости |
+| OI-M15-R1-003 | OPEN | Model context | До 96 описаний инструментов в каждом ходе чата | обрезка описаний | M73 / M61 |
 | OI-M22-R1-001 | OPEN | Android voice | Перебивание живым голосом поверх ответа (double talk) не проверено автоматически | AEC может глушить и пользователя; тогда перебить — между ответами или «Стоп» | UC-R-0110 |
 | OI-M22-R1-002 | OPEN | Android voice | Ответ в голосовом режиме идёт на громкости разговора (15/15 вместо медиа 5/15) | громкость звонка | UC-R-0110 |
 | OI-M22-R1-003 | OPEN | Android voice | Гарнитуры и Bluetooth не проверены | маршрут по умолчанию | M60 |
@@ -171,7 +177,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M25R1-003 | OPEN | Android / WebView | `adjustResize` уменьшает WebView при открытой клавиатуре | приемлемо | UC-R-0110 |
 | OI-M24-R1-001 | OPEN | Web layout | Вёрстка вне диалогов опирается на `vh`/`dvh` | WebView теперь MATCH_PARENT | вместе с OI-UX-001 |
 | OI-M24-R1-002 | OPEN | Web / WebView | Точка-индикатор под обложкой видна поверх диалога | косметика | по ёмкости |
-| OI-M24-R1-003 | OPEN | Web tests | Нестабильный Playwright «a server added by URL» в полном прогоне | отдельно 4/4 | по ёмкости |
+| OI-M24-R1-003 | RESOLVED | Web tests | Нестабильный Playwright «a server added by URL» | ожидание истории в `journey.spec.ts` (M15-R1); корень — OI-M31-005 | resolved in M15-R1 integration |
 | OI-M62-T1-001 | OPEN | Android WebView | WebView считает весь origin mindmapgen.xyz своим (не только `/mia/`) | ссылки на другие приложения домена остаются в WebView | Android follow-up |
 | OI-M62-T1-002 | OPEN | Deploy | Данные и ключи тестового сервера только на VM | нет внешних бэкапов | M62 |
 | OI-M62-T1-003 | OPEN | Backend tests | `tests/jobs/test_process.py` чувствителен к времени (SIGTERM через 1,5 с) | flaky под нагрузкой | по ёмкости |
@@ -2717,7 +2723,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M24-R1-003 — Нестабильный Playwright-тест «a server added by URL» в полном прогоне journey
 
-- Status: OPEN
+- Status: RESOLVED
 - Source session: M24-R1
 - Component: web `web/tests/journey.spec.ts:131`, чат/подтверждения (M30), e2e-сервер
 - Question: почему после «Покажи список задач» карточка подтверждения иногда не появляется в чате (бейдж «Подтверждения ожидают: 1» при этом есть, лента показывает стартовый экран)?
@@ -2727,7 +2733,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a) владельцем web-чата перед M60
 - Affects sessions: M60, MW5-integrator (полный Playwright)
 - Revisit trigger/by: следующий полный прогон web
-- Resolution:
+- Resolution: M15-R1 integration 2026-10-10: тест ждёт загрузки истории; корень (сообщение заменяется поздней историей) — OI-M31-005.
 
 ## M31 inbox
 

@@ -383,6 +383,11 @@ M60 теперь зависит и от MW5b.
 допускает 64, установка молча пропускается при каждом run (repair M15-R1). Логи сервера заменяют имена событий на
 `redacted_event` — исправляет M15-R1.
 
+**M41-R1 + M15-R1 integrated 2026-10-10** (integrator: Opus 5.5 high). Backend main → `0624293`, Android → bf7666d, без
+конфликтов. Проверки: ruff, format, mypy (458 файлов), контракты (112 operations, 91 error codes) PASS; pytest 1385 passed / 4 skipped,
+1 failed — известный flaky `tests/jobs/test_process.py` под нагрузкой Gradle, отдельно 3/3 PASS; web `tsc`, build, Prettier PASS,
+Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 тест, 0 failed). Выкладка: образ `sha256:973e7af5…`, APK `0.1.0 (bf7666d)` 42 013 139 байт — PASS без отката; снаружи `/mia/` 200, health 200, анонимный `/mia/v1/feed` 401, соседние приложения 200; установка Linear по URL (76 tools) на сервере теперь разбирается, webhook бота без ошибок. Проверки пользователя — UC-M41-2, UC-M40-1.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -416,8 +421,8 @@ M60 теперь зависит и от MW5b.
 | M25-R1 | MW5 | COMPLETED | M25, UC-M25-1/2 | Opus 5.5 high | [M25-R1](handoffs/M25-R1.md) | `e4539f7` / Android `e4a728d` | adjustResize, диктовка с паузами, «Чат» из голосового экрана |
 | M24-R1 | MW5 | COMPLETED | M24, UC-M24-2 | Opus 5.5 high | [M24-R1](handoffs/M24-R1.md) | `e4539f7` / Android `e4a728d` | WebView MATCH_PARENT (dvh=0), окно согласия во весь экран |
 | M62-T1 | MW5 | COMPLETED | M51-R1 (main) | Opus 5.5 high | [M62-T1](handoffs/M62-T1.md) | `e4539f7` | MVP на mindmapgen.xyz/mia, APK для скачивания, ChatGPT из «Модели» |
-| M41-R1 | MW5b | READY | M41 | Opus 5.5 high | — | — | repair: ссылка бота не видна (structuredContent не выводится) → кнопка на шаге в web/Android |
-| M15-R1 | MW5b | READY | M15 | Opus 5.5 high | — | — | repair: Linear по URL (76 tools > лимит 64) молча выпадает; логи `redacted_event` |
+| M41-R1 | MW5b | COMPLETED | M41 | Opus 5.5 high | [M41-R1](handoffs/M41-R1.md) | `0624293` / Android bf7666d | кнопки «только для экрана» (`_meta["mia/action"]`), «Открыть Telegram» в web/Android; ссылка не видна модели |
+| M15-R1 | MW5b | COMPLETED | M15 | Opus 5.5 high | [M15-R1](handoffs/M15-R1.md) | `0624293` | лимит 96 на плагин и общий бюджет, выбор инструментов по URL, `needs_attention`, `/installations/{id}/health`, читаемые логи |
 | M70 | MW5b | READY | ADR-0016 | Opus 5.5 high | — | — | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
 | M73 | MW5b | READY | — | Sonnet 5.5 high | — | — | встроенный поиск, короткие ответы без задачи, журнал инструментов |
 | M74 | MW5b | READY | ADR-0017 | Opus 5.5 high | — | — | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |
