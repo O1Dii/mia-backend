@@ -3362,7 +3362,127 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M71 inbox
 
-- Нет записей.
+### OI-M71-001 — Push будильника/таймера должен быть data-only, иначе в фоне телефон не зазвонит
+
+- Status: OPEN
+- Source session: M71
+- Component: backend `app/modules/notifications/channels.py` (`PushChannel.payload`), `app/modules/notifications/fcm.py`
+- Question: сработавший облачный будильник/таймер уже уходит push-ом `inbox_item` (`source_type=plugin`, `source_id=builtin.alarm:<id>` / `builtin.timer:<id>`, `title`, `speech`), но с блоком `notification`. Пока приложение в фоне или убито, Android сам показывает обычное уведомление и `onMessageReceived` не вызывается: полноэкранный будильник со звуком не запустить. В foreground приложение уже звонит.
+- Why non-blocking: уведомление приходит и открывает карточку «Входящих»; ничего не теряется, только нет звонка. Android-сторона готова: `PushEnvironment.onMessage` распознаёт `inbox_item` с таким `source_id` и показывает Mia-будильник (уведомление в alarm-канале с повтором звука + полноэкранный intent).
+- Requested backend diff (владелец notifications): в `PushChannel.payload` для `message.source_type == "plugin"` и `message.source_id.startswith(("builtin.alarm:", "builtin.timer:"))` вернуть `PushMessage(..., data_only=True, ttl_seconds=600)` с теми же `data` и `collapse_key`; остальные inbox-push не менять. `ttl_seconds=600`: опоздавший push не должен звонить через час (FCM отбрасывает просроченный). Тест: payload такого сообщения не содержит `notification`, ttl 600, `data.source_id` сохранён; для `job` по-прежнему с `notification`.
+- Current assumption: диф вносит интегратор MW5b / M77 (владелец `notifications/**` после M70).
+- Options: (a) эта правка; (b) новый тип `type=alarm` с теми же полями (Android потребует небольшой доработки).
+- Recommendation: (a).
+- Affected future sessions: M77, MW5b-integrator, M60.
+- Revisit trigger/deadline: UC-M71-1, пункт «будильник при заблокированном экране».
+
+### OI-M71-002 — Таймер звонит так же, как будильник
+
+- Status: DECIDED
+- Source session: M71
+- Component: `PushEnvironment.onMessage`, `InboxPush.ringKind()`
+- Question: карточка просит звонок «по push облачного будильника»; сработавший таймер приходит тем же путём (`builtin.timer:<id>`).
+- Decision: звонят `builtin.alarm` и `builtin.timer` (один экран и канал; заголовок «Будильник»/«Таймер» берётся из push). `builtin.focus` и остальные inbox-карточки остаются тихими уведомлениями.
+- Why: таймер, который не звонит при выключенном экране, бесполезен; отдельного механизма не нужно.
+- Affected future sessions: M77 (тип «таймеры и будильники» в настройках каналов), M60.
+- Revisit trigger/deadline: UC-M71-1.
+
+### OI-M71-003 — Согласие в foreground открывает экран, в фоне — уведомление
+
+- Status: DECIDED
+- Source session: M71
+- Component: `MainActivity` (`PushEnvironment.foregroundConsent`), `ConsentNotifier`, `ConsentPresenter`
+- Decision: push `device_consent` при открытом приложении сразу открывает экран согласия «<клиент> просит: …» (уведомление не показывается); в фоне — high-priority уведомление с «Разрешить» (только этот запрос) и «Отклонить»; тап открывает экран, где доступно и «Всегда разрешать: <клиент>» (30 дней), если сервер предложил scope `persistent`. Действия уведомления требуют разблокировки (Android 12+: `setAuthenticationRequired`); на заблокированном экране содержимое скрыто (`VISIBILITY_PRIVATE`).
+- Why: ADR-0016 §4 («push с действиями и в приложении»); постоянное разрешение выдаётся осознанно на экране, а не одним касанием из шторки.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: UC-M71-1.
+
+### OI-M71-004 — Вызовы очереди выполняются в процессе, который разбудил push
+
+- Status: OPEN
+- Source session: M71
+- Component: `DeviceCallSync`, `PushEnvironment.deviceCallRunner`, device tools with OS-permission prompt
+- Question: `device_tool_call` push (TTL 60 с) будит приложение на ~10 с; вызов читает `GET /v1/devices/{id}/tool-calls` и выполняется тем же `DeviceToolChannel`. Инструменту, которому нужен диалог разрешения Android (`READ_CONTACTS` в первый раз) или разблокированный экран (`requires_unlocked`), из фона это может не удаться: он ответит `os_permission_denied` / `device_locked` (повторяемо), и запрос в web получит понятный отказ, а не зависание.
+- Why non-blocking: ADR-0016 §8 — явный отказ, без тихой подмены; после первого разрешения в приложении и на разблокированном телефоне работает. Очередь дополнительно читается при открытии чата и каждые 4 с, пока открыт WebView.
+- Current assumption: пользователь один раз выдал разрешение «Контакты» в приложении.
+- Options: (a) оставить; (b) при `os_permission_denied` из фона показывать уведомление «Откройте Мию, чтобы разрешить доступ к контактам»; (c) передний план-сервис на время вызова.
+- Recommendation: (a) до UC-M71-1; (b), если UC покажет первый запрос из web без выданного разрешения ОС.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: UC-M71-1, пункты «web-запрос → телефон».
+
+### OI-M71-005 — Нет «Отложить» у будильника Mia
+
+- Status: OPEN
+- Source session: M71
+- Component: `MiaAlarmActivity`, `builtin.alarm`
+- Question: экран будильника выключает звонок («Выключить»), «Отложить на 5 минут» нет: для него нужен серверный перезапуск (новый облачный будильник) или локальный повтор.
+- Why non-blocking: карточка требует полноэкранный звонок со звуком; повтор — отдельное решение (серверный будильник с id и состоянием).
+- Current assumption: выключить и поставить новый голосом.
+- Options: (a) оставить; (b) кнопка ставит `builtin.alarm.set` через API на +5 мин; (c) локальный AlarmManager.
+- Recommendation: (b) после UC-M71-1, если нужен.
+- Affected future sessions: M72, M60.
+- Revisit trigger/deadline: отзыв по UC-M71-1.
+
+### OI-M71-006 — Полноэкранный будильник на Android 14+ можно выключить в системе
+
+- Status: DECIDED
+- Source session: M71
+- Component: `AlarmNotifier.canUseFullScreenIntent`, `feature/settings` (раздел «Будильники и таймеры Мии»)
+- Decision: объявлено `USE_FULL_SCREEN_INTENT`; в настройках приложения (live-сборка) есть кнопка «Проверить звонок» (уведомление-будильник сразу) и, если Android 14+ запретил полноэкранный показ, подсказка и переход в системный экран разрешения. Без разрешения будильник остаётся heads-up уведомлением со звуком (звук идёт от уведомления, не от экрана).
+- Why: для приложения вне Google Play категории «будильник» разрешение выдаёт пользователь; проверить его можно за одно касание.
+- Affected future sessions: M60, M62 (публикация APK).
+- Revisit trigger/deadline: UC-M71-1.
+
+### OI-M71-007 — Экран «Уведомления» в настройках приложения ждёт M77
+
+- Status: OPEN
+- Source session: M71
+- Component: `feature/settings`
+- Question: карточка M71 («после M77») требует экран «Уведомления» — каналы и таблицу «тип события × канал». По указанию интегратора он не делается сейчас: API M77 ещё не интегрирован.
+- Why non-blocking: каналы настраиваются в web (M77); Android получает push как раньше.
+- Current assumption: отдельный follow-up после интеграции M77 (место: новый раздел `SettingsRoute`, рядом с «Доступ с других устройств»; клиент API — в `core/network`, как `DeviceAccessApi`).
+- Options: n/a.
+- Recommendation: сессия-follow-up «M71-N» после интеграции M77.
+- Affected future sessions: M77, MW5b-integrator.
+- Revisit trigger/deadline: интеграция M77.
+
+### OI-M71-008 — Старые сессии WebView (OI-M70-005) не сбрасываются
+
+- Status: OPEN
+- Source session: M71
+- Component: `WebSessionCleaner`, `feature/web`
+- Question: OI-M70-005 предлагал при старте сбрасывать cookies WebView, чтобы старая сессия без `device_id` не считалась браузером. Не сделано: каждый вход в WebView берёт новый одноразовый код и новую (уже привязанную к устройству) сессию, старые истекают.
+- Why non-blocking: если UC-M71-1 покажет запрос согласия внутри WebView на этом же телефоне, это и есть признак старой сессии.
+- Current assumption: (a) из OI-M70-005 — не трогать.
+- Options: (a) оставить; (b) `WebSessionCleaner.clear()` при старте после обновления.
+- Recommendation: (a).
+- Affected future sessions: M60.
+- Revisit trigger/deadline: UC-M71-1, пункт «WebView на телефоне не просит согласия».
+
+### OI-M71-009 — Resolution update → OI-M62-T1-001 (WebView только под `/mia/`)
+
+- Proposed status: RESOLVED.
+- Resolution: вариант (a): `WebNavigationPolicy` разрешает навигацию только на origin Mia **и** под путём базы (`/mia` и `/mia/…`); другие приложения того же домена (`/knowly/`, `/source-refiner/`, `/mia-other/`, `/mia/../x/`, `/mia/%2e%2e/x/`) открываются во внешнем браузере; `WebSurfaceLoader` отказывает (`Failed(retryable=false)`), если redeem-URL вне префикса (бэкенд отдаёт `redeem_path` с префиксом).
+- Evidence: `WebNavigationPolicyTest` (префикс, обход точек, корень origin), `WebHandoffTest.underAPrefixTheRedeemUrlMustBeUnderItToo`.
+
+### OI-M71-010 — Resolution update → OI-M76-005 (общий запрос разрешения на уведомления)
+
+- Proposed status: RESOLVED.
+- Resolution: таймеры (`NowNotificationPermissionEffect`) и push/будильник/согласие (`PushRegistrationEffect`) используют один флаг `mia_push/notification_permission_asked`: системный запрос показывается один раз на приложение. Без настроенного FCM звонить нечему, поэтому разрешение по-прежнему спрашивается при первом активном таймере.
+- Evidence: `MiaApp.kt` (оба эффекта читают один флаг); код-ревью, UI-проверка в UC-M71-1.
+
+### OI-M71-011 — «Обновить Сейчас» data-push (OI-M76-004) не реализован
+
+- Status: OPEN
+- Source session: M71
+- Component: backend push, `NowPresenter.refresh(force = true)`
+- Question: чтобы таймер, поставленный из web, появлялся в шторке телефона без открытия приложения, нужен data-push типа `now_refresh` и бэкенд-источник; в M70 такого push нет.
+- Why non-blocking: звонок сработавшего таймера и будильника (OI-M71-001/002) работает без него; полоса «Сейчас» обновляется при открытии.
+- Current assumption: оставить.
+- Options: (a) оставить; (b) backend отправляет `type=now_refresh` при создании/отмене таймера и будильника; Android вызывает `NowPresenter.refresh(force = true)` в `PushEnvironment`.
+- Recommendation: (b) в follow-up с M77.
+- Affected future sessions: M77, M60.
+- Revisit trigger/deadline: жалоба на «таймер не видно в шторке».
 
 ## M72 inbox
 
