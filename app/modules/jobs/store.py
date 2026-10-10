@@ -28,13 +28,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.modules.conversations.chats import BACKGROUND_TITLE, singleton_chat_id
 from app.modules.conversations.models import ChatKind
 from app.modules.conversations.repositories import IdempotencyRepository
-from app.modules.jobs.chats import delivery_channels, post_result_card
+from app.modules.jobs.chats import delivery_channels, event_type_of, post_result_card
 from app.modules.jobs.domain import (
     Job,
     JobError,
     NewJob,
     NewSchedule,
     Schedule,
+    delivery_of,
+    explicit_channels,
     isoformat,
     utc_now,
 )
@@ -52,6 +54,7 @@ from app.modules.jobs.recurrence import (
     parse_recurrence,
     plan_fire,
 )
+from app.modules.notifications.content import plain, text_response
 from app.modules.notifications.inbox import add_item
 from app.modules.tools.models import ToolExecution
 
@@ -150,7 +153,7 @@ def _job_row(new: NewJob, *, now: datetime, max_attempts: int) -> dict[str, Any]
         "origin_id": new.origin_id[:256],
         "run_id": None,
         "budget": new.budget,
-        "delivery": {"channels": list(new.channels)},
+        "delivery": delivery_of(new.channels),
         "attempt": 1,
         "max_attempts": max_attempts,
         "run_after": new.run_after or now,
@@ -414,9 +417,29 @@ class SqlJobStore:
             source_id=str(row.id),
             title=draft.title,
             response=draft.response,
-            channels=delivery_channels(row, chat),
+            channels=await delivery_channels(session, row, chat),
             now=now,
+            event_type=event_type_of(row),
         )
+
+    async def notify_waiting_approval(self, job: Job) -> None:
+        """«Approval» event (M77): a background run waits for the user's confirmation.
+
+        Routed by the user's settings; the job's explicit result channels do not apply.
+        """
+        goal = plain(job.goal, 120)
+        async with self._session_factory() as session, session.begin():
+            await add_item(
+                session,
+                user_id=job.user_id,
+                source_type="job",
+                source_id=str(job.id),
+                title="Нужно подтверждение",
+                response=text_response(f"Задача «{goal}» ждёт вашего подтверждения в Mia."),
+                channels=None,
+                now=self.clock(),
+                event_type="approval",
+            )
 
     async def retry(
         self, job: Job, *, worker_id: str, delay_s: float, error_code: str | None
@@ -590,7 +613,7 @@ class SqlJobStore:
                 timezone=new.timezone,
                 dtstart=recurrence.dtstart,
                 goal=new.goal,
-                delivery={"channels": list(new.channels)},
+                delivery=delivery_of(new.channels),
                 misfire_policy=new.misfire_policy,
                 catch_up_limit=new.catch_up_limit,
                 status="active",
@@ -721,7 +744,7 @@ class SqlJobStore:
                         origin_type="schedule",
                         origin_id=str(row.id),
                         budget=budget_for(row.kind),
-                        channels=tuple(row.delivery.get("channels") or ()),
+                        channels=explicit_channels(row.delivery),
                         inputs={"scheduled_for": isoformat(occurrence), "late": late},
                         kind="reminder" if row.kind == "reminder" else "run",
                         dedupe_key=f"schedule:{row.id}:{isoformat(occurrence)}",
@@ -761,7 +784,7 @@ class SqlJobStore:
                 origin_type="schedule",
                 origin_id=str(schedule.id),
                 budget=budget_for(schedule.kind),
-                channels=tuple(schedule.delivery.get("channels") or ()),
+                channels=explicit_channels(schedule.delivery),
                 inputs={"scheduled_for": isoformat(self.clock()), "late": False, "manual": True},
                 kind="reminder" if schedule.kind == "reminder" else "run",
             ),

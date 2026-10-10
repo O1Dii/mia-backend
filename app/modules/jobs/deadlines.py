@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.jobs.models import DeadlineFireRow
 from app.modules.notifications.content import plain, text_response, title
-from app.modules.notifications.inbox import DEFAULT_CHANNELS, add_item
+from app.modules.notifications.inbox import add_item
 from app.modules.workspace.models import Installation, PluginState, Workspace
 
 DEADLINE_PLUGINS: dict[str, str] = {
@@ -171,8 +171,9 @@ class DeadlineScanner:
                         source_id=f"{plugin_id}:{item['id']}",
                         title=heading,
                         response=text_response(speech),
-                        channels=DEFAULT_CHANNELS,
+                        channels=None,
                         now=now,
+                        event_type="timer_alarm",
                     )
                     fired.append(FiredDeadline(owner, plugin_id, str(item["id"]), inbox.id))
         last = (rows[-1][0], rows[-1][1]) if rows else None

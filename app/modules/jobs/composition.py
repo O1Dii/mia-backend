@@ -5,10 +5,11 @@ In ``app/composition.py`` after ``install_runs`` and ``install_tools``::
     jobs = install_jobs(app, settings, runtime, runs=runs, core_tools=tools.core_tools)
 
 This mounts ``/v1/jobs*``, ``/v1/schedules*``, ``/v1/inbox*``, ``/v1/notify`` and
-``/v1/devices/push-token``, registers the ``background.*``/``schedule.*``/``notify`` core
-tools, wraps the run feed with the «while you were away» note and exposes
-``app.state.jobs`` (for the worker) and ``app.state.notifications`` (M41 registers its
-Telegram channel there). The worker process (``python -m app.worker``) executes jobs.
+``/v1/devices/push-token``, ``/v1/notifications/settings``, registers the
+``background.*``/``schedule.*``/``notify`` core tools, wraps the run feed with the
+«while you were away» note and exposes ``app.state.jobs`` (for the worker) and
+``app.state.notifications`` (M41 registers its Telegram channel there). The worker process
+(``python -m app.worker``) executes jobs.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from fastapi import FastAPI
 from app.api.v1.devices import build_devices_router
 from app.api.v1.inbox import build_inbox_router
 from app.api.v1.jobs import build_jobs_router
+from app.api.v1.notification_settings import build_notification_settings_router
 from app.core.config import Settings
 from app.core.runtime import Runtime
 from app.modules.auth.composition import request_authenticator
@@ -36,6 +38,7 @@ from app.modules.notifications.channels import ChannelRegistry, PushChannel, Pus
 from app.modules.notifications.delivery import DeliveryDispatcher
 from app.modules.notifications.fcm import FcmClient, ServiceAccountTokenProvider
 from app.modules.notifications.inbox import InboxService
+from app.modules.notifications.preferences import NotificationPreferences
 from app.modules.runs.service import RunService
 from app.modules.tools.core_tools import CoreToolRegistry
 
@@ -46,6 +49,7 @@ class NotificationsStack:
     channels: ChannelRegistry
     push_tokens: PushTokenStore
     dispatcher: DeliveryDispatcher
+    preferences: NotificationPreferences
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +96,7 @@ def build_notifications(
             max_attempts=settings.notify_delivery_max_attempts,
             clock=clock,
         ),
+        preferences=NotificationPreferences(session_factory, channels, clock=clock),
     )
 
 
@@ -153,6 +158,11 @@ def install_jobs(
     )
     app.include_router(
         build_devices_router(tokens=stack.notifications.push_tokens, authenticator=authenticator)
+    )
+    app.include_router(
+        build_notification_settings_router(
+            preferences=stack.notifications.preferences, authenticator=authenticator
+        )
     )
     app.state.jobs = stack
     app.state.notifications = stack.notifications

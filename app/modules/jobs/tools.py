@@ -313,6 +313,7 @@ class JobTools:
         channels = args.get("channels")
         try:
             item = await self.service.notify(
+                event_type="job_result" if owner is not None else "plugin_message",
                 user_id=user,
                 text=str(args["text"]),
                 channels=[str(c) for c in channels] if isinstance(channels, list) else None,
@@ -336,7 +337,8 @@ def job_core_tools(tools: JobTools) -> list[CoreTool]:
             "work, or when the user explicitly asks for it. Do NOT use it for questions you can "
             "answer in this chat with a few tool calls (search, news, short summaries): answer "
             "directly instead. `goal` is the user's request in the user's own words. The result "
-            "arrives in the inbox and as a push. Returns the job id.",
+            "arrives in the inbox and in the channels the user chose in settings; pass `delivery` "
+            "only if the user names a channel. Returns the job id.",
             START_SCHEMA,
             "write_reversible",
             tools.start,
@@ -419,7 +421,8 @@ def job_core_tools(tools: JobTools) -> list[CoreTool]:
         ),
         CoreTool(
             "notify",
-            "Notify the user: push to the phone, the Telegram bot (if connected) and the inbox.",
+            "Notify the user: the inbox and the channels the user chose in settings (push, the "
+            "Telegram bot, ...); pass `channels` only if the user names one.",
             NOTIFY_SCHEMA,
             "write_reversible",
             tools.notify,

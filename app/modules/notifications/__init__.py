@@ -6,6 +6,7 @@ from app.modules.notifications.away import (
     suppress_away_summary,
 )
 from app.modules.notifications.channels import (
+    ChannelConnection,
     ChannelRegistry,
     DeliveryResult,
     DeviceNotFoundError,
@@ -30,22 +31,34 @@ from app.modules.notifications.inbox import (
     InvalidInboxCursorError,
     add_item,
 )
+from app.modules.notifications.preferences import (
+    EVENT_TYPES,
+    EventType,
+    NotificationPreferences,
+    PreferencesError,
+    resolve_channels,
+)
 
 __all__ = [
     "DEFAULT_CHANNELS",
+    "EVENT_TYPES",
     "AccessTokenProvider",
     "AwaySummaryFeed",
+    "ChannelConnection",
     "ChannelRegistry",
     "DeliveryDispatcher",
     "DeliveryResult",
     "DeviceNotFoundError",
+    "EventType",
     "FcmClient",
     "FcmResult",
     "InboxItem",
     "InboxService",
     "InvalidInboxCursorError",
     "NotificationChannel",
+    "NotificationPreferences",
     "OutboundMessage",
+    "PreferencesError",
     "PushChannel",
     "PushMessage",
     "PushTokenStore",
@@ -53,5 +66,6 @@ __all__ = [
     "StaticTokenProvider",
     "add_item",
     "away_note",
+    "resolve_channels",
     "suppress_away_summary",
 ]
