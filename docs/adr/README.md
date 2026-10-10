@@ -22,6 +22,7 @@ rewriting their meaning.
 | 0014 | [One primary product model until the MVP is accepted](0014-single-primary-product-model.md) | Accepted |
 | 0015 | [The MVP plan supersedes S28, S31-R1 and S33](0015-supersede-s28-s31r1-s33.md) | Accepted |
 | 0016 | [Cloud by default; device actions and data only on request, with consent on the device](0016-cloud-default-device-actions-by-consent.md) | Accepted |
+| 0017 | [Multiple chats with their own context; tasks, notifications and memory stay shared](0017-multiple-chats-shared-account-state.md) | Accepted |
 
 ADR-0010…0015 record the MVP architecture (variant E) from
 [Mia_Architecture_Review.md](../Mia_Architecture_Review.md); their

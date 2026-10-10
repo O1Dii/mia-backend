@@ -367,6 +367,16 @@ Repair (параллельно, write scopes не пересекаются):
   `/mia/downloads/mia.apk` + «Скачать для Android». Runbook — `docs/DEPLOY_TEST.md`, откат — `publish-via-shared-server.sh --rollback`.
 - Выкладка integrator-а 2026-10-10: образ из `e4539f7`, APK `0.1.0 (e4a728d)` с адресом сервера — PASS: образ `sha256:205ea2fc…`, release-mia.sh (миграции, health, `nginx -t`) без отката; снаружи `/mia/health/ready` 200, `/mia/` 200, анонимный `/mia/v1/feed` 401, APK 41 996 279 байт; `/`, `/source-refiner/`, `/knowly/` — 200. Дальнейшие ручные проверки — на сервере (UC-R-0110, UC-M62T1-1…3).
 
+**Решения пользователя 2026-10-10 после проверки на сервере** → волна **MW5b** (карточки — MVP_SESSION_PLAN.md):
+ADR-0016 (облако по умолчанию; действия и данные устройства — только по запросу, согласие только на целевом устройстве,
+разово или постоянно для конкретного клиента; WebView = то же устройство), ADR-0017 (отдельные чаты как в Gemini, вызов
+кнопкой — новый диалог с «Продолжить прошлый», общие задачи/уведомления/память, хранение 60 дней), встроенный поиск,
+короткие вопросы без фоновой задачи, журнал вызовов инструментов, полоса «Сейчас». Wake word — после MVP.
+Разбор «сводки новостей»: модель увела вопрос в фоновую задачу, `builtin.news.refresh` вернул «за 48 ч не найдено»,
+общего поиска не было (`builtin.internet` не установлен); сеть сервера в порядке; аргументы вызова не журналируются.
+Telegram в WebView не работает: web-сессия WebView не знает устройство (ADR-0016 §3 это исправляет).
+M60 теперь зависит и от MW5b.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -400,7 +410,14 @@ Repair (параллельно, write scopes не пересекаются):
 | M25-R1 | MW5 | COMPLETED | M25, UC-M25-1/2 | Opus 5.5 high | [M25-R1](handoffs/M25-R1.md) | `e4539f7` / Android `e4a728d` | adjustResize, диктовка с паузами, «Чат» из голосового экрана |
 | M24-R1 | MW5 | COMPLETED | M24, UC-M24-2 | Opus 5.5 high | [M24-R1](handoffs/M24-R1.md) | `e4539f7` / Android `e4a728d` | WebView MATCH_PARENT (dvh=0), окно согласия во весь экран |
 | M62-T1 | MW5 | COMPLETED | M51-R1 (main) | Opus 5.5 high | [M62-T1](handoffs/M62-T1.md) | `e4539f7` | MVP на mindmapgen.xyz/mia, APK для скачивания, ChatGPT из «Модели» |
-| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51 | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт живые UC-M40-1 (M40) и UC-M41-1/2 (M41) |
+| M70 | MW5b | READY | ADR-0016 | Opus 5.5 high | — | — | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
+| M73 | MW5b | READY | — | Sonnet 5.5 high | — | — | встроенный поиск, короткие ответы без задачи, журнал инструментов |
+| M74 | MW5b | READY | ADR-0017 | Opus 5.5 high | — | — | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |
+| M71 | MW5b | PENDING | M70 | Sonnet 5.5 high | — | — | Android: согласие, настройки разрешений, будильник Mia, WebView только `/mia/` |
+| M72 | MW5b | PENDING | M70 | Sonnet 5.5 medium | — | — | магазин: «Где работает», возможности устройства |
+| M75 | MW5b | PENDING | M74, M73 | Sonnet 5.5 high | — | — | web: чаты, «Сейчас» |
+| M76 | MW5b | PENDING | M74 | Sonnet 5.5 high | — | — | Android: чаты, кнопка = новый диалог, «Сейчас» |
+| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 
