@@ -167,10 +167,37 @@ async def test_connect_bot_keeps_the_one_time_link_away_from_the_model(host: Fak
         call = Caller(client, meta())
         text = await call.text("connect_bot")
         assert "SECRET" not in text and "t.me" not in text
-        data = await call("connect_bot")
-        assert data["deep_link"] == "https://t.me/b?start=SECRET" and data["linked"] is False
+        assert "Открыть Telegram" in text
+        result = await call.raw("connect_bot")
+        # The link travels only as a screen action in _meta, not in structuredContent.
+        assert result.structured_content == {"linked": False, "expires_at": "2030-01-01T00:00:00Z"}
+        assert result.meta is not None and result.meta["mia/action"] == {
+            "kind": "open_url",
+            "url": "https://t.me/b?start=SECRET",
+            "label": "Открыть Telegram",
+            "expires_at": "2030-01-01T00:00:00Z",
+        }
         host.offer = BotLinkOffer(already_linked=True)
-        assert await call("connect_bot") == {"linked": True}
+        linked = await call.raw("connect_bot")
+        assert linked.structured_content == {"linked": True}
+        assert "mia/action" not in (linked.meta or {})
+
+
+@pytest.mark.parametrize(
+    "offer",
+    [
+        BotLinkOffer(False, None, None),
+        BotLinkOffer(False, "http://t.me/b?start=SECRET", "2030-01-01T00:00:00Z"),
+        BotLinkOffer(False, "https://t.me/b?start=SECRET", "tomorrow"),
+    ],
+)
+async def test_connect_bot_without_a_usable_link_is_a_tool_error(
+    host: FakeHost, offer: BotLinkOffer
+) -> None:
+    host.offer = offer
+    async with connect(server_for(PLUGIN_ID, make_services())) as client:
+        message = await Caller(client, meta()).error("connect_bot")
+        assert "SECRET" not in message and "ссылку" in message
 
 
 async def test_calls_without_identity_are_refused(host: FakeHost) -> None:
