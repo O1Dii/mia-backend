@@ -491,11 +491,19 @@
 }
 
 /* ---------- chat ---------- */
+.mw-chat-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--mia-space-4);
+  height: calc(100dvh - var(--mw-header) - var(--mia-space-5));
+  min-height: 420px;
+}
 .mw-chat {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--mw-header) - var(--mia-space-5));
-  min-height: 420px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 .mw-chat__scroll {
   flex: 1;
@@ -896,4 +904,312 @@
   .mw-block {
     padding: var(--mia-space-4);
   }
+}
+
+/* ---------- chats and «Сейчас» (M75) ---------- */
+.mw-chat__head {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-2);
+  padding-bottom: var(--mia-space-2);
+}
+.mw-app .mw-chat__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--mia-type-title-size);
+  font-weight: var(--mia-type-title-weight);
+  line-height: var(--mia-type-title-line);
+}
+.mw-chat__lists,
+.mw-chat__fresh {
+  display: none;
+}
+
+.mw-chats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mia-space-3);
+  min-height: 0;
+  padding: var(--mia-space-4);
+  border-radius: var(--mia-radius-lg);
+  overflow-y: auto;
+}
+.mw-chats__scrim {
+  display: none;
+}
+.mw-chats__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mia-space-2);
+}
+.mw-app .mw-chats__head h2 {
+  margin-right: auto;
+}
+.mw-chats__close {
+  display: none;
+}
+.mw-chats__list {
+  display: grid;
+  gap: 2px;
+}
+.mw-chats__row {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-1);
+}
+.mw-chats__main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  min-height: var(--mia-size-touch-web);
+  padding: var(--mia-space-2) var(--mia-space-3);
+  border: 0;
+  border-radius: var(--mia-radius-md);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mw-chats__main:hover {
+  background: var(--mia-color-surface-1);
+}
+.mw-chats__main[aria-current='true'] {
+  background: var(--mia-color-accent-soft);
+}
+.mw-chats__title {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-1);
+  min-width: 0;
+  font-weight: var(--mia-weight-semibold);
+}
+.mw-chats__name,
+.mw-chats__preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mw-chats__preview,
+.mw-chats__when {
+  color: var(--mia-color-text-muted);
+  font-size: var(--mia-type-caption-size);
+}
+.mw-chats__menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mia-space-1);
+  padding: 0 var(--mia-space-2) var(--mia-space-2);
+}
+.mw-app .mw-chats__delete {
+  color: var(--mia-color-danger);
+}
+.mw-chats__rename {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-1);
+}
+.mw-chats__rename input {
+  flex: 1;
+  min-width: 0;
+}
+.mw-chats__retention .mw-field-row {
+  flex-wrap: nowrap;
+}
+.mw-chats__retention {
+  display: grid;
+  gap: var(--mia-space-2);
+  margin-top: auto;
+  padding-top: var(--mia-space-3);
+  border-top: 1px solid var(--mia-color-border);
+}
+
+/* Narrower than 1024 px the list is a drawer over the chat. */
+@media (max-width: 1023px) {
+  .mw-chat-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mw-chat__lists,
+  .mw-chat__fresh {
+    display: inline-flex;
+  }
+  .mw-chats {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 41;
+    width: min(340px, 88vw);
+    border-radius: 0 var(--mia-radius-lg) var(--mia-radius-lg) 0;
+    background: var(--mia-color-surface-solid);
+    box-shadow: var(--mia-shadow-3);
+    visibility: hidden;
+    transform: translateX(-102%);
+    transition:
+      transform var(--mia-dur-base) var(--mia-ease-standard),
+      visibility 0s linear var(--mia-dur-base);
+  }
+  .mw-chats[data-open='true'] {
+    visibility: visible;
+    transform: none;
+    transition: transform var(--mia-dur-base) var(--mia-ease-standard);
+  }
+  .mw-chats__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: var(--mia-color-scrim);
+  }
+  .mw-chats__close {
+    display: inline-flex;
+  }
+  /* The drawer holds its own «Новый чат»; the header keeps a quick icon. */
+}
+@media (prefers-reduced-motion: reduce) {
+  .mw-chats {
+    transition: none;
+  }
+}
+
+.mw-now {
+  display: grid;
+  gap: var(--mia-space-1);
+  padding-bottom: var(--mia-space-2);
+}
+.mw-app .mw-now__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mia-space-1);
+  margin: 0;
+  color: var(--mia-color-text-muted);
+  font-size: var(--mia-type-caption-size);
+  font-weight: var(--mia-weight-semibold);
+  letter-spacing: var(--mia-type-caption-tracking);
+  text-transform: uppercase;
+}
+.mw-now__list {
+  display: flex;
+  gap: var(--mia-space-2);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.mw-now__item {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-3);
+  min-width: 200px;
+  max-width: min(300px, 82vw);
+  padding: var(--mia-space-1) var(--mia-space-1) var(--mia-space-1) var(--mia-space-3);
+  border: 1px solid var(--mia-color-border);
+  border-radius: var(--mia-radius-md);
+  background: var(--mia-color-surface-2);
+}
+.mw-now__text {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+.mw-now__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--mia-weight-semibold);
+}
+.mw-now__meta {
+  color: var(--mia-color-text-muted);
+  font-size: var(--mia-type-caption-size);
+}
+.mw-now__time {
+  color: var(--mia-color-accent-text);
+  font-size: var(--mia-type-label-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--mia-weight-bold);
+}
+.mw-now__time[data-state='paused'] {
+  color: var(--mia-color-text-secondary);
+}
+
+/* The call journal (M73): reason and arguments fold under the step's chip. */
+.mw-step {
+  max-width: 100%;
+}
+.mw-step__details[open] {
+  flex-basis: 100%;
+}
+.mw-step__details summary {
+  cursor: pointer;
+  list-style: none;
+}
+.mw-step__details summary::-webkit-details-marker {
+  display: none;
+}
+.mw-step__body {
+  display: grid;
+  gap: var(--mia-space-2);
+  margin-top: var(--mia-space-1);
+  padding: var(--mia-space-2) var(--mia-space-3);
+  border-radius: var(--mia-radius-sm);
+  background: var(--mia-color-surface-1);
+  font-size: var(--mia-type-label-size);
+}
+.mw-step__reason {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mw-step__args {
+  display: grid;
+  gap: var(--mia-space-1);
+  margin: 0;
+}
+.mw-step__args dt {
+  color: var(--mia-color-text-muted);
+  font-size: var(--mia-type-caption-size);
+}
+.mw-step__args dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--mia-font-mono);
+  font-size: 13px;
+}
+
+.mw-jobcard__head {
+  margin: 0 0 var(--mia-space-2);
+}
+
+/* GFM tables in answers scroll sideways inside their own box. */
+.mw-md {
+  min-width: 0;
+}
+.mw-md-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--mia-color-border);
+  border-radius: var(--mia-radius-sm);
+}
+.mw-md-table table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mia-type-label-size);
+}
+.mw-md-table th,
+.mw-md-table td {
+  min-width: 6.5rem;
+  padding: var(--mia-space-2) var(--mia-space-3);
+  border-bottom: 1px solid var(--mia-color-border);
+  text-align: left;
+  vertical-align: top;
+}
+.mw-md-table th {
+  background: var(--mia-color-surface-2);
+  font-weight: var(--mia-weight-semibold);
+  white-space: nowrap;
+}
+.mw-md-table tbody tr:last-child td {
+  border-bottom: 0;
 }

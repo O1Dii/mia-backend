@@ -10,7 +10,7 @@ import {
   Blocks,
 } from 'lucide-react'
 import { useAuth } from './lib/auth'
-import { ChatProvider } from './lib/chat'
+import { ChatProvider, chatPath, useChat } from './lib/chat'
 import { Link, navigate, usePlace } from './lib/router'
 import { Approvals, usePendingApprovals } from './components/Approvals'
 import { Chat } from './components/Chat'
@@ -65,6 +65,9 @@ function Shell() {
   const pending = usePendingApprovals()
   const count = pending.items?.length ?? 0
   const unread = useUnreadInbox()
+  const chat = useChat()
+  // The tab returns to the chat that was open, not to the latest one.
+  const chatHref = chatPath(chat.activeId, chat.draft)
 
   useEffect(() => {
     if (place.path === '/') navigate('/chat', true)
@@ -102,12 +105,13 @@ function Shell() {
   return (
     <div className="mw-app mia-root">
       <header className="mw-header">
-        <Link to="/chat" className="mw-brand" aria-label="Мия — чат">
+        <Link to={chatHref} className="mw-brand" aria-label="Мия — чат">
           <span className="mia-orb mia-orb--sm" data-state="idle" aria-hidden="true" />
           <span>Мия</span>
         </Link>
         <nav className="mw-nav" aria-label="Главная навигация">
-          {tabs.map(({ to, label, short, icon: Icon, match }) => {
+          {tabs.map(({ to: base, label, short, icon: Icon, match }) => {
+            const to = base === '/chat' ? chatHref : base
             const current = match.test(path)
             return (
               <Link
