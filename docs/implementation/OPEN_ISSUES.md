@@ -3499,6 +3499,9 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: сессия-follow-up «M71-N» после интеграции M77.
 - Affected future sessions: M77, MW5b-integrator.
 - Revisit trigger/deadline: интеграция M77.
+- Update (M71-F1): Proposed status: RESOLVED (code); the check on a phone stays open as UC-M71-1 point 8 / UC-M77-1.
+- Resolution: «Настройки → Уведомления» (`settings/notifications`): строка «Входящие» (всегда), канал = статус («Подключён» / «Не подключён» + причина по `detail`) и переключатель, таблица «Что и куда»; `PATCH` через `NotificationSettingsApi`. Содержание то же, что на web-странице M77.
+- Evidence: Android `session/M71-F1-notifications` (3 коммита): `NotificationSettingsApiTest` 9, `NotificationSettingsPresenterTest` 13, `NotificationSettingsScreenTest` 10, `SettingsRouteTest` +2, `NotificationSettingsWiringTest` 2; handoff `handoffs/M71-F1.md`.
 
 ### OI-M71-008 — Старые сессии WebView (OI-M70-005) не сбрасываются
 
@@ -3537,6 +3540,16 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (b) в follow-up с M77.
 - Affected future sessions: M77, M60.
 - Revisit trigger/deadline: жалоба на «таймер не видно в шторке».
+
+### OI-M71-012 — «Уведомления» на телефоне: таблица карточками и откат при ошибке
+
+- Status: DECIDED
+- Source session: M71-F1
+- Component: `feature/settings` (`NotificationSettingsScreen`, `NotificationSettingsPresenter`)
+- Decision: (1) таблица «тип события × канал» на телефоне — не сетка, а по карточке на тип события со строкой-флажком на каждый канал (первой — «Входящие», всегда включено и недоступно): сетка из 2+ каналов с русскими названиями не помещается на экран без горизонтальной прокрутки; значения и логика те же (`matrix[тип][канал]`, нет ячейки = включено; ячейки выключенного канала заблокированы, значения сохранены). (2) Касание применяется сразу, сохраняется одним `PATCH` с `Idempotency-Key`; показывается ответ только на последнее касание. (3) Если `PATCH` не прошёл (нет сети, 422, 5xx), экран возвращается к серверному состоянию (повторное чтение; без сети — последний подтверждённый ответ) и пишет причину; тихо ничего не теряется.
+- Why: читаемость на телефоне; поведение совпадает с web (последний ответ побеждает), но офлайн не оставляет «ложный» переключатель.
+- Affected future sessions: M60 (проверка на телефоне).
+- Revisit trigger/deadline: UC-M71-1 / UC-M77-1: замечания по размеру элементов.
 
 ## M72 inbox
 
