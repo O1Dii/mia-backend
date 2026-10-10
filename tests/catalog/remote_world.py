@@ -6,6 +6,7 @@ reaches them through the real ``GuardedTransport`` (fake DNS resolver, pinned ad
 - ``mcp.test.example``  ``/mcp`` Streamable HTTP MCP server and its protected resource metadata
 - ``auth.test.example`` authorization server: metadata, dynamic registration, authorize
   (PKCE S256 + ``resource`` indicator), token (code, rotating refresh), revocation (RFC 7009)
+- ``big.test.example``  ``/mcp`` a Linear-sized MCP server (76 tools, no auth; M15-R1)
 
 The authorization server enforces what Mia must send: S256 challenge, exact ``redirect_uri``,
 the MCP URL as ``resource`` on authorize, token and refresh requests, and a single-use code.
@@ -34,6 +35,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 MCP_HOST = "mcp.test.example"
 AS_HOST = "auth.test.example"
+BIG_HOST = "big.test.example"
+BIG_URL = f"https://{BIG_HOST}/mcp"
 PUBLIC_IP = "93.184.216.34"
 RESOURCE = f"https://{MCP_HOST}/mcp"
 ISSUER = f"https://{AS_HOST}"
@@ -55,7 +58,9 @@ class FakeClock:
 
 class FakeResolver:
     def __init__(self, mapping: Mapping[str, Sequence[str]] | None = None) -> None:
-        self.mapping = dict(mapping or {MCP_HOST: [PUBLIC_IP], AS_HOST: [PUBLIC_IP]})
+        self.mapping = dict(
+            mapping or {MCP_HOST: [PUBLIC_IP], AS_HOST: [PUBLIC_IP], BIG_HOST: [PUBLIC_IP]}
+        )
         self.lookups: list[str] = []
 
     async def __call__(self, host: str, port: int) -> Sequence[str]:
@@ -299,6 +304,63 @@ def build_mcp_server(
     return server
 
 
+_BIG_ENTITIES = (
+    "issue",
+    "project",
+    "comment",
+    "document",
+    "cycle",
+    "label",
+    "team",
+    "user",
+    "milestone",
+    "initiative",
+    "attachment",
+    "customer",
+)
+_BIG_EXTRA = (
+    "assign_issue",
+    "move_issue",
+    "link_issue",
+    "subscribe_issue",
+    "set_estimate",
+    "duplicate_issue",
+    "export_project",
+    "import_issues",
+)
+
+
+def big_tool_names() -> list[str]:
+    """76 tools shaped like Linear's: reads, main writes and destructive ones."""
+    names = [f"list_{entity}s" for entity in _BIG_ENTITIES]
+    names += [f"get_{entity}" for entity in _BIG_ENTITIES]
+    names += ["search_issues", "search_documentation"]
+    names += [f"create_{entity}" for entity in _BIG_ENTITIES]
+    names += [f"update_{entity}" for entity in _BIG_ENTITIES]
+    names += [f"delete_{entity}" for entity in _BIG_ENTITIES]
+    names += [f"archive_{entity}" for entity in _BIG_ENTITIES[:6]]
+    names += list(_BIG_EXTRA)
+    assert len(names) == 76 and len(set(names)) == 76
+    return names
+
+
+def build_big_server(calls: list[tuple[str, dict[str, Any]]]) -> MCPServer:
+    server = MCPServer("big-tracker", version="1.0.0")
+
+    def make(name: str) -> Callable[..., Any]:
+        async def tool(query: str = "") -> CallToolResult:
+            calls.append((name, {"query": query}))
+            return CallToolResult(
+                content=[TextContent(text=f"{name} done")], structured_content={"tool": name}
+            )
+
+        return tool
+
+    for name in big_tool_names():
+        server.add_tool(make(name), name=name, description=f"{name.replace('_', ' ')}.")
+    return server
+
+
 class RemoteWorld:
     """Dispatches by ``Host`` to the MCP resource server or the authorization server."""
 
@@ -316,6 +378,13 @@ class RemoteWorld:
         )
         self.mcp_requests: list[dict[str, str]] = []
         self.probe_status = 401
+        self.big_calls: list[tuple[str, dict[str, Any]]] = []
+        self.big = build_big_server(self.big_calls)
+        self.big_app: ASGIApp = self.big.streamable_http_app(
+            stateless_http=True,
+            json_response=True,
+            transport_security=TransportSecuritySettings(allowed_hosts=[BIG_HOST]),
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -330,6 +399,12 @@ class RemoteWorld:
             return
         if host == MCP_HOST:
             await self._resource(scope, receive, send, headers)
+            return
+        if host == BIG_HOST:
+            if scope["path"] == "/mcp":
+                await self.big_app(scope, receive, send)
+            else:
+                await Response(status_code=404)(scope, receive, send)
             return
         await Response(status_code=404)(scope, receive, send)
 
@@ -367,7 +442,7 @@ async def running(world: RemoteWorld) -> AsyncIterator[RemoteWorld]:
     ready, stop = asyncio.Event(), asyncio.Event()
 
     async def runner() -> None:
-        async with world.mcp.session_manager.run():
+        async with world.mcp.session_manager.run(), world.big.session_manager.run():
             ready.set()
             await stop.wait()
 

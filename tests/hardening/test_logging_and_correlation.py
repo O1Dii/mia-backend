@@ -45,6 +45,58 @@ def test_unknown_events_arguments_and_extra_fields_are_dropped() -> None:
     assert {"path", "transcript", "reason", "message", "msg"} & set(payload) == set()
 
 
+def test_application_event_names_are_readable_and_values_stay_typed() -> None:
+    installation_id = uuid4()
+    record = logging.LogRecord(
+        "app.modules.plugins.registry.installed",
+        logging.WARNING,
+        __file__,
+        1,
+        "plugin_manifest_invalid",
+        (),
+        None,
+    )
+    record.plugin_id = "custom.ufb39103c7d2edac"
+    record.installation_id = str(installation_id)
+    record.reason = "too_many_tools"
+    record.tool_count = 76
+    record.limit = 96
+    payload = formatted(record)
+    assert payload["event"] == "plugin_manifest_invalid"
+    assert payload["plugin_id"] == "custom.ufb39103c7d2edac"
+    assert payload["installation_id"] == str(installation_id)
+    assert (payload["reason"], payload["tool_count"], payload["limit"]) == (
+        "too_many_tools",
+        76,
+        96,
+    )
+
+    router = make_record("plugin_tools_unavailable", plugin_id="team.linear", kind="timeout")
+    router.name = "app.modules.tools.router"
+    assert formatted(router) | {"timestamp": None} == {
+        "timestamp": None,
+        "level": "INFO",
+        "logger": "app.modules.tools.router",
+        "event": "plugin_tools_unavailable",
+        "kind": "timeout",
+        "plugin_id": "team.linear",
+    }
+
+
+def test_only_argument_free_snake_case_app_events_are_named() -> None:
+    sentence = make_record(f"user said {SECRET}")
+    with_args = logging.LogRecord("app.x", logging.INFO, __file__, 1, "said_%s", (SECRET,), None)
+    library = logging.LogRecord("httpx", logging.INFO, __file__, 1, "request_sent", (), None)
+    for record in (sentence, with_args, library):
+        payload = formatted(record)
+        assert payload["event"] == "redacted_event" and SECRET not in json.dumps(payload)
+    bad_values = make_record(
+        "plugin_manifest_invalid", plugin_id=f"x {SECRET}", tool=SECRET, kind=SECRET
+    )
+    payload = formatted(bad_values)
+    assert {"plugin_id", "tool", "kind"} & set(payload) == set()
+
+
 def test_exception_records_expose_only_the_exception_class() -> None:
     try:
         raise ValueError(SECRET)
