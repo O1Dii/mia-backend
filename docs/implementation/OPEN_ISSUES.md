@@ -3395,7 +3395,95 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M75 inbox
 
-- Нет записей.
+### OI-M75-001 — Новый чат создаётся с первым сообщением, а не по кнопке
+
+- Status: DECIDED
+- Source session: M75
+- Component: web `lib/chat.tsx` (`send`, `newChat`), `GET/POST /v1/chats`
+- Decision: «Новый чат» открывает черновик (`/chat/new`, строка «Новый чат · Ещё без сообщений» в списке) и не вызывает `POST /v1/chats`; чат создаётся перед первым `POST /v1/runs` (`conversation_id` = его id), адрес заменяется на `/chat/<id>`.
+- Rationale: пустые чаты не копятся (backend всё равно удаляет пустые через 24 ч, OI-M74-004), повторные нажатия кнопки ничего не стоят. Тот же приём предложен M76 («Продолжить прошлый» → создать лениво).
+- Options: (a) так; (b) `POST /v1/chats` по кнопке (чат сразу виден и переименовывается до первого сообщения).
+- Recommendation: (a).
+- Affected future sessions: M76, M60.
+- Revisit trigger/deadline: жалоба «хочу назвать чат до первого сообщения».
+
+### OI-M75-002 — «Сейчас» показывается только на экране чата
+
+- Status: DECIDED
+- Source session: M75
+- Component: web `components/NowStrip.tsx` (внутри `Chat`)
+- Decision: полоса живёт в экране чата (над лентой), общая для всех чатов (ADR-0017: таймеры, будильники, фокус и задачи аккаунта). Не в шапке оболочки: не меняет раскладку остальных экранов и не конфликтует с плиткой «Таймеры» дашборда.
+- Options: (a) только чат; (b) компактный индикатор в шапке на всех экранах (счётчик + выпадающий список).
+- Recommendation: (a) для MVP; (b), если пользователи будут ставить таймер и сразу уходить с чата.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: живая проверка MW5b.
+
+### OI-M75-003 — Журнал шагов виден только у живого ответа, после перезагрузки его нет
+
+- Status: OPEN
+- Source session: M75
+- Component: web `ToolSteps`, `GET /v1/feed`, `GET /v1/runs/{id}/events`
+- Question: шаги (инструмент, аргументы, причина ошибки; OI-M73-002, OI-LIVE-003) строятся из событий `tool.call.*` во время ответа. Запись ленты их не содержит, поэтому в истории и после обновления страницы шагов нет (кнопки действий и карточки — есть, они в `FeedItem`).
+- Why non-blocking: причина ошибки видна в момент сбоя; журнал по-прежнему доступен через API.
+- Current assumption: показ только вживую.
+- Options: (a) оставить; (b) web лениво читает `GET /v1/runs/{run_id}/events` по кнопке «Действия» под ответом из истории (без изменения backend); (c) backend: `FeedItem.steps` (аддитивно) — компактный журнал (tool, status, arguments, error_detail).
+- Recommendation: (b) отдельной небольшой сессией web, если пользователь захочет разбирать старые сбои; (c) не нужно.
+- Affected future sessions: M76 (та же потребность), M60.
+- Revisit trigger/deadline: жалоба «не вижу, почему тогда не получилось».
+
+### OI-M75-004 — Превью чата содержит Markdown как есть
+
+- Status: OPEN
+- Source session: M75
+- Component: `Chat.preview` (backend, `app/modules/conversations/chats.py`), web `ChatList`
+- Question: `preview` отдаётся как последний текст (`**Мия**`, `| Проект | Статус |`). Web чистит его `plainText()` на клиенте; Android получит то же.
+- Why non-blocking: у web починено на клиенте, обрезка ≤120 символов остаётся (таблица из первых 120 символов выглядит как «Вот проекты:, Проект, Статус…»).
+- Options: (a) оставить; (b) backend отдаёт `preview` без разметки (заголовки, `**`, `|`, ссылки → текст).
+- Recommendation: (b) — одна функция при записи/чтении превью (запрос к владельцу M74, см. handoff M75). Android избавится от дубля логики.
+- Affected future sessions: M74-owner, M76.
+- Revisit trigger/deadline: M76.
+
+### OI-M75-005 — Карточка результата ведёт во «Входящие», а не к записи
+
+- Status: OPEN
+- Source session: M75
+- Component: `FeedItem.card` (`job_id`), web `JobResultCard`, `/inbox`
+- Question: у карточки есть `job_id`, но у экрана «Входящие» нет адреса записи (`/inbox?job=…`), поэтому ссылка «Во входящих» открывает список.
+- Why non-blocking: результат целиком в самой карточке; во входящих он лежит сверху.
+- Options: (a) оставить; (b) M75-продолжение: `/inbox?job=<id>` раскрывает и подсвечивает запись (web) — `GET /v1/jobs/{id}` уже есть.
+- Recommendation: (b), когда будут правки экрана «Входящие».
+- Affected future sessions: M76 (там же ведёт в раздел), M60.
+- Revisit trigger/deadline: жалоба «не нашла задачу во входящих».
+
+### OI-M75-006 — Два срока хранения: «история разговоров» в Памяти и «Хранить чаты» в списке чатов
+
+- Status: OPEN
+- Source session: M75
+- Component: web `Memory.tsx` (`history_retention`, M31) и `ChatList.tsx` (`PUT /v1/chats/settings`, M74)
+- Question: на экране «Память» уже есть настройка «Как долго хранить историю разговоров» (M17: срок хранения turns/summary), а M74 добавил отдельный срок удаления неактивных чатов (30/60/180/никогда, закреплённые остаются). Пользователь видит две похожие настройки.
+- Why non-blocking: M75 назвал вторую «Хранить чаты» и поместил рядом со списком чатов; поведение каждой описано подсказкой.
+- Options: (a) оставить; (b) свести в одну настройку на стороне backend (retention чатов управляет и историей) и оставить один контрол; (c) в «Памяти» показать ссылку на «Хранить чаты».
+- Recommendation: (b) в repair-сессии после живой проверки; сейчас (a).
+- Affected future sessions: M17-owner, M74-owner, M60.
+- Revisit trigger/deadline: живая проверка MW5b.
+
+### OI-M75-007 — Список чатов и «Сейчас» обновляются опросом
+
+- Status: OPEN
+- Source session: M75
+- Component: web `NowStrip` (30 с, 4 с пока есть фоновая задача, при фокусе и после каждого run), `refreshChats` (после run + через 3 с для названия модели)
+- Question: сообщения в чате «Telegram» и результат задачи, пришедшие пока вкладка открыта, видны с задержкой опроса. Push/SSE по аккаунту нет.
+- Why non-blocking: карточка задачи подтягивается самой полосой «Сейчас» (исчезновение задачи → перечитывание ленты чата), остальное — при фокусе.
+- Options: (a) оставить; (b) аккаунтный поток событий (`GET /v1/events`) — отдельная сессия backend.
+- Recommendation: (a) до жалоб.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: жалоба «ответ в Telegram-чате появился не сразу».
+
+### Закрытие чужих вопросов (для интегратора; индекс и сами записи M75 не правит)
+
+- OI-LIVE-001 (таблицы): web закрыт (`lib/markdown.tsx`, Playwright «a Markdown table…»); Android — M76.
+- OI-LIVE-003 / OI-M73-002 (причина ошибки шага): web закрыт для живых ответов, оговорка — OI-M75-003; Android — M76.
+- OI-M41-R1-002: закрыт вариантом (c): после `lost` web перечитывает ленту чата и добавляет кнопки действий (Playwright «after a lost event stream…»).
 
 ## M76 inbox
 
