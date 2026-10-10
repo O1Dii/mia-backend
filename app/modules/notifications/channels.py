@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
@@ -194,6 +194,10 @@ class PushTokenStore:
             )
 
 
+_RINGING_SOURCES = ("builtin.alarm:", "builtin.timer:")
+_RING_TTL_SECONDS = 600
+
+
 class PushChannel:
     """Sends one FCM message per valid device token of the user."""
 
@@ -213,8 +217,13 @@ class PushChannel:
 
     @staticmethod
     def payload(message: OutboundMessage) -> PushMessage:
-        """FCM ``data`` is the contract for M24 (all values are strings)."""
-        return PushMessage(
+        """FCM ``data`` is the contract for M24 (all values are strings).
+
+        A fired cloud alarm or timer is data-only with a short TTL (OI-M71-001): the app
+        rings it full screen itself, and a push that arrives late must not ring at all.
+        """
+        rings = message.source_type == "plugin" and message.source_id.startswith(_RINGING_SOURCES)
+        push = PushMessage(
             title=message.title,
             body=message.text,
             data={
@@ -227,6 +236,9 @@ class PushChannel:
             },
             collapse_key=str(message.inbox_item_id),
         )
+        if rings:
+            return replace(push, data_only=True, ttl_seconds=_RING_TTL_SECONDS)
+        return push
 
     async def deliver(self, message: OutboundMessage) -> DeliveryResult:
         if self._client is None:
