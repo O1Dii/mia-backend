@@ -17,6 +17,14 @@ before dispatch, one attempt only (timeout of a write → ``uncertain``). Tool
 output reaches the model only framed as untrusted data. A screen-only action
 (``_meta["mia/action"]``, M41-R1) of an in-process server is validated and handed
 to the UI with the outcome; remote servers cannot attach one.
+
+Device tools (ADR-0016, M70): a run that carries a (verified) device sees that device's
+tools as before. A run from another client (browser, another device) sees the tools of the
+user's phone marked "remote": every call goes through
+:class:`~app.modules.tools.device_access.DeviceAccess` (``allow | ask | deny``); ``ask`` is
+an approval only the phone can decide (``device_consent``), waiting up to two minutes.
+Device results lose phone numbers. One model request carries at most
+``RouterConfig.max_model_tools`` tools (OI-M15-R1-001).
 """
 
 from __future__ import annotations
@@ -61,10 +69,19 @@ from app.modules.plugins.registry.installed import SKILL_DESCRIPTION_MAX
 from app.modules.tools.approvals import ConsumableApprovals
 from app.modules.tools.audit import AuditEntry, ToolAudit, content_digest
 from app.modules.tools.core_tools import CoreTool, CoreToolRegistry
+from app.modules.tools.device_access import DeviceAccess, TargetDevice, consent_summary
+from app.modules.tools.device_policy import (
+    CONSENT_WAIT_SECONDS,
+    Capability,
+    Requester,
+    capability_for,
+    minimize_device_result,
+)
 from app.modules.tools.digest import ServerTool, compute_tools_digest
 from app.modules.tools.mcp_client import ConnectionRequired, McpConnector, McpFailure
 from app.modules.tools.policy import (
     MAX_ARGUMENT_BYTES,
+    MAX_DESCRIPTION_CHARS,
     approval_summary,
     arguments_valid,
     clip_description,
@@ -94,6 +111,8 @@ class RouterConfig:
     approval_ttl_s: int = 120
     max_result_chars: int = 8000
     max_structured_bytes: int = 64 * 1024
+    max_model_tools: int = 128
+    """One model request carries at most this many tools (M15-R1 budget: 96 plugin + 32)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +126,8 @@ class _Entry:
     ui_resource_uri: str | None = None
     core: CoreTool | None = None
     device: DeviceToolDeclaration | None = None
+    target: TargetDevice | None = None
+    """Set for a device tool of another device than the run's own (M70, consent needed)."""
 
     @property
     def risk(self) -> Risk:
@@ -161,6 +182,7 @@ class McpToolRouter:
         core_tools: CoreToolRegistry | None = None,
         config: RouterConfig | None = None,
         clock: Callable[[], datetime] | None = None,
+        device_access: DeviceAccess | None = None,
     ) -> None:
         self._registry = registry
         self._connector = connector
@@ -172,6 +194,10 @@ class McpToolRouter:
         self._clock: Callable[[], datetime] = clock or (lambda: datetime.now(UTC))
         self._tool_cache: dict[tuple[str, str], tuple[float, list[ServerTool]]] = {}
         self._consumed: set[str] = set()
+        self._device_access = device_access
+
+    def bind_device_access(self, access: DeviceAccess) -> None:
+        self._device_access = access
 
     # -- discovery --------------------------------------------------------------
 
@@ -307,15 +333,36 @@ class McpToolRouter:
 
     async def _device_entries(self, context: ToolContext, table: _Table) -> None:
         channel = self._device_channel
-        if channel is None or context.device_id is None or context.profile not in ("voice", "chat"):
+        if channel is None or context.profile not in ("voice", "chat"):
             return
-        declared = await channel.available_tools(
-            user_id=context.user_id, device_id=context.device_id
-        )
+        target: TargetDevice | None = None
+        settings: dict[str, str] = {}
+        declared: Sequence[DeviceToolDeclaration]
+        if context.device_id is not None:
+            declared = await channel.available_tools(
+                user_id=context.user_id, device_id=context.device_id
+            )
+        else:
+            access = self._device_access
+            if access is None:
+                return
+            requester = await access.requester(context)
+            if requester.kind in ("job", "app"):
+                return
+            target = await access.target(context.user_id)
+            if target is None:
+                return
+            declared = target.tools
+            settings = await access.remote_settings(
+                user_id=context.user_id, device_id=target.device_id
+            )
         for tool in declared:
             if not DEVICE_TOOL_NAME.match(tool.name):
                 continue
             if context.profile == "voice" and not tool.voice:
+                continue
+            if target is not None and settings.get(capability_for(tool.name).name) == "deny":
+                table.blocked.setdefault(tool.name, "device_capability_disabled")
                 continue
             validator = compile_schema(tool.input_schema)
             if validator is None:
@@ -324,7 +371,9 @@ class McpToolRouter:
                 _Entry(
                     descriptor=ToolDescriptor(
                         spec=ToolSpec(
-                            tool.name, clip_description(tool.description), dict(tool.input_schema)
+                            tool.name,
+                            _device_description(tool.description, target),
+                            dict(tool.input_schema),
                         ),
                         risk=tool.risk,
                         executor="device",
@@ -334,6 +383,7 @@ class McpToolRouter:
                     validator=validator,
                     timeout_s=tool.timeout_ms / 1000,
                     device=tool,
+                    target=target,
                 )
             )
 
@@ -395,7 +445,19 @@ class McpToolRouter:
                 table.blocked.setdefault(name, code)
             table.plugins.update(part.plugins)
         await self._skills_entry(context, table)
+        self._cap(table)
         return table
+
+    def _cap(self, table: _Table) -> None:
+        """Drop plugin tools beyond the model's per-request limit, last installs first."""
+        excess = len(table.entries) - self._config.max_model_tools
+        if excess <= 0:
+            return
+        dropped = [name for name, e in reversed(table.entries.items()) if e.kind == "plugin"]
+        for name in dropped[:excess]:
+            del table.entries[name]
+            table.blocked.setdefault(name, "tool_unavailable")
+        logger.warning("plugin_tools_over_budget", extra={"dropped": min(excess, len(dropped))})
 
     # -- calls ------------------------------------------------------------------
 
@@ -423,7 +485,8 @@ class McpToolRouter:
         )
         if entry is None:
             code = table.blocked.get(request.tool, "tool_not_found")
-            return await self._refuse(audit, request, "failed", code)
+            status: ToolCallStatus = "denied" if code == "device_capability_disabled" else "failed"
+            return await self._refuse(audit, request, status, code)
         encoded = encoded_arguments(request.arguments)
         if (
             encoded is None
@@ -432,6 +495,8 @@ class McpToolRouter:
             or not arguments_valid(entry.validator, request.arguments)
         ):
             return await self._refuse(audit, request, "failed", "tool_invalid_arguments")
+        if entry.kind == "device" and entry.target is not None:
+            return await self._remote_device_call(context, request, entry, audit, table)
         approval_id: str | None = None
         if entry.risk == "write_external":
             if request.approval_id is None:
@@ -441,6 +506,106 @@ class McpToolRouter:
                 return refused
             approval_id = request.approval_id
         return await self._dispatch(context, request, entry, audit, approval_id, table)
+
+    async def _remote_device_call(
+        self,
+        context: ToolContext,
+        request: ToolCallRequest,
+        entry: _Entry,
+        audit: AuditEntry,
+        table: _Table,
+    ) -> ToolOutcome:
+        """A device call for the user's phone from another client (ADR-0016 §3-§8)."""
+        access, target = self._device_access, entry.target
+        assert target is not None
+        if access is None:
+            return await self._refuse(audit, request, "failed", "device_unavailable")
+        requester = await access.requester(context)
+        capability = capability_for(request.tool)
+        decision = await access.evaluate(context, requester, target.device_id, capability)
+
+        async def log(value: str) -> None:
+            await access.log(
+                context,
+                requester,
+                device_id=target.device_id,
+                capability=capability,
+                tool=request.tool,
+                decision=value,
+            )
+
+        if decision.value == "deny":
+            if decision.reason == "capability_disabled":
+                await log("blocked")
+                return await self._refuse(audit, request, "denied", "device_capability_disabled")
+            return await self._refuse(audit, request, "denied", "tool_permission_denied")
+        approval_id: str | None = None
+        if request.approval_id is not None:
+            refused = await self._consume_approval(context, request, audit)
+            if refused is not None:
+                return refused
+            approval_id = request.approval_id
+            await access.consumed(
+                context,
+                requester,
+                target_device_id=target.device_id,
+                capability=capability,
+                approval_id=approval_id,
+            )
+        elif decision.value == "ask":
+            if not await access.reachable(user_id=context.user_id, device_id=target.device_id):
+                await log("offline")
+                return await self._refuse(audit, request, "failed", "device_offline")
+            return await self._request_device_consent(
+                context, request, entry, audit, requester, capability
+            )
+        elif decision.reason != "same_device":
+            await log("allowed")
+            await access.granted(decision)
+        return await self._dispatch(context, request, entry, audit, approval_id, table)
+
+    async def _request_device_consent(
+        self,
+        context: ToolContext,
+        request: ToolCallRequest,
+        entry: _Entry,
+        audit: AuditEntry,
+        requester: Requester,
+        capability: Capability,
+    ) -> ToolOutcome:
+        access, target = self._device_access, entry.target
+        assert access is not None and target is not None
+        if self._approvals is None:
+            return await self._refuse(audit, request, "denied", "approval_unavailable")
+        approval = await self._approvals.request(
+            ApprovalRequest(
+                user_id=context.user_id,
+                run_id=context.run_id,
+                tool_call_id=request.call_id,
+                tool=request.tool,
+                risk=entry.risk,
+                summary=consent_summary(requester, capability, request.arguments),
+                arguments=dict(request.arguments),
+                ttl_seconds=access.consent_wait_s,
+                device_consent=access.consent_body(requester, target, capability),
+            )
+        )
+        await self._safe_record(
+            dataclasses.replace(audit, approval_id=approval.id), "approval_required", None
+        )
+        await access.log(
+            context,
+            requester,
+            device_id=target.device_id,
+            capability=capability,
+            tool=request.tool,
+            decision="pending",
+            approval=approval,
+        )
+        await access.consent_requested(
+            user_id=context.user_id, device_id=target.device_id, approval=approval
+        )
+        return ToolOutcome(call_id=request.call_id, status="approval_required", approval=approval)
 
     async def _refuse(
         self, audit: AuditEntry, request: ToolCallRequest, status: ToolCallStatus, code: str
@@ -722,27 +887,27 @@ class McpToolRouter:
         approval_id: str | None,
     ) -> ToolOutcome:
         channel = self._device_channel
-        if channel is None or context.device_id is None:
+        device_id = entry.target.device_id if entry.target is not None else context.device_id
+        if channel is None or device_id is None:
             return ToolOutcome(request.call_id, "failed", error_code="device_unavailable")
         result = await channel.invoke(
             user_id=context.user_id,
             call=DeviceToolCall(
                 call_id=request.call_id,
                 run_id=context.run_id,
-                device_id=context.device_id,
+                device_id=device_id,
                 tool=request.tool,
                 arguments=dict(request.arguments),
                 deadline_at=self._clock() + timedelta(seconds=entry.timeout_s),
                 approval_id=approval_id,
+                delivery="push" if entry.target is not None else None,
             ),
         )
         if result.status == "succeeded":
-            return self._success(
-                request,
-                text=result.content,
-                structured=result.structured_content,
-                ui_resource_uri=None,
+            text, structured = minimize_device_result(
+                request.tool, result.content, result.structured_content
             )
+            return self._success(request, text=text, structured=structured, ui_resource_uri=None)
         code = f"device_{result.error_code}" if result.error_code else "device_execution_failed"
         if code == "device_device_locked":
             code = "device_locked"
@@ -761,3 +926,24 @@ class McpToolRouter:
             status="succeeded",
             content=_skill_frame(plugin.plugin_id, bodies)[: self._config.max_result_chars * 2],
         )
+
+
+_SAME_DEVICE_NOTE = "Runs on the user's phone; use it only when the user asked for this."
+_REMOTE_NOTE = (
+    "Runs on the user's phone {name}, not where this conversation is. The user must confirm "
+    "on the phone (the call waits up to {minutes} min). Errors: approval_denied = declined "
+    "on the phone; approval_expired = no answer on the phone in time; device_offline = the "
+    "phone is not reachable; device_capability_disabled = turned off on the phone. Say so "
+    "plainly and do not retry on your own. Use it only when the user asked for this."
+)
+
+
+def _device_description(description: str, target: TargetDevice | None) -> str:
+    """The device's own text plus Mia's policy note (ADR-0016 §2: no implicit device acts)."""
+    if target is None:
+        note = _SAME_DEVICE_NOTE
+    else:
+        name = f"«{target.name}»" if target.name else "(Mia app)"
+        note = _REMOTE_NOTE.format(name=name, minutes=CONSENT_WAIT_SECONDS // 60)
+    room = MAX_DESCRIPTION_CHARS - len(note) - 1
+    return clip_description(f"{clip_description(description)[:room]} {note}")

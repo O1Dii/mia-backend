@@ -144,6 +144,7 @@ class InMemoryApprovalService:
             status="pending",
             created_at=created,
             expires_at=created + timedelta(seconds=request.ttl_seconds),
+            device_consent=dict(request.device_consent) if request.device_consent else None,
         )
         self._items[approval.id] = approval
         return approval
@@ -238,6 +239,7 @@ def _from_row(row: ToolApproval) -> Approval:
         created_at=row.created_at,
         expires_at=row.expires_at,
         decision=decision,
+        device_consent=dict(row.device_consent) if row.device_consent else None,
     )
 
 
@@ -279,6 +281,7 @@ class SqlApprovalService:
             status="pending",
             created_at=created,
             expires_at=created + timedelta(seconds=request.ttl_seconds),
+            device_consent=dict(request.device_consent) if request.device_consent else None,
         )
         async with self._session_factory() as session, session.begin():
             session.add(row)
