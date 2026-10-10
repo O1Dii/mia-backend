@@ -3131,6 +3131,14 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Affected sessions: M16 owner / M60.
 - Revisit trigger/by: next flaky report.
 
+## M41-R1 inbox
+
+- Нет записей.
+
+## M15-R1 inbox
+
+- Нет записей.
+
 ## M70 inbox
 
 - Нет записей.

@@ -377,6 +377,12 @@ ADR-0016 (облако по умолчанию; действия и данные
 Telegram в WebView не работает: web-сессия WebView не знает устройство (ADR-0016 §3 это исправляет).
 M60 теперь зависит и от MW5b.
 
+**Живые проверки 2026-10-10 на сервере (бот и Linear):** Telegram-бот настроен (`@mia_helper_ai_bot`, webhook без ошибок), но
+«подключи Telegram-бота» не показывает ссылку — `connect_bot` отдаёт её только в `structuredContent`, клиенты её не выводят
+(repair M41-R1). Linear добавлен по URL и подключён (OAuth), но модель его не видит: у сервера 76 инструментов, манифест
+допускает 64, установка молча пропускается при каждом run (repair M15-R1). Логи сервера заменяют имена событий на
+`redacted_event` — исправляет M15-R1.
+
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | M00 | MW0 | COMPLETED | — | Opus 5.5 high | [M00](handoffs/M00.md) | `3f904b6` | ADR-0010…0015, contracts/mvp/v1, ports+fakes |
@@ -410,6 +416,8 @@ M60 теперь зависит и от MW5b.
 | M25-R1 | MW5 | COMPLETED | M25, UC-M25-1/2 | Opus 5.5 high | [M25-R1](handoffs/M25-R1.md) | `e4539f7` / Android `e4a728d` | adjustResize, диктовка с паузами, «Чат» из голосового экрана |
 | M24-R1 | MW5 | COMPLETED | M24, UC-M24-2 | Opus 5.5 high | [M24-R1](handoffs/M24-R1.md) | `e4539f7` / Android `e4a728d` | WebView MATCH_PARENT (dvh=0), окно согласия во весь экран |
 | M62-T1 | MW5 | COMPLETED | M51-R1 (main) | Opus 5.5 high | [M62-T1](handoffs/M62-T1.md) | `e4539f7` | MVP на mindmapgen.xyz/mia, APK для скачивания, ChatGPT из «Модели» |
+| M41-R1 | MW5b | READY | M41 | Opus 5.5 high | — | — | repair: ссылка бота не видна (structuredContent не выводится) → кнопка на шаге в web/Android |
+| M15-R1 | MW5b | READY | M15 | Opus 5.5 high | — | — | repair: Linear по URL (76 tools > лимит 64) молча выпадает; логи `redacted_event` |
 | M70 | MW5b | READY | ADR-0016 | Opus 5.5 high | — | — | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
 | M73 | MW5b | READY | — | Sonnet 5.5 high | — | — | встроенный поиск, короткие ответы без задачи, журнал инструментов |
 | M74 | MW5b | READY | ADR-0017 | Opus 5.5 high | — | — | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |

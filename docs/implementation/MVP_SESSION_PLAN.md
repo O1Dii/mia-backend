@@ -1294,10 +1294,42 @@ APK скачивается и входит на телефоне без USB; rol
 (отдельные чаты, общее состояние аккаунта), встроенный поиск, короткие вопросы без фоновой
 задачи, журнал вызовов инструментов, полоса «Сейчас». Wake word — после MVP (ADR-0009).
 
-Порядок: **MW5b-1** — M70, M73, M74 параллельно (backend); **MW5b-2** — M71, M72, M75, M76
+Порядок: сначала repair **M41-R1** и **M15-R1** (баги живой проверки); **MW5b-1** — M70, M73, M74 параллельно (backend); **MW5b-2** — M71, M72, M75, M76
 после своих зависимостей. Ownership: `app/modules/tools/router.py` и `device.py` — M70;
 `app/modules/runs/**` (промпты, события) — M73; `app/modules/conversations/**`, `app/api/v1/feed.py`
 и миграции чатов — M74; `contracts/mvp/v1/*` — аддитивно, каждая сессия свои пути.
+
+#### M41-R1 — Ссылки «только на экран» из результатов инструментов (repair)
+
+**Objective:** «подключи Telegram-бота» показывает кнопку со ссылкой на web и Android; ссылка не
+попадает в текст модели. **Preferred:** Opus 5.5 high (repair Sonnet → Opus). **Depends on:** — (main).
+**Причина (2026-10-10):** `builtin.telegram.connect_bot` кладёт `deep_link` в `structuredContent`, а
+ни web, ни Android такие данные не выводят — ссылка теряется.
+**Write scope:** `app/modules/plugins/builtin/kit.py` (общий формат действия для экрана, например
+`_meta["mia/action"] = {kind: "open_url", url, label, expires_at}`), `app/plugins/builtin/telegram/**`,
+передача действия в событии шага `tool.call.completed` (только UI, не модели) —
+`app/modules/tools/router.py` и `app/modules/runs/**` минимальной правкой, `contracts/mvp/v1/*`
+аддитивно; web `web/src/components/ChatParts.tsx` (кнопка на шаге), Android `feature/chat/**` (кнопка),
+тесты. **DoD:** e2e: connect_bot → событие с действием, в истории модели ссылки нет; Playwright —
+кнопка «Открыть Telegram» в чате; Android JVM/Compose тест кнопки; живая проверка — UC-M41-2.
+
+#### M15-R1 — Сервер по URL с большим числом инструментов; видимость ошибок (repair)
+
+**Objective:** Linear (76 tools) по URL работает; ни одна установка не выпадает молча.
+**Preferred:** Opus 5.5 high. **Depends on:** — (main).
+**Причина (2026-10-10):** add-by-URL сохранил манифест со всеми 76 инструментами, `parse_manifest`
+требует 1..64 → `InstalledPluginRegistry._resolve` пропускает установку, модель не видит Linear;
+логи заменяют имена событий на `redacted_event`.
+**Write scope:** `app/modules/plugins/registry/**`, `app/modules/plugins/catalog/**` (add-by-URL),
+`app/modules/tools/**` (только если нужен лимит набора), логирование (`app/core/logging*` — имена событий
+не редактировать, редактировать только значения), web `web/src/components/StoreAddUrl.tsx`
+(выбор инструментов/сообщение), `contracts/mvp/v1/*` аддитивно, тесты.
+**Work:** согласованный лимит на всех шагах; при > лимита — выбор нужных инструментов на экране
+согласия (по умолчанию — чтение и основные), либо поднять лимит для custom с учётом контекста модели —
+решить и записать; установка с невалидным манифестом получает статус `needs_attention` и видна в
+«Мои плагины», а не пропадает; имена событий в логах читаемы.
+**DoD:** тест с фейковым сервером на 76 инструментов: добавление → выбор → вызов из чата; существующая
+установка Linear на тестовом сервере начинает работать после выкладки (миграция/пересогласие описаны).
 
 #### M70 — Политика устройств и согласие на устройстве (backend)
 
