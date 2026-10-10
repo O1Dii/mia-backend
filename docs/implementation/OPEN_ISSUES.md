@@ -4156,7 +4156,136 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M60 inbox
 
-- Нет записей.
+### OI-M60-001 — Голосовой «Что у меня сегодня» читает только два источника из трёх
+
+- Status: OPEN (нужно решение пользователя)
+- Source session: M60
+- Component: профиль `voice` (ADR-0011: ≤ 3 шага, ≤ 2 tool calls; `RUN_VOICE_MAX_TOOL_CALLS=2`), `app/modules/runs/engine.py:508`
+- Question: в чате Mia за один шаг параллельно читает Linear, заметки и таймер; голосом третий вызов получает `tool_budget_exceeded`, и ответ строится из двух источников. Менять ли лимит голоса?
+- Why non-blocking: ответ голосом всё равно приходит; в чате и на экране — полностью.
+- Current assumption: лимит ADR-0011 сохраняется; тест `tests/e2e_mvp/test_s02_today.py::test_today_by_voice_reads_all_three_sources` — strict xfail.
+- Options: (a) поднять `RUN_VOICE_MAX_TOOL_CALLS` до 4; (b) параллельные read-вызовы одного шага считать одним вызовом (до 4 за шаг), запись — отдельно; (c) оставить 2, пусть модель отвечает по двум источникам.
+- Recommendation: (b) — параллельные чтения почти не добавляют задержки, смысл ADR (≈ 6 с до первого звука) сохраняется; проверить по UC-M60-8. Реализация — M12-R1.
+- Affected future sessions: M12-R1, M61.
+- Revisit trigger/deadline: решение пользователя до M12-R1.
+
+### OI-M60-002 — Подтверждение показывает `person:<id>` вместо имени получателя
+
+- Status: OPEN → repair M41-R2
+- Source session: M60
+- Component: `approval_summary` (`app/modules/tools/policy.py:96`), вызов `app/modules/tools/router.py:688`; web `ChatParts.tsx:428`, Android `ChatParts.kt` показывают `approval.summary`
+- Question: после уточнения «Петровой» модель передаёт `to="person:<uuid>"`, как велит `people.resolve`; карточка подтверждения показывает `to="person:3e6c…"` — пользователь не может проверить, кому уходит сообщение. Тесты M41 этого не ловят: в них модель передаёт имя.
+- Why non-blocking: не блокирует другие сессии; блокирует READY MVP (сценарий 3).
+- Current assumption: strict xfail `tests/e2e_mvp/test_s03_yana.py::test_confirmation_names_the_recipient_chosen_by_ref`.
+- Options: (a) поздний резолвер имён для summary в router (аргументы и `args_hash` не меняются); (b) плагин сам формирует summary.
+- Recommendation: (a), M41-R2 (Opus 5.5 high).
+- Affected future sessions: M41-R2.
+- Revisit trigger/deadline: до повторной приёмки.
+
+### OI-M60-003 — Нет удаления аккаунта и переключателя инкогнито
+
+- Status: OPEN → repair M17-R1 (вбирает OI-M17-004, OI-M15-006)
+- Source session: M60
+- Component: `MemoryService.shred_account` без endpoint; `incognito` только в `POST /v1/runs` и кодеке Android (`RunModels.kt:18`), в web и Android UI нет
+- Question: сценарий 7 требует удаления аккаунта и инкогнито для пользователя.
+- Why non-blocking: не блокирует другие сессии; блокирует READY MVP (сценарий 7).
+- Current assumption: strict xfail `tests/e2e_mvp/test_s07_memory.py::test_the_user_can_delete_the_account`, `::test_the_web_chat_can_start_an_incognito_run`.
+- Options: (a) M17-R1 по карточке в MVP_ACCEPTANCE.md; (b) удаление аккаунта по письму в поддержку на пилоте.
+- Recommendation: (a) до пилота.
+- Affected future sessions: M17-R1, M62.
+- Revisit trigger/deadline: до M62.
+
+### OI-M60-004 — Зависание полного pytest: превратить в падение с трассой
+
+- Status: OPEN
+- Source session: M60 (диагностика OI-MW5b-001)
+- Component: dev-зависимости (`pyproject.toml`, `uv.lock`), фикстуры с `TRUNCATE`
+- Question: зависание MW5b не воспроизвелось (детектор вложенных checkout — 0 в коде Mia; под нагрузкой нет долгих `idle in transaction`); найдены и исправлены гонка `speech.ack` и два чувствительных ко времени теста. Если зависание повторится — как получить трассу?
+- Why non-blocking: на свободной и нагруженной машине прогоны проходят.
+- Current assumption: OI-MW5b-001 закрыт диагностикой.
+- Options: (a) `pytest-timeout` (например `timeout = 600` на тест) в dev; (b) `SET lock_timeout = '60s'` перед `TRUNCATE` в фикстурах; (c) оставить.
+- Recommendation: (a) + (b) — общие файлы, integrator или M62. Отдельно: обновление OAuth-токена (`app/modules/connections/oauth/service.py:681`) и токена ChatGPT-плана (`app/modules/models/chatgpt_plan/credentials.py:158,191`) идёт по сети внутри транзакции — при медленном провайдере держит соединение пула до таймаута; пересмотреть в M62 при нагрузочном тесте пилота.
+- Affected future sessions: M62.
+- Revisit trigger/deadline: повтор зависания или M62.
+
+### OI-M60-005 — Сквозной тест MindWeaver отстал и не герметичен
+
+- Status: OPEN
+- Source session: M60
+- Component: MindWeaver `backend/e2e_mia/test_mia_chain.py`, `backend/app/config.py`
+- Question: тест строит `InstallService(...)` без `registry=` (обязателен с M15-R1) — на текущем Mia 0/7. Из основного checkout MindWeaver подтягивает свой `backend/.env`, и бэкенд MindWeaver делает живые вызовы провайдера (в M60 так случилось ~4 вызова Gemini; агент файл не открывал). С правкой `registry=registry` и исходниками из `git archive HEAD` — 7/7.
+- Why non-blocking: Mia-сторона проверена `tests/e2e_mvp/test_s06_mindweaver.py`; правка в репозитории MindWeaver.
+- Current assumption: запуск только из `git archive` без `.env`.
+- Options: (a) в тесте передать `registry=registry` и запускать MindWeaver с env, отключающим чтение `.env`; (b) оставить ручной обход.
+- Recommendation: (a) владельцем MindWeaver (или M62 при деплое MindWeaver, OI-M51-004).
+- Affected future sessions: M62, обслуживание MindWeaver.
+- Revisit trigger/deadline: следующий запуск E2E MindWeaver.
+
+### OI-M60-006 — После отзыва приложения подключение `mia_token` выглядит «подключено»
+
+- Status: OPEN
+- Source session: M60
+- Component: `DELETE /v1/apps/{grant_id}` → `GET /v1/connections`, установка
+- Question: токены после отзыва мертвы и инструменты пропадают из run, но список подключений показывает `connected`, установка — `active`, пока не пройдёт проверка здоровья (`needs_connection`).
+- Why non-blocking: безопасность не нарушена.
+- Current assumption: статус берётся из проверки здоровья.
+- Options: (a) при отзыве гранта помечать `mia_token`-подключения `needs_reauth`; (b) оставить.
+- Recommendation: (a), низкий приоритет (M17-R1 или отдельная мелкая правка).
+- Affected future sessions: M17-R1 / M62.
+- Revisit trigger/deadline: жалоба на «подключено» после отключения.
+
+### OI-M60-007 — Add-by-URL сохраняет установку с буквальным частным IP
+
+- Status: OPEN
+- Source session: M60
+- Component: `POST /v1/installations` (add-by-URL), `app/modules/plugins/install/**`
+- Question: `https://169.254.169.254`, `127.0.0.1`, `[::1]`, `10.x` создают строку `needs_consent`; отказ — только при discovery (502), наружу 0 запросов.
+- Why non-blocking: ничего не запрашивается; гигиена.
+- Options: (a) отклонять буквальные частные адреса сразу 422; (b) оставить.
+- Recommendation: (a), мелкая правка.
+- Affected future sessions: M62.
+- Revisit trigger/deadline: следующая правка add-by-URL.
+
+### OI-M60-008 — Тег `Apps` у `/v1/memory/context` в контракте
+
+- Status: OPEN
+- Source session: M60
+- Component: `contracts/mvp/v1/openapi.yaml`
+- Question: endpoint только для первой стороны (анонимно — 401 без challenge, приложения читают память через `/mcp`), а в контракте помечен `Apps`.
+- Why non-blocking: формулировка.
+- Recommendation: поправить тег при следующем изменении контрактов.
+- Affected future sessions: следующая сессия, меняющая контракты.
+
+### OI-M60-009 — OI-M74-R1-002 (`notify` без пространства имён) после MVP
+
+- Status: OPEN (перенос)
+- Source session: M60
+- Component: `app/modules/jobs/tools.py`, `qualifiedToolName`
+- Question: переименование меняет `tools_digest` core и подсказки модели; живого вреда нет. Стенд M60 не валидирует по схеме только `tool.call.started` с `notify`.
+- Recommendation: переименовать (`notify.send` с алиасом на волну) после MVP вместе с ревизией core-инструментов.
+- Affected future sessions: M61 или post-MVP.
+
+### OI-M60-010 — Голос ни разу не измерялся с живой моделью; батарея — никогда
+
+- Status: OPEN
+- Source session: M60
+- Component: Android голосовой режим, сценарий 9
+- Question: есть только замеры M22 с моделью-заглушкой 0 мс (p50 804 / p95 836 мс). Цели: p50 ≤ 2,5 с (Review §3.2), ~6 с до первого звука (ADR-0011); p95 и батарея в плане без чисел.
+- Why non-blocking: только живая проверка (UC-M60-8…10).
+- Current assumption: предложенные пороги — p95 ≤ 4 с, батарея ≤ 10 %/ч.
+- Options: (a) пороги как предложено; (b) другие числа пользователя.
+- Recommendation: (a); для удобства замера — M22-R2 (экспорт `TurnMetrics`), необязательно.
+- Affected future sessions: M22-R2, M62.
+- Revisit trigger/deadline: результаты UC-M60-8…10.
+
+### OI-M60-011 — Рамка фокуса внутри скруглённого поля ввода (web)
+
+- Status: OPEN
+- Source session: M60
+- Component: web, поле ввода чата
+- Question: при фокусе внутри скруглённого поля видна прямоугольная рамка (скриншоты `dark-chat-1440`, `light-chat-390` из `mvp-acceptance.spec.ts`).
+- Why non-blocking: косметика.
+- Recommendation: на ревью дизайна (UC-M30-1/UC-M31-1).
 
 ## M61 inbox
 
