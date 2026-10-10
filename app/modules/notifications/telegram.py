@@ -48,6 +48,7 @@ from app.modules.notifications.channels import (
     DeliveryResult,
     OutboundMessage,
 )
+from app.modules.notifications.content import full_text
 from app.modules.notifications.preferences import NotificationPreferences, forget_channel
 from app.modules.notifications.telegram_api import (
     HttpTelegramBotApi,
@@ -494,7 +495,10 @@ class TelegramChannel:
 
     @staticmethod
     def render(message: OutboundMessage) -> str:
-        title, text = message.title.strip(), message.text.strip()
+        # A chat shows the whole result, like the expanded inbox item (M60): a job's list or
+        # report lives in ``display``; ``text`` is only the spoken line meant for push.
+        title = message.title.strip()
+        text = (full_text(message.response) or message.text).strip()
         if text and title and text != title:
             return f"{title}\n\n{text}"
         return text or title
