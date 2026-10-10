@@ -74,4 +74,9 @@ test('a server by URL: risk comes from its hints and the user can change it', as
     .click()
   await expect(risk('create issue')).toHaveValue('write_reversible')
   await expect(risk('list issues')).toHaveValue('read')
+  // Only the user's own edit is marked; the rest still follows the server's hints (M72-R1).
+  const row = (tool: string) => page.locator('li', { has: risk(tool) })
+  await expect(row('create issue')).toContainText('изменено вами')
+  await expect(row('list issues')).toContainText('по пометке сервера')
+  await expect(row('list issues')).not.toContainText('изменено вами')
 })

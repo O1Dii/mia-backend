@@ -291,6 +291,9 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
                 {tool.risk_source === 'annotation' && edited[tool.name] === undefined && (
                   <span className="mia-chip">по пометке сервера</span>
                 )}
+                {(edited[tool.name] !== undefined || tool.risk_source === 'saved') && (
+                  <span className="mia-chip">изменено вами</span>
+                )}
                 {tool.description && <small>{tool.description}</small>}
               </li>
             ))}
