@@ -163,6 +163,9 @@ Integration session обновляет этот индекс после merge.
 | OI-M51-R1-002 | OPEN | Connections UX | Add-by-URL сервера, у которого AS — Mia: согласие показывает «Mia» | общий грант клиента подключений Mia | UC-M51R1-2 / M60 |
 | OI-M51-R1-003 | OPEN | OAuth storage | Строка `oauth_tokens` на каждый вызов `mia_token` | выпуск на каждый вызов | M62 (retention/кэш) |
 | OI-UX-001 | OPEN | Android / web IA | Где живут разделы в приложении: внутри «Дашборда» вся web-оболочка с вкладкой «Чат»; что уйти в настройки, что в верхние вкладки | пока как есть (не критично, решение пользователя 2026-10-10) | дизайн-решение до M60 / отдельная сессия |
+| OI-LIVE-001 | OPEN | Web / Android chat | Markdown-таблицы в ответах не рендерятся (web `lib/markdown.tsx` — подмножество без таблиц; Android аналогично) | таблица показывается строкой | M75 / M76 |
+| OI-LIVE-002 | OPEN | Custom servers / approvals | Каждый вызов сервера по URL (даже чтение) просит подтверждения; ошибочные вызовы модели множат подтверждения | все инструменты URL-сервера `write_external` (OI-M15-002) | M72 (риск по MCP-аннотациям `readOnlyHint`/`destructiveHint`, правка пользователем) |
+| OI-LIVE-003 | OPEN | Tools UX | Неудачные вызовы («list projects · не удалось» ×4) не показывают причину, модель угадывает аргументы | причина ошибки скрыта | M73 (журнал и причина ошибки шага) |
 | OI-M41-R1-001 | OPEN | Screen actions | Внешние (remote) плагины не могут показывать кнопки | только in-process | по запросу |
 | OI-M41-R1-002 | OPEN | Web chat | После обрыва потока кнопка появляется только с перезагрузкой ленты | Run без actions | M75 |
 | OI-M41-R1-003 | OPEN | Retention | Истёкшая ссылка остаётся в `run_events`/ленте до очистки | URL скрыт после срока | M74 (retention) |
@@ -3136,6 +3139,41 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: next session touching `tests/jobs/**`.
 - Affected sessions: M16 owner / M60.
 - Revisit trigger/by: next flaky report.
+
+### OI-LIVE-001 — Markdown-таблицы в ответах не рендерятся
+
+- Status: OPEN
+- Source: живая проверка пользователя 2026-10-10 (Linear: «назови проекты» → ответ таблицей)
+- Component: web `web/src/lib/markdown.tsx` (безопасное подмножество: абзацы, заголовки, списки, код, жирный/курсив, https-ссылки — без таблиц); Android чат
+- Question: поддержать GFM-таблицы (и, возможно, чек-листы) в обоих клиентах без HTML-инъекций.
+- Current assumption: таблица выводится как одна строка с `|`.
+- Recommendation: добавить таблицы в безопасный рендерер (web — свой парсер или проверенная библиотека без raw HTML; Android — Compose-таблица), с горизонтальной прокруткой на телефоне.
+- Affects sessions: M75, M76.
+- Revisit trigger/by: MW5b-2.
+- Resolution:
+
+### OI-LIVE-002 — Подтверждение на каждый вызов сервера по URL, даже на чтение
+
+- Status: OPEN
+- Source: живая проверка 2026-10-10 (Linear по URL: 6 подтверждений на один вопрос, 4 из них на ошибочные вызовы)
+- Component: add-by-URL (`app/modules/plugins/catalog/schemas.py:140` — риск `write_external` для всех), approvals
+- Question: как определять риск инструментов внешнего сервера.
+- Current assumption: всё `write_external` (OI-M15-002).
+- Recommendation: риск из MCP-аннотаций (`readOnlyHint` → read, `destructiveHint` → write_external, иначе write_reversible) с показом и правкой на экране согласия; чтение без подтверждения.
+- Affects sessions: M72.
+- Revisit trigger/by: MW5b-2.
+- Resolution:
+
+### OI-LIVE-003 — Причина неудачного вызова инструмента не видна
+
+- Status: OPEN
+- Source: живая проверка 2026-10-10 (Linear: `list_projects` с выдуманным `customView` ×4)
+- Component: события `tool.call.completed`, шаги в чате
+- Question: показывать пользователю и модели причину ошибки (без личных данных), чтобы модель не перебирала аргументы.
+- Recommendation: в рамках M73 (журнал вызовов и причина ошибки шага).
+- Affects sessions: M73, M75, M76.
+- Revisit trigger/by: MW5b-1.
+- Resolution:
 
 ## M41-R1 inbox
 
