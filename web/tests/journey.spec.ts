@@ -153,6 +153,9 @@ test('a server added by URL: probe, sign in, review tools, consent, use', async 
 
   // Every tool of a server added by URL asks first, even the read-only looking ones.
   await page.goto('/chat')
+  // Type only once the history has loaded: a late history load replaced the sent message
+  // (OI-M24-R1-003).
+  await expect(page.getByRole('heading', { name: 'С чего начнём?' })).toBeVisible()
   const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
   await field.fill('Покажи список задач')
   await field.press('Enter')

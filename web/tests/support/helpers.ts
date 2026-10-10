@@ -47,6 +47,7 @@ export async function installTracker(page: Page) {
 
 export type World = {
   calls: [string, Record<string, unknown>][]
+  big_calls: [string, Record<string, unknown>][]
   revocations: unknown[]
   registrations: number
   model_calls: number

@@ -148,11 +148,30 @@ export type UpdateInfo = {
 export type Discovery = {
   installation_id: string
   state: 'needs_connection' | 'ready'
-  tools: { name: string; description: string; risk: Risk }[]
+  tools: { name: string; description: string; risk: Risk; selected?: boolean }[]
   tools_digest: string | null
   grants: { id: string; text: string }[]
   host: string
   skipped_tools: string[]
+  /** How many tools this server may enable next to the other plugins (M15-R1). */
+  tool_limit?: number
+}
+export type InstallationHealth = {
+  installation_id: string
+  plugin_id: string
+  state: 'ok' | 'limited' | 'needs_attention' | 'needs_connection' | 'needs_consent' | 'disabled'
+  problem:
+    | 'manifest_invalid'
+    | 'manifest_missing'
+    | 'manifest_mismatch'
+    | 'tool_budget'
+    | 'tools_changed'
+    | 'server_unavailable'
+    | null
+  reason: string | null
+  tools: number
+  declared_tools: number
+  tool_limit: number
 }
 export type Connection = {
   id: string
@@ -398,14 +417,17 @@ export const api = {
   createCustom: (url: string) =>
     http<Installation>('POST', '/v1/installations', { body: { custom_mcp_url: url } }),
   discovery: (id: string) => http<Discovery>('GET', `/v1/installations/${enc(id)}/discovery`),
-  consentCustom: (installation: Installation, discovery: Discovery) =>
+  consentCustom: (installation: Installation, discovery: Discovery, tools?: string[]) =>
     http<Installation>('POST', `/v1/installations/${enc(installation.id)}/consent`, {
       body: {
         expected_version: installation.state_version,
         tools_digest: discovery.tools_digest,
         grants: discovery.grants.map((g) => g.id),
+        ...(tools ? { tools } : {}),
       },
     }),
+  installationHealth: (id: string) =>
+    http<InstallationHealth>('GET', `/v1/installations/${enc(id)}/health`),
   uninstall: (id: string) => http<void>('DELETE', `/v1/installations/${enc(id)}`),
   updateInfo: (id: string) => http<UpdateInfo>('GET', `/v1/installations/${enc(id)}/update`),
   upgrade: (installation: Installation, consent: Consent) =>
