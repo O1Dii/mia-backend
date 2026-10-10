@@ -425,14 +425,14 @@ Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 т
 | M62-T1 | MW5 | COMPLETED | M51-R1 (main) | Opus 5.5 high | [M62-T1](handoffs/M62-T1.md) | `e4539f7` | MVP на mindmapgen.xyz/mia, APK для скачивания, ChatGPT из «Модели» |
 | M41-R1 | MW5b | COMPLETED | M41 | Opus 5.5 high | [M41-R1](handoffs/M41-R1.md) | `0624293` / Android bf7666d | кнопки «только для экрана» (`_meta["mia/action"]`), «Открыть Telegram» в web/Android; ссылка не видна модели |
 | M15-R1 | MW5b | COMPLETED | M15 | Opus 5.5 high | [M15-R1](handoffs/M15-R1.md) | `0624293` | лимит 96 на плагин и общий бюджет, выбор инструментов по URL, `needs_attention`, `/installations/{id}/health`, читаемые логи |
-| M70 | MW5b | IN_PROGRESS | ADR-0016 | Opus 5.5 high | — | — | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
+| M70 | MW5b | COMPLETED | ADR-0016 | Opus 5.5 high | [M70](handoffs/M70.md) | `4f98651` | политика устройств, согласие на устройстве, waiting_for_device, push с действиями |
 | M73 | MW5b | COMPLETED | — | Sonnet 5.5 high | [M73](handoffs/M73.md) | `61ed80e` | встроенный поиск, короткие ответы без задачи, журнал инструментов |
 | M74 | MW5b | COMPLETED | ADR-0017 | Opus 5.5 high | [M74](handoffs/M74.md) | `cd6706f` | чаты (API, лента/summary на чат, retention 60 дн.), `GET /v1/now` |
-| M71 | MW5b | PENDING | M70 | Sonnet 5.5 high | — | — | Android: согласие, настройки разрешений, будильник Mia, WebView только `/mia/` |
-| M72 | MW5b | PENDING | M70 | Sonnet 5.5 medium | — | — | магазин: «Где работает», возможности устройства |
-| M75 | MW5b | IN_PROGRESS | M74, M73 | Sonnet 5.5 high | — | — | web: чаты, «Сейчас» |
-| M76 | MW5b | IN_PROGRESS | M74 | Sonnet 5.5 high | — | — | Android: чаты, кнопка = новый диалог, «Сейчас» |
-| M77 | MW5b | PENDING | M70 | Sonnet 5.5 high | — | — | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
+| M71 | MW5b | IN_PROGRESS | M70 | Sonnet 5.5 high | — | — | Android: согласие, настройки разрешений, будильник Mia, WebView только `/mia/` |
+| M72 | MW5b | IN_PROGRESS | M70 | Sonnet 5.5 medium | — | — | магазин: «Где работает», возможности устройства |
+| M75 | MW5b | COMPLETED | M74, M73 | Sonnet 5.5 high | [M75](handoffs/M75.md) | `140c3d3` | web: чаты, «Сейчас» |
+| M76 | MW5b | COMPLETED | M74 | Sonnet 5.5 high | [M76](handoffs/M76.md) | `c714300` / Android `f24a87a` | Android: чаты, кнопка = новый диалог, «Сейчас» |
+| M77 | MW5b | IN_PROGRESS | M70 | Sonnet 5.5 high | — | — | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
