@@ -104,7 +104,7 @@ async def test_webhook_registration_sends_the_secret_and_only_messages() -> None
     assert json.loads(REQUESTS[0].content) == {
         "url": "https://mia.test/webhooks/telegram",
         "secret_token": "sec_ret-1",
-        "allowed_updates": ["message"],
+        "allowed_updates": ["message", "callback_query"],
     }
     assert (
         await api_with(lambda r: httpx.Response(401, json={"ok": False})).set_webhook("u", "s")

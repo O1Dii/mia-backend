@@ -9,6 +9,11 @@ people (Review §7.5), which is why sending to a person is the L0 hand-off of th
 The channel delivers M16 inbox items: ``skipped`` without a linked chat, ``retry`` for transient
 errors, and a blocked bot or deleted chat unlinks the user.
 
+Notifications are the user's choice (M77, OI-M41-002): right after linking, the bot asks
+«Присылать сюда уведомления Mia?» with the inline buttons «Да» / «Нет»; the answer is saved in
+the notification settings (the channel is off until then). Unlinking forgets the answer, so the
+next link asks again.
+
 Chat «Telegram» (M74, ADR-0017 §5): when the app wires runs and chats
 (:class:`TelegramConversation`), a plain message from the linked user is a ``chat`` run in the
 user's Telegram chat and the answer is sent back; ``/new`` keeps the current dialog as an
@@ -36,8 +41,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
 from app.core.runtime import Runtime
-from app.modules.notifications.channels import ChannelRegistry, DeliveryResult, OutboundMessage
-from app.modules.notifications.telegram_api import HttpTelegramBotApi, TelegramBotApi
+from app.modules.notifications.channels import (
+    BUILTIN_CHANNELS,
+    ChannelConnection,
+    ChannelRegistry,
+    DeliveryResult,
+    OutboundMessage,
+)
+from app.modules.notifications.preferences import NotificationPreferences, forget_channel
+from app.modules.notifications.telegram_api import (
+    HttpTelegramBotApi,
+    InlineButton,
+    TelegramBotApi,
+)
 from app.modules.notifications.telegram_models import TelegramLinkRow, TelegramLinkTokenRow
 
 if TYPE_CHECKING:
@@ -49,7 +65,12 @@ logger = logging.getLogger(__name__)
 TOKEN_PATTERN = r"^[A-Za-z0-9_-]{16,64}$"
 MAX_PENDING_TOKENS = 5
 
-REPLY_LINKED = "Готово: Telegram подключён к Mia. Сюда будут приходить результаты фоновых задач."
+REPLY_LINKED = "Готово: Telegram подключён к Mia."
+ASK_NOTIFY = "Присылать сюда уведомления Mia?"
+ASK_YES, ASK_NO = "Да", "Нет"
+NOTIFY_YES_DATA, NOTIFY_NO_DATA = "notify:telegram:yes", "notify:telegram:no"
+REPLY_NOTIFY_ON = "Хорошо, уведомления Mia будут приходить сюда. Что именно — в настройках Mia."
+REPLY_NOTIFY_OFF = "Хорошо, уведомления сюда приходить не будут. Включить можно в настройках Mia."
 REPLY_BAD_TOKEN = (
     "Ссылка недействительна или устарела. Откройте приложение Mia и получите новую ссылку."
 )
@@ -210,14 +231,19 @@ class TelegramLinks:
             result = await session.execute(
                 delete(TelegramLinkRow).where(TelegramLinkRow.user_id == user_id)
             )
+            await forget_channel(session, user_id, "telegram")
         return bool(result.rowcount)
 
     async def unlink_chat(self, chat_id: int) -> bool:
         async with self._sessions() as session, session.begin():
-            result = await session.execute(
-                delete(TelegramLinkRow).where(TelegramLinkRow.chat_id == chat_id)
+            owner = await session.scalar(
+                delete(TelegramLinkRow)
+                .where(TelegramLinkRow.chat_id == chat_id)
+                .returning(TelegramLinkRow.user_id)
             )
-        return bool(result.rowcount)
+            if owner is not None:
+                await forget_channel(session, owner, "telegram")
+        return owner is not None
 
 
 def _int(value: object) -> int | None:
@@ -333,12 +359,18 @@ class TelegramBot:
         links: TelegramLinks,
         api: TelegramBotApi,
         conversation: TelegramConversation | None = None,
+        preferences: NotificationPreferences | None = None,
     ) -> None:
         self._links = links
         self._api = api
         self.conversation = conversation
+        self.preferences = preferences
 
     async def handle_update(self, update_body: Mapping[str, Any]) -> None:
+        callback = update_body.get("callback_query")
+        if isinstance(callback, Mapping):
+            await self._answer(callback)
+            return
         message = update_body.get("message")
         if not isinstance(message, Mapping):
             return
@@ -395,16 +427,60 @@ class TelegramBot:
             else None
         )
         await self._api.send_message(chat_id, REPLY_LINKED if bound else REPLY_BAD_TOKEN)
+        if bound is not None:
+            await self._ask_notifications(chat_id, bound)
+
+    async def _ask_notifications(self, chat_id: int, user_id: uuid.UUID) -> None:
+        """A newly connected channel asks before it is used (M77)."""
+        preferences = self.preferences
+        if preferences is None or await preferences.decided(user_id, "telegram"):
+            return
+        await self._api.send_message(
+            chat_id,
+            ASK_NOTIFY,
+            [InlineButton(ASK_YES, NOTIFY_YES_DATA), InlineButton(ASK_NO, NOTIFY_NO_DATA)],
+        )
+
+    async def _answer(self, callback: Mapping[str, Any]) -> None:
+        """«Да» / «Нет» under the question: only the linked Telegram user may answer."""
+        callback_id, data = callback.get("id"), callback.get("data")
+        if not isinstance(callback_id, str):
+            return
+        await self._api.answer_callback(callback_id)
+        sender, message = callback.get("from"), callback.get("message")
+        if data not in (NOTIFY_YES_DATA, NOTIFY_NO_DATA) or self.preferences is None:
+            return
+        if not isinstance(sender, Mapping) or not isinstance(message, Mapping):
+            return
+        chat = message.get("chat")
+        chat_id = _int(chat.get("id")) if isinstance(chat, Mapping) else None
+        message_id, sender_id = _int(message.get("message_id")), _int(sender.get("id"))
+        if chat_id is None or message_id is None or sender_id is None:
+            return
+        linked = await self._links.user_for_chat(chat_id)
+        if linked is None or linked.telegram_user_id not in (None, sender_id):
+            return
+        enabled = data == NOTIFY_YES_DATA
+        await self.preferences.decide(linked.user_id, "telegram", enabled)
+        await self._api.edit_message(
+            chat_id, message_id, REPLY_NOTIFY_ON if enabled else REPLY_NOTIFY_OFF
+        )
 
 
 class TelegramChannel:
     """``NotificationChannel`` named ``telegram``: inbox items to the user's linked chat."""
 
     name = "telegram"
+    label = BUILTIN_CHANNELS["telegram"]
 
     def __init__(self, links: TelegramLinks, api: TelegramBotApi) -> None:
         self._links = links
         self._api = api
+
+    async def connection(self, user_id: uuid.UUID) -> ChannelConnection:
+        if await self._links.chat_for(user_id) is None:
+            return ChannelConnection(False, "not_linked")
+        return ChannelConnection(True)
 
     @staticmethod
     def render(message: OutboundMessage) -> str:
@@ -448,7 +524,11 @@ class TelegramStack:
 
 
 def build_telegram(
-    settings: Settings, runtime: Runtime, *, api: TelegramBotApi | None = None
+    settings: Settings,
+    runtime: Runtime,
+    *,
+    api: TelegramBotApi | None = None,
+    preferences: NotificationPreferences | None = None,
 ) -> TelegramStack:
     links = TelegramLinks(
         runtime.database.session_factory, ttl_s=settings.telegram_link_ttl_seconds
@@ -465,7 +545,7 @@ def build_telegram(
     return TelegramStack(
         links=links,
         api=api,
-        bot=TelegramBot(links, api) if api is not None else None,
+        bot=TelegramBot(links, api, preferences=preferences) if api is not None else None,
         channel=TelegramChannel(links, api) if api is not None else None,
         bot_username=username.removeprefix("@") if username else None,
         webhook_secret=secret.get_secret_value() if secret is not None else None,
@@ -479,12 +559,17 @@ def install_telegram(
     *,
     channels: ChannelRegistry,
     api: TelegramBotApi | None = None,
+    preferences: NotificationPreferences | None = None,
 ) -> TelegramStack:
-    """Mount ``/v1/telegram*``, register the ``telegram`` channel; ``app.state.telegram``."""
+    """Mount ``/v1/telegram*``, register the ``telegram`` channel; ``app.state.telegram``.
+
+    ``preferences`` (the notification settings) lets the bot ask «Присылать сюда уведомления
+    Mia?» when a chat is linked.
+    """
     from app.api.v1.telegram import build_telegram_router
     from app.modules.auth.composition import request_authenticator
 
-    stack = build_telegram(settings, runtime, api=api)
+    stack = build_telegram(settings, runtime, api=api, preferences=preferences)
     if stack.channel is not None:
         channels.register(stack.channel)
     chats = getattr(app.state, "chats", None)

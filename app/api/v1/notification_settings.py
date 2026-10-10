@@ -11,7 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from app.api.v1.jobs import IdempotencyKey, json_response, request_id
 from app.modules.auth.principal import RequestAuthenticator
@@ -40,8 +40,8 @@ class UpdateNotificationSettingsBody(BaseModel):
     """``UpdateNotificationSettingsRequest``: a merge, absent names keep their value."""
 
     model_config = ConfigDict(extra="forbid")
-    channels: dict[str, bool] | None = Field(default=None, max_length=32)
-    matrix: dict[str, dict[str, bool]] | None = Field(default=None, max_length=8)
+    channels: dict[str, StrictBool] | None = Field(default=None, max_length=32)
+    matrix: dict[str, dict[str, StrictBool]] | None = Field(default=None, max_length=8)
 
 
 def build_notification_settings_router(

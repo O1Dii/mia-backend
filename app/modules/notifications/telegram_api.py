@@ -1,4 +1,5 @@
-"""Telegram Bot API client (``sendMessage``, ``setWebhook``) for the Mia bot (M41).
+"""Telegram Bot API client (``sendMessage`` with inline buttons, ``answerCallbackQuery``,
+``editMessageText``, ``setWebhook``) for the Mia bot (M41, M77).
 
 The token is part of the request URL, so errors are logged by class only, never with the URL
 or the request text. Tests inject an ``httpx.MockTransport`` (no network).
@@ -7,6 +8,7 @@ or the request text. Tests inject an ``httpx.MockTransport`` (no network).
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -25,8 +27,26 @@ class SendResult:
     retry_after_s: float | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class InlineButton:
+    """One inline-keyboard button; ``data`` comes back as ``callback_query.data`` (<= 64 bytes)."""
+
+    text: str
+    data: str
+
+
 class TelegramBotApi(Protocol):
-    async def send_message(self, chat_id: int, text: str) -> SendResult: ...
+    async def send_message(
+        self, chat_id: int, text: str, buttons: Sequence[InlineButton] | None = None
+    ) -> SendResult: ...
+
+    async def answer_callback(self, callback_id: str) -> None:
+        """Stop the button's spinner (every ``callback_query`` must be answered)."""
+        ...
+
+    async def edit_message(self, chat_id: int, message_id: int, text: str) -> None:
+        """Replace the text of a bot message and remove its buttons."""
+        ...
 
 
 class HttpTelegramBotApi:
@@ -50,24 +70,58 @@ class HttpTelegramBotApi:
         async with httpx.AsyncClient(timeout=self._timeout_s, transport=self._transport) as http:
             return await http.post(self._url(method), json=payload)
 
-    async def send_message(self, chat_id: int, text: str) -> SendResult:
+    async def send_message(
+        self, chat_id: int, text: str, buttons: Sequence[InlineButton] | None = None
+    ) -> SendResult:
         body = text if len(text) <= MAX_MESSAGE_CHARS else text[: MAX_MESSAGE_CHARS - 1] + "…"
+        payload: dict[str, object] = {
+            "chat_id": chat_id,
+            "text": body,
+            "disable_web_page_preview": True,
+        }
+        if buttons:
+            payload["reply_markup"] = {
+                "inline_keyboard": [
+                    [{"text": button.text, "callback_data": button.data} for button in buttons]
+                ]
+            }
         try:
-            response = await self._post(
-                "sendMessage",
-                {"chat_id": chat_id, "text": body, "disable_web_page_preview": True},
-            )
+            response = await self._post("sendMessage", payload)
         except httpx.HTTPError as error:
             logger.warning("telegram_send_failed", extra={"error": type(error).__name__})
             return SendResult("retry", "network_error")
         return classify_response(response)
 
+    async def answer_callback(self, callback_id: str) -> None:
+        try:
+            await self._post("answerCallbackQuery", {"callback_query_id": callback_id})
+        except httpx.HTTPError as error:
+            logger.warning("telegram_answer_failed", extra={"error": type(error).__name__})
+
+    async def edit_message(self, chat_id: int, message_id: int, text: str) -> None:
+        try:
+            await self._post(
+                "editMessageText",
+                {
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "text": text[:MAX_MESSAGE_CHARS],
+                    "disable_web_page_preview": True,
+                },
+            )
+        except httpx.HTTPError as error:
+            logger.warning("telegram_edit_failed", extra={"error": type(error).__name__})
+
     async def set_webhook(self, url: str, secret: str) -> bool:
-        """Register ``url`` with the secret header; allowed updates: messages only."""
+        """Register ``url`` with the secret header; allowed updates: messages and button presses."""
         try:
             response = await self._post(
                 "setWebhook",
-                {"url": url, "secret_token": secret, "allowed_updates": ["message"]},
+                {
+                    "url": url,
+                    "secret_token": secret,
+                    "allowed_updates": ["message", "callback_query"],
+                },
             )
         except httpx.HTTPError:
             return False
