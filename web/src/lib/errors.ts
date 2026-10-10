@@ -50,6 +50,8 @@ const messages: Record<string, string> = {
   idempotency_conflict: 'Повторный запрос отличается от первого. Обновите страницу.',
   invalid_feed_cursor: 'Не удалось загрузить историю. Обновите страницу.',
   run_not_found: 'Ответ не найден.',
+  conversation_not_found: 'Чат не найден. Возможно, он уже удалён.',
+  invalid_chat_cursor: 'Не удалось загрузить список чатов. Обновите страницу.',
   network_error: 'Нет связи с сервером. Проверьте интернет.',
   tile_unavailable: 'Плитка сейчас недоступна.',
   memory_unavailable: 'Память сейчас недоступна. Попробуйте через минуту.',

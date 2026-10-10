@@ -34,6 +34,14 @@ export type ScreenAction = {
   expired?: boolean
 }
 
+/** Result card of a background job posted into its source chat (M74, FeedItem.card). */
+export type FeedCard = {
+  type: 'job_result'
+  job_id: string
+  status: 'succeeded' | 'failed'
+  title: string
+}
+
 export type FeedItem = {
   id: string
   role: 'user' | 'assistant'
@@ -43,8 +51,59 @@ export type FeedItem = {
   run_id: string | null
   created_at: string
   actions?: ScreenAction[]
+  card?: FeedCard
 }
-export type FeedPage = { items: FeedItem[]; next_cursor: string | null }
+export type FeedPage = {
+  items: FeedItem[]
+  next_cursor: string | null
+  /** The chat the page belongs to; without `conversation_id` the default chat (null: no chats). */
+  conversation_id?: string | null
+}
+
+// ----------------------------------------------------------- chats and «Сейчас» (M74, ADR-0017)
+export type Chat = {
+  id: string
+  kind: 'chat' | 'telegram'
+  title: string | null
+  title_source: 'auto' | 'model' | 'user' | null
+  pinned: boolean
+  pinned_at: string | null
+  created_at: string
+  last_message_at: string | null
+  last_assistant_at: string | null
+  preview: string | null
+  preview_role: 'user' | 'assistant' | null
+}
+export type ChatPage = { items: Chat[]; next_cursor: string | null }
+export type RetentionDays = 30 | 60 | 180 | null
+export type ChatSettings = { retention_days: RetentionDays; choices: RetentionDays[] }
+
+export type NowCancel =
+  | {
+      type: 'tile_tool'
+      installation_id: string
+      tile_id: string
+      name: string
+      arguments: Record<string, unknown>
+    }
+  | { type: 'job'; job_id: string }
+export type NowItem = {
+  kind: 'timer' | 'alarm' | 'focus' | 'job'
+  id: string
+  label: string | null
+  state: 'running' | 'scheduled' | 'paused' | 'queued' | 'waiting_approval'
+  deadline_at: string | null
+  remaining_ms: number | null
+  duration_ms: number | null
+  started_at: string | null
+  plugin_id: string | null
+  installation_id: string | null
+  job_id: string | null
+  run_id: string | null
+  conversation_id: string | null
+  cancel: NowCancel
+}
+export type NowPage = { server_time: string; items: NowItem[] }
 
 export type Run = {
   id: string
@@ -390,13 +449,28 @@ export const api = {
   logout: () => http<void>('POST', '/v1/auth/web/logout'),
 
   // ---- chat
-  feed: (before?: string, limit = 30) =>
-    http<FeedPage>('GET', '/v1/feed', { query: { before, limit } }),
-  createRun: (text: string, key: string) =>
+  feed: (before?: string, limit = 30, conversationId?: string) =>
+    http<FeedPage>('GET', '/v1/feed', {
+      query: { before, limit, conversation_id: conversationId },
+    }),
+  createRun: (text: string, key: string, conversationId?: string) =>
     http<Run>('POST', '/v1/runs', {
-      body: { profile: 'chat', input: { text } },
+      body: { profile: 'chat', input: { text }, conversation_id: conversationId },
       key,
     }),
+
+  // ---- chats and «Сейчас»
+  chats: (cursor?: string, limit = 100) =>
+    http<ChatPage>('GET', '/v1/chats', { query: { cursor, limit } }),
+  createChat: (key: string, title?: string) =>
+    http<Chat>('POST', '/v1/chats', { body: title ? { title } : {}, key }),
+  patchChat: (id: string, patch: { title?: string | null; pinned?: boolean }) =>
+    http<Chat>('PATCH', `/v1/chats/${enc(id)}`, { body: patch }),
+  deleteChat: (id: string) => http<void>('DELETE', `/v1/chats/${enc(id)}`),
+  chatSettings: () => http<ChatSettings>('GET', '/v1/chats/settings'),
+  putChatSettings: (retentionDays: RetentionDays) =>
+    http<ChatSettings>('PUT', '/v1/chats/settings', { body: { retention_days: retentionDays } }),
+  now: () => http<NowPage>('GET', '/v1/now'),
   getRun: (id: string) => http<Run>('GET', `/v1/runs/${enc(id)}`),
   cancelRun: (id: string) => http<Run>('POST', `/v1/runs/${enc(id)}/cancel`),
   approvals: (status: Approval['status'] = 'pending') =>

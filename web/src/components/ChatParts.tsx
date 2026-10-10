@@ -4,13 +4,15 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  Inbox as InboxIcon,
   LoaderCircle,
   ShieldAlert,
   X,
 } from 'lucide-react'
-import type { Approval, Display, Risk, ScreenAction } from '../lib/api'
+import type { Approval, Display, FeedCard, Risk, ScreenAction } from '../lib/api'
 import { messageOf } from '../lib/http'
 import { Markdown } from '../lib/markdown'
+import { Link } from '../lib/router'
 import type { ToolStep } from '../lib/chat'
 import { InlineApp } from '../plugins/InlineApp'
 
@@ -67,27 +69,107 @@ const stepStatus: Record<ToolStep['status'], string> = {
   cancelled: 'отменено',
 }
 
+function argumentLines(args: Record<string, unknown>): [string, string][] {
+  return Object.entries(args).map(([key, value]) => [
+    key,
+    typeof value === 'string' ? value : JSON.stringify(value),
+  ])
+}
+
+/**
+ * The call journal (M73): every step is a chip; a step that did not succeed shows why, open; the
+ * redacted arguments of any step fold under «Аргументы».
+ */
 export function ToolSteps({ steps }: { steps: ToolStep[] }) {
   if (!steps.length) return null
   return (
     <ul className="mw-steps" aria-label="Действия Мии">
-      {steps.map((step) => (
-        <li
-          key={step.id}
-          className={`mia-chip ${step.status === 'succeeded' ? 'mia-chip--success' : step.status === 'running' ? '' : 'mia-chip--warning'}`}
-          data-status={step.status}
-        >
-          {step.status === 'running' ? (
-            <LoaderCircle size={12} className="spin" />
-          ) : step.status === 'succeeded' ? (
-            <Check size={12} />
-          ) : (
-            <AlertTriangle size={12} />
-          )}
-          {toolName(step.tool)} · {stepStatus[step.status]}
-        </li>
-      ))}
+      {steps.map((step) => {
+        const failed = step.status !== 'succeeded' && step.status !== 'running'
+        const reason = failed ? (step.reason ?? step.codeText) : undefined
+        const args = step.args && Object.keys(step.args).length ? argumentLines(step.args) : []
+        const detailed = Boolean(reason) || args.length > 0
+        const chip = (
+          <>
+            {step.status === 'running' ? (
+              <LoaderCircle size={12} className="spin" />
+            ) : step.status === 'succeeded' ? (
+              <Check size={12} />
+            ) : (
+              <AlertTriangle size={12} />
+            )}
+            {toolName(step.tool)} · {stepStatus[step.status]}
+          </>
+        )
+        const tone = `mia-chip ${step.status === 'succeeded' ? 'mia-chip--success' : step.status === 'running' ? '' : 'mia-chip--warning'}`
+        return (
+          <li key={step.id} className="mw-step" data-status={step.status}>
+            {detailed ? (
+              <details className="mw-step__details" open={Boolean(reason)}>
+                <summary className={tone}>
+                  {chip} <ChevronDown size={12} aria-hidden="true" />
+                </summary>
+                <div className="mw-step__body">
+                  {reason && (
+                    <p className="mw-step__reason" data-testid="step-reason">
+                      <strong>Причина:</strong> {reason}
+                    </p>
+                  )}
+                  {args.length > 0 && (
+                    <dl className="mw-step__args" aria-label="Аргументы вызова">
+                      {args.map(([key, value]) => (
+                        <div key={key}>
+                          <dt>{key}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </div>
+              </details>
+            ) : (
+              <span className={tone}>{chip}</span>
+            )}
+          </li>
+        )
+      })}
     </ul>
+  )
+}
+
+/** The result of a background job posted into the chat it was started from (M74). */
+export function JobResultCard({
+  card,
+  text,
+  display,
+}: {
+  card: FeedCard
+  text: string
+  display: Display | null
+}) {
+  const done = card.status === 'succeeded'
+  return (
+    <article
+      className="mia-card mia-glass mw-display mw-jobcard"
+      aria-label={`Результат задачи: ${card.title}`}
+      data-status={card.status}
+    >
+      <p className="mw-jobcard__head">
+        <span className={`mia-chip ${done ? 'mia-chip--success' : 'mia-chip--warning'}`}>
+          {done ? <Check size={12} /> : <AlertTriangle size={12} />}
+          {done ? 'Задача готова' : 'Задача не удалась'}
+        </span>
+      </p>
+      <h3 className="mia-card__title">{card.title}</h3>
+      <div className="mia-card__body">
+        <DisplayView display={display} text={text} />
+      </div>
+      <div className="mia-card__actions">
+        <Link to="/inbox" className="mia-btn mia-btn--secondary">
+          <InboxIcon size={16} aria-hidden="true" /> Во входящих
+        </Link>
+      </div>
+    </article>
   )
 }
 

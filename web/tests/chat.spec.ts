@@ -95,7 +95,10 @@ test.describe('chat on runs', () => {
     })
     await field(page).fill('Привет!')
     await field(page).press('Enter')
-    await expect(page.getByText('тестовый ответ')).toHaveCount(1)
+    // The chat list shows the answer as a preview too: look inside the conversation.
+    await expect(
+      page.getByRole('region', { name: 'Чат с Мией' }).getByText('тестовый ответ'),
+    ).toHaveCount(1)
     await expect(page.locator('[data-role="assistant"]')).toHaveCount(1)
     expect(resumed.length).toBeGreaterThanOrEqual(2)
     expect(resumed[0]).toBeUndefined()

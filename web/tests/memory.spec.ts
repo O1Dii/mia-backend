@@ -158,7 +158,10 @@ test.describe('memory page: what Mia knows', () => {
     const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
     await field.fill('Запомни, что Яна — моя жена')
     await field.press('Enter')
-    await expect(page.getByText(/Предложила запомнить/)).toBeVisible()
+    // The chat list previews the answer too: the conversation's bubble is the one that counts.
+    await expect(
+      page.getByRole('region', { name: 'Чат с Мией' }).getByText(/Предложила запомнить/),
+    ).toBeVisible()
 
     await page.getByRole('link', { name: /^Память/ }).click()
     // The proposal is waiting; the tab opens on it.

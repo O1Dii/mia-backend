@@ -3,16 +3,24 @@ import {
   ArrowUp,
   History,
   LoaderCircle,
+  MessageSquarePlus,
+  MessagesSquare,
   Mic,
   MicOff,
+  Pin,
+  PinOff,
   Settings2,
   Square,
   Volume2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '../lib/api'
 import { speechOf, useChat, type ChatMessage } from '../lib/chat'
+import { messageOf } from '../lib/http'
 import { Link } from '../lib/router'
-import { ApprovalCard, DisplayView, ScreenActions, ToolSteps } from './ChatParts'
+import { ApprovalCard, DisplayView, JobResultCard, ScreenActions, ToolSteps } from './ChatParts'
+import { ChatList, chatTitle } from './ChatList'
+import { NowStrip } from './NowStrip'
 
 const starters = [
   'Привет! Что ты умеешь?',
@@ -27,6 +35,7 @@ export function Chat() {
   const [text, setText] = useState('')
   const [options, setOptions] = useState(false)
   const [hasModel, setHasModel] = useState<boolean | null>(null)
+  const [listOpen, setListOpen] = useState(false)
   const dictated = useRef(false)
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
@@ -42,6 +51,21 @@ export function Chat() {
       active = false
     }
   }, [])
+
+  const { refreshChats } = chat
+  useEffect(() => {
+    void refreshChats()
+  }, [refreshChats])
+
+  // The user picked another chat: what was typed or dictated belongs to the previous one.
+  useEffect(() => {
+    if (!chat.switched) return
+    voice.cancelDictation()
+    setText('')
+    dictated.current = false
+    stick.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.switched])
 
   useLayoutEffect(() => {
     const el = scroller.current
@@ -80,199 +104,251 @@ export function Chat() {
 
   const last = chat.messages.at(-1)
   const followups = !chat.busy && last?.role === 'assistant' ? last.followups : []
+  const current = chat.chats.find((c) => c.id === chat.activeId)
+
+  async function togglePin() {
+    if (!current) return
+    try {
+      await chat.pinChat(current.id, !current.pinned)
+    } catch (error) {
+      toast.error(messageOf(error, 'Не удалось изменить закрепление.'))
+    }
+  }
 
   return (
-    <section className="mw-chat" aria-label="Чат с Мией">
-      <div
-        className="mw-chat__scroll"
-        ref={scroller}
-        role="log"
-        aria-live="polite"
-        onScroll={(event) => {
-          const el = event.currentTarget
-          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-        }}
-      >
-        {chat.hasMore && (
+    <div className="mw-chat-shell">
+      <ChatList open={listOpen} onClose={() => setListOpen(false)} />
+      <section className="mw-chat" aria-label="Чат с Мией">
+        <header className="mw-chat__head">
           <button
-            className="mia-btn mia-btn--ghost mw-chat__more"
-            disabled={chat.loadingMore}
-            onClick={() => void chat.loadMore()}
+            type="button"
+            className="mia-icon-btn mw-chat__lists"
+            aria-label="Список чатов"
+            aria-expanded={listOpen}
+            onClick={() => setListOpen(true)}
           >
-            {chat.loadingMore ? <LoaderCircle size={16} className="spin" /> : <History size={16} />}{' '}
-            Показать более ранние
+            <MessagesSquare size={20} />
           </button>
-        )}
-        {chat.loading && (
-          <p className="mw-muted" role="status">
-            <LoaderCircle size={16} className="spin" /> Загружаем историю…
-          </p>
-        )}
-        {chat.loadError && (
-          <p className="mw-error" role="alert">
-            {chat.loadError}{' '}
-            <button className="mw-link" onClick={() => void chat.reload()}>
-              Повторить
-            </button>
-          </p>
-        )}
-        {!chat.loading && !chat.messages.length && !chat.loadError && (
-          <div className="mw-empty mia-rise">
-            <span className="mia-orb mia-orb--lg" data-state="idle" aria-hidden="true" />
-            <h2>С чего начнём?</h2>
-            <p>
-              Спросите что угодно или попросите Мию что-то сделать с помощью установленных плагинов.
-            </p>
-            <div className="mw-chips">
-              {starters.map((starter) => (
-                <button
-                  key={starter}
-                  className="mia-chip mw-chip-btn"
-                  onClick={() => submit(starter, false)}
-                >
-                  {starter}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {chat.messages.map((message) => (
-          <MessageView key={message.key} message={message} />
-        ))}
-      </div>
-
-      <div className="mw-chat__dock">
-        {hasModel === false && (
-          <p className="mw-notice">
-            Модель ещё не подключена. <Link to="/models">Подключить модель</Link>
-          </p>
-        )}
-        {followups.length > 0 && (
-          <div className="mw-chips" aria-label="Что спросить дальше">
-            {followups.map((item) => (
-              <button
-                key={item}
-                className="mia-chip mw-chip-btn"
-                onClick={() => submit(item, false)}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        )}
-        {voice.error && (
-          <p className="mw-error" role="alert">
-            {voice.error}
-          </p>
-        )}
-        <form
-          className="mia-field mia-glass mw-composer"
-          onSubmit={(event) => {
-            event.preventDefault()
-            submit(text, false)
-          }}
-        >
-          <textarea
-            ref={field}
-            className="mia-field__input mw-composer__input"
-            aria-label="Сообщение Мии"
-            placeholder={voice.listening ? 'Слушаю…' : 'Напишите Мии…'}
-            rows={1}
-            maxLength={16000}
-            value={text}
-            onChange={(event) => {
-              dictated.current = false
-              setText(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault()
-                submit(text, false)
-              }
-            }}
-          />
-          {voice.supported && (
-            <button
-              type="button"
-              className="mia-icon-btn mia-field__mic"
-              aria-pressed={voice.listening}
-              aria-label={voice.listening ? 'Остановить диктовку' : 'Голосовой ввод'}
-              onClick={mic}
-            >
-              {voice.listening ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-          )}
-          {chat.busy ? (
+          <h1 className="mw-chat__title" title={current ? chatTitle(current) : undefined}>
+            {current ? chatTitle(current) : chat.draft ? 'Новый чат' : 'Чат'}
+          </h1>
+          {current && (
             <button
               type="button"
               className="mia-icon-btn"
-              aria-label="Остановить ответ"
-              onClick={chat.stop}
+              aria-label={current.pinned ? 'Открепить чат' : 'Закрепить чат'}
+              aria-pressed={current.pinned}
+              onClick={() => void togglePin()}
             >
-              <Square size={18} />
+              {current.pinned ? <PinOff size={18} /> : <Pin size={18} />}
             </button>
-          ) : (
-            <button
-              type="submit"
-              className="mia-icon-btn mw-send"
-              aria-label="Отправить сообщение"
-              disabled={!text.trim()}
-            >
-              <ArrowUp size={20} />
-            </button>
-          )}
-        </form>
-        <div className="mw-chat__tools">
-          {!voice.supported && (
-            <p className="mw-muted">
-              Диктовка недоступна в этом браузере. Используйте клавиатуру или Chrome/Safari.
-            </p>
           )}
           <button
-            className="mw-link"
-            aria-expanded={options}
-            aria-controls="voice-options"
-            onClick={() => setOptions((open) => !open)}
+            type="button"
+            className="mia-icon-btn mw-chat__fresh"
+            aria-label="Новый чат"
+            onClick={chat.newChat}
           >
-            <Settings2 size={14} /> Голос
+            <MessageSquarePlus size={20} />
           </button>
-        </div>
-        {options && (
-          <fieldset id="voice-options" className="mia-glass mw-options">
-            <legend>Голос</legend>
-            {voice.supported && (
-              <label className="mw-switch">
-                <input
-                  type="checkbox"
-                  checked={prefs.autoSend}
-                  onChange={(event) => chat.setPrefs({ autoSend: event.target.checked })}
-                />
-                <span>Отправлять сразу после диктовки</span>
-              </label>
-            )}
-            {voice.canSpeak ? (
-              <label className="mw-switch">
-                <input
-                  type="checkbox"
-                  checked={prefs.alwaysSpeak}
-                  onChange={(event) => {
-                    chat.setPrefs({ alwaysSpeak: event.target.checked })
-                    if (!event.target.checked) voice.stopSpeaking()
-                  }}
-                />
-                <span>Всегда озвучивать ответы</span>
-              </label>
-            ) : (
-              <p className="mw-muted">Озвучка не поддерживается этим браузером.</p>
-            )}
-            <p className="mw-muted">
-              Если вопрос надиктован, ответ озвучивается сам. Браузер может передавать аудио своему
-              сервису распознавания.
+        </header>
+        <NowStrip />
+        <div
+          className="mw-chat__scroll"
+          ref={scroller}
+          role="log"
+          aria-live="polite"
+          onScroll={(event) => {
+            const el = event.currentTarget
+            stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+          }}
+        >
+          {chat.hasMore && (
+            <button
+              className="mia-btn mia-btn--ghost mw-chat__more"
+              disabled={chat.loadingMore}
+              onClick={() => void chat.loadMore()}
+            >
+              {chat.loadingMore ? (
+                <LoaderCircle size={16} className="spin" />
+              ) : (
+                <History size={16} />
+              )}{' '}
+              Показать более ранние
+            </button>
+          )}
+          {chat.loading && (
+            <p className="mw-muted" role="status">
+              <LoaderCircle size={16} className="spin" /> Загружаем историю…
             </p>
-          </fieldset>
-        )}
-      </div>
-    </section>
+          )}
+          {chat.loadError && (
+            <p className="mw-error" role="alert">
+              {chat.loadError}{' '}
+              <button className="mw-link" onClick={() => void chat.reload()}>
+                Повторить
+              </button>
+            </p>
+          )}
+          {!chat.loading && !chat.messages.length && !chat.loadError && (
+            <div className="mw-empty mia-rise">
+              <span className="mia-orb mia-orb--lg" data-state="idle" aria-hidden="true" />
+              <h2>С чего начнём?</h2>
+              <p>
+                Спросите что угодно или попросите Мию что-то сделать с помощью установленных
+                плагинов.
+              </p>
+              <div className="mw-chips">
+                {starters.map((starter) => (
+                  <button
+                    key={starter}
+                    className="mia-chip mw-chip-btn"
+                    onClick={() => submit(starter, false)}
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {chat.messages.map((message) => (
+            <MessageView key={message.key} message={message} />
+          ))}
+        </div>
+
+        <div className="mw-chat__dock">
+          {hasModel === false && (
+            <p className="mw-notice">
+              Модель ещё не подключена. <Link to="/models">Подключить модель</Link>
+            </p>
+          )}
+          {followups.length > 0 && (
+            <div className="mw-chips" aria-label="Что спросить дальше">
+              {followups.map((item) => (
+                <button
+                  key={item}
+                  className="mia-chip mw-chip-btn"
+                  onClick={() => submit(item, false)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
+          {voice.error && (
+            <p className="mw-error" role="alert">
+              {voice.error}
+            </p>
+          )}
+          <form
+            className="mia-field mia-glass mw-composer"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submit(text, false)
+            }}
+          >
+            <textarea
+              ref={field}
+              className="mia-field__input mw-composer__input"
+              aria-label="Сообщение Мии"
+              placeholder={voice.listening ? 'Слушаю…' : 'Напишите Мии…'}
+              rows={1}
+              maxLength={16000}
+              value={text}
+              onChange={(event) => {
+                dictated.current = false
+                setText(event.target.value)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  submit(text, false)
+                }
+              }}
+            />
+            {voice.supported && (
+              <button
+                type="button"
+                className="mia-icon-btn mia-field__mic"
+                aria-pressed={voice.listening}
+                aria-label={voice.listening ? 'Остановить диктовку' : 'Голосовой ввод'}
+                onClick={mic}
+              >
+                {voice.listening ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
+            )}
+            {chat.busy ? (
+              <button
+                type="button"
+                className="mia-icon-btn"
+                aria-label="Остановить ответ"
+                onClick={chat.stop}
+              >
+                <Square size={18} />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="mia-icon-btn mw-send"
+                aria-label="Отправить сообщение"
+                disabled={!text.trim()}
+              >
+                <ArrowUp size={20} />
+              </button>
+            )}
+          </form>
+          <div className="mw-chat__tools">
+            {!voice.supported && (
+              <p className="mw-muted">
+                Диктовка недоступна в этом браузере. Используйте клавиатуру или Chrome/Safari.
+              </p>
+            )}
+            <button
+              className="mw-link"
+              aria-expanded={options}
+              aria-controls="voice-options"
+              onClick={() => setOptions((open) => !open)}
+            >
+              <Settings2 size={14} /> Голос
+            </button>
+          </div>
+          {options && (
+            <fieldset id="voice-options" className="mia-glass mw-options">
+              <legend>Голос</legend>
+              {voice.supported && (
+                <label className="mw-switch">
+                  <input
+                    type="checkbox"
+                    checked={prefs.autoSend}
+                    onChange={(event) => chat.setPrefs({ autoSend: event.target.checked })}
+                  />
+                  <span>Отправлять сразу после диктовки</span>
+                </label>
+              )}
+              {voice.canSpeak ? (
+                <label className="mw-switch">
+                  <input
+                    type="checkbox"
+                    checked={prefs.alwaysSpeak}
+                    onChange={(event) => {
+                      chat.setPrefs({ alwaysSpeak: event.target.checked })
+                      if (!event.target.checked) voice.stopSpeaking()
+                    }}
+                  />
+                  <span>Всегда озвучивать ответы</span>
+                </label>
+              ) : (
+                <p className="mw-muted">Озвучка не поддерживается этим браузером.</p>
+              )}
+              <p className="mw-muted">
+                Если вопрос надиктован, ответ озвучивается сам. Браузер может передавать аудио
+                своему сервису распознавания.
+              </p>
+            </fieldset>
+          )}
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -283,6 +359,12 @@ function MessageView({ message }: { message: ChatMessage }) {
     return (
       <div className="mia-bubble mia-bubble--user mia-glass mia-rise" data-role="user">
         {message.text}
+      </div>
+    )
+  if (message.card)
+    return (
+      <div className="mw-reply mia-rise" data-role="assistant" data-card="job_result">
+        <JobResultCard card={message.card} text={message.text} display={message.display} />
       </div>
     )
   const display = message.display

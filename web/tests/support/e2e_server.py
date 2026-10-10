@@ -35,7 +35,6 @@ import app.modules.auth.composition as auth_composition  # noqa: E402
 import app.modules.models.composition as models_composition  # noqa: E402
 import uvicorn  # noqa: E402
 from app.api.v1.approvals import build_approvals_router  # noqa: E402
-from app.api.v1.feed import build_feed_router  # noqa: E402
 from app.api.v1.tiles import install_tiles  # noqa: E402
 from app.composition import AuthServiceAuthenticator  # noqa: E402
 from app.core.config import Settings  # noqa: E402
@@ -55,7 +54,7 @@ from app.main import create_app  # noqa: E402
 from app.modules.auth.composition import install_auth, request_authenticator  # noqa: E402
 from app.modules.connections.oauth.client import OAuthClient  # noqa: E402
 from app.modules.connections.oauth.service import ConnectionService  # noqa: E402
-from app.modules.conversations.feed import FeedService  # noqa: E402
+from app.modules.conversations.composition import install_chats  # noqa: E402
 from app.modules.jobs.composition import install_jobs  # noqa: E402
 from app.modules.memory import install_memory  # noqa: E402
 from app.modules.models.composition import install_models  # noqa: E402
@@ -182,6 +181,14 @@ class ScriptedGateway:
         return ProbeResult(ok=True, latency_ms=12, error_code=None)
 
     async def stream(self, request: ModelRequest) -> AsyncIterator[ModelEvent]:
+        first = request.messages[0].content or ""
+        if first.startswith("Придумай короткое название"):
+            # Chat titling (M74): «Модельное название» + the first words of the first question.
+            asked = (request.messages[-1].content or "").split("Пользователь:", 1)[-1]
+            words = asked.split("\n", 1)[0].split()[:3]
+            yield TextDelta("Модельное " + " ".join(words).lower().rstrip("!?.,"))
+            yield ModelDone("stop")
+            return
         Script.model_calls += 1
         if any("t.me" in (m.content or "") for m in request.messages):
             Script.link_leaks += 1
@@ -242,7 +249,26 @@ class ScriptedGateway:
             for event in self._text(answer("Этот инструмент не установлен.")):
                 yield event
             return
-        if "покажи таймеры" in lowered:
+        if "в фоне" in lowered and "background.start" in names:
+            # A long task asked for in the chat (M74: the result card returns to this chat).
+            call = ModelToolCall(
+                call_id="call-1", name="background.start", arguments={"goal": user}
+            )
+            yield ToolCallRequested(call)
+            yield ModelDone("tool_calls")
+            return
+        if "таблиц" in lowered:
+            table = (
+                "Вот проекты:\n\n"
+                "| Проект | Статус | Задач | Ответственный | Ближайший срок | Комментарий |\n"
+                "|:--|:-:|--:|---|---|---|\n"
+                "| Мия | **идёт** | 12 | Алексей | 15 октября | Релиз веб-версии |\n"
+                "| [Сайт](https://example.test/site) | пауза | 3 | Яна | не задан | Ждём макеты |\n"
+                "| Очень длинное название проекта для проверки прокрутки | готов | 40 | Олег "
+                "| 1 сентября | Закрыт |\n"
+            )
+            reply = answer("Вот проекты таблицей.", {"kind": "text", "markdown": table})
+        elif "покажи таймеры" in lowered:
             reply = answer(
                 "Вот ваши таймеры.",
                 {
@@ -468,12 +494,8 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     )
     memory.tools.bind_publisher(runs.publish)
     jobs = install_jobs(app, settings, runtime, runs=runs, core_tools=core_tools)
-    app.include_router(
-        build_feed_router(
-            service=FeedService(runtime.database.session_factory),
-            authenticator=request_authenticator(app),
-        )
-    )
+    # Chats (M74), the feed per chat and «Сейчас»; titles come from the scripted model.
+    install_chats(app, runtime, runs=runs, gateway=gateway)  # type: ignore[arg-type]
 
     async def publish_remote(
         plugin_id: str, name: str, version: str, notify: bool, tiles: bool = False
