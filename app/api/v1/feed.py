@@ -1,10 +1,12 @@
-"""``GET /v1/feed`` (contracts/mvp/v1/openapi.yaml, M18): history of the user's main feed.
+"""``GET /v1/feed`` (contracts/mvp/v1/openapi.yaml, M18/M74): history of one chat.
 
-One continuous feed per user holds voice and chat messages (M12). Items come newest
-first; ``before`` is the opaque ``next_cursor`` of the previous page. Android (bearer)
-and web (``mia_session`` cookie) resolve to the same principal (M10); only the caller's
-own feed is reachable, and a cursor of any other feed answers ``400 invalid_feed_cursor``.
-Incognito runs never write to the feed, so they are never listed.
+``conversation_id`` selects a chat (ADR-0017); without it the default chat (the most
+recently active one) is read, so single-feed clients keep working, and the page says which
+chat it is. Items come newest first; ``before`` is the opaque ``next_cursor`` of the
+previous page. Android (bearer) and web (``mia_session`` cookie) resolve to the same
+principal (M10); only the caller's own chats are reachable (``404 conversation_not_found``),
+and a cursor of any other chat answers ``400 invalid_feed_cursor``. Incognito runs never
+write to a chat, so they are never listed.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from fastapi.routing import APIRoute
 
 from app.modules.auth.principal import AuthenticationFailure
 from app.modules.conversations.feed import FeedItem, FeedPage, InvalidFeedCursorError
+from app.modules.conversations.repositories import ConversationNotFoundError
 
 
 class FeedPrincipal(Protocol):
@@ -35,7 +38,12 @@ class FeedAuthenticator(Protocol):
 
 class FeedBackend(Protocol):
     async def history(
-        self, *, user_id: uuid.UUID, before: str | None = None, limit: int = 50
+        self,
+        *,
+        user_id: uuid.UUID,
+        before: str | None = None,
+        limit: int = 50,
+        conversation_id: uuid.UUID | None = None,
     ) -> FeedPage: ...
 
 
@@ -44,7 +52,8 @@ def _iso(value: Any) -> str:
 
 
 def feed_item_body(item: FeedItem) -> dict[str, Any]:
-    """``FeedItem`` schema (``actions`` only when the answer has screen actions, M41-R1)."""
+    """``FeedItem`` schema (``actions`` only when the answer has screen actions, M41-R1;
+    ``card`` only on result cards, M74)."""
     body: dict[str, Any] = {
         "id": str(item.id),
         "role": item.role,
@@ -56,6 +65,8 @@ def feed_item_body(item: FeedItem) -> dict[str, Any]:
     }
     if item.actions:
         body["actions"] = [dict(action) for action in item.actions]
+    if item.card is not None:
+        body["card"] = dict(item.card)
     return body
 
 
@@ -104,6 +115,7 @@ def build_feed_router(*, service: FeedBackend, authenticator: FeedAuthenticator)
         request: Request,
         before: Annotated[str | None, Query(min_length=1, max_length=512)] = None,
         limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        conversation_id: uuid.UUID | None = None,
     ) -> JSONResponse:
         try:
             principal = await authenticator.authenticate(request)
@@ -117,15 +129,22 @@ def build_feed_router(*, service: FeedBackend, authenticator: FeedAuthenticator)
             )
         try:
             page = await service.history(
-                user_id=uuid.UUID(principal.user_id), before=before, limit=limit
+                user_id=uuid.UUID(principal.user_id),
+                before=before,
+                limit=limit,
+                conversation_id=conversation_id,
             )
         except InvalidFeedCursorError:
             return _error(request, 400, "invalid_feed_cursor", "The feed cursor is invalid.")
+        except ConversationNotFoundError:
+            return _error(request, 404, "conversation_not_found", "The conversation was not found.")
+        conversation = page.conversation_id
         return JSONResponse(
             headers={"X-Request-ID": _request_id(request), "Cache-Control": "no-store"},
             content={
                 "items": [feed_item_body(item) for item in page.items],
                 "next_cursor": page.next_cursor,
+                "conversation_id": str(conversation) if conversation is not None else None,
             },
         )
 

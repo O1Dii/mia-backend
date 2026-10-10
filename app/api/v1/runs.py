@@ -28,7 +28,7 @@ from app.modules.runs.domain import (
     RunRecord,
     isoformat,
 )
-from app.modules.runs.service import RunService, VoiceFeedOnlyError
+from app.modules.runs.service import RunService
 
 
 class RunsAuthenticator(Protocol):
@@ -193,8 +193,6 @@ def build_runs_router(
                 "idempotency_conflict",
                 "The idempotency key was reused for a different request.",
             )
-        except VoiceFeedOnlyError:
-            return _error(request, 422, "voice_feed_only", "Voice runs always use the main feed.")
         except ConversationNotFoundError:
             return _error(request, 404, "conversation_not_found", "The conversation was not found.")
         return JSONResponse(

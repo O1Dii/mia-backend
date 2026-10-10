@@ -191,7 +191,9 @@ async def test_errors_and_ownership(api: Api, gateway: FakeModelGateway) -> None
     voice_topic = await api.create(
         {"profile": "voice", "input": {"text": "x"}, "conversation_id": str(uuid.uuid4())}
     )
-    assert voice_topic.json()["error"]["code"] == "voice_feed_only"
+    # Voice may target any chat (M74, ADR-0017); a foreign or missing one is not found.
+    assert voice_topic.status_code == 404
+    assert voice_topic.json()["error"]["code"] == "conversation_not_found"
     missing_topic = await api.create(
         {"profile": "chat", "input": {"text": "x"}, "conversation_id": str(uuid.uuid4())}
     )
