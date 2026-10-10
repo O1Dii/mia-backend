@@ -18,7 +18,7 @@ import { api } from '../lib/api'
 import { speechOf, useChat, type ChatMessage } from '../lib/chat'
 import { messageOf } from '../lib/http'
 import { Link } from '../lib/router'
-import { ApprovalCard, DisplayView, JobResultCard, ScreenActions, ToolSteps } from './ChatParts'
+import { ActivityLog, DisplayView, JobResultCard, ScreenActions } from './ChatParts'
 import { ChatList, chatTitle } from './ChatList'
 import { NowStrip } from './NowStrip'
 
@@ -374,11 +374,8 @@ function MessageView({ message }: { message: ChatMessage }) {
   const empty = !message.text && !message.steps.length && !message.approvals.length
   return (
     <div className="mw-reply mia-rise" data-role="assistant">
-      <ToolSteps steps={message.steps} />
+      <ActivityLog steps={message.steps} approvals={message.approvals} onDecide={chat.decide} />
       <ScreenActions actions={message.actions} />
-      {message.approvals.map((approval) => (
-        <ApprovalCard key={approval.id} approval={approval} onDecide={chat.decide} compact />
-      ))}
       {message.pending && empty && (
         <div className="mia-bubble mia-bubble--assistant mia-glass" role="status">
           <LoaderCircle size={16} className="spin" /> Мия думает…
