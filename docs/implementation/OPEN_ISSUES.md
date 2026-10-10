@@ -3578,7 +3578,91 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M76 inbox
 
-- Нет записей.
+### OI-M76-001 — Новый диалог по боковой кнопке создаётся лениво, пустой чат не остаётся
+
+- Status: DECIDED
+- Source session: M76
+- Component: Android `ChatSelection` (`core/network/.../chats`), `MiaApp`, голосовой экран
+- Decision: боковая кнопка (и холодный запуск ассистентом) делает текущую цель «новый диалог» и в фоне спрашивает `GET /v1/chats/continue?within_seconds=300`; чат создаётся `POST /v1/chats` только в момент первого вопроса (голосом или текстом), с одним `Idempotency-Key` на повтор. Нажали кнопку и промолчали — на сервере ничего не появляется. Повторное нажатие, пока голосовой экран уже открыт, ничего не сбрасывает (идущий сеанс и его чат сохраняются). Вызов по wake word и кнопка «Голос» в чате продолжают текущий чат.
+- Why: рекомендация handoff M74 (lazy create); пустые чаты удаляются сервером через 24 ч, но засорять список не нужно.
+- Affected future sessions: M60, UC-M76-1.
+- Revisit trigger/deadline: живая проверка UC-M76-1.
+
+### OI-M76-002 — «Продолжить прошлый» показывается только на голосовом экране
+
+- Status: OPEN
+- Source session: M76
+- Component: `CascadeVoiceRoute` (кнопка «Продолжить: <название>»), `ChatSelection.continueOffer`
+- Question: нужен ли тот же вариант на экране чата (пользователь нажал «Чат» на голосовом экране, не успев выбрать «Продолжить»)?
+- Why non-blocking: предложение живёт, пока цель — новый диалог; из чата прошлый чат всегда открывается через список (там он первый по активности).
+- Current assumption: кнопка только на голосовом экране, пять минут после последнего ответа (окно считает сервер в момент нажатия кнопки, не в момент показа).
+- Options: (a) оставить; (b) показать плашку «Продолжить прошлый» над пустым новым чатом.
+- Recommendation: (a) до отзыва по UC-M76-1.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: UC-M76-1.
+
+### OI-M76-003 — Переключение чата во время работающего ответа
+
+- Status: DECIDED
+- Source session: M76
+- Component: `ChatPresenter.switchTo`
+- Decision: ответ, который идёт в чате A, не отменяется при переходе в чат B: подписка на события закрывается, run дозавершается на сервере и виден в ленте A при возврате. Карточка подтверждения этого run, которую пользователь не успел решить, остаётся ждать решения на сервере (до истечения) и в ленте A не восстанавливается; решить её можно в «Подтверждениях» web.
+- Why: отмена чужого запроса при переключении — неожиданная потеря; восстановление approvals из ленты — отдельная работа (в ленте нет события).
+- Affected future sessions: M75 (то же правило в web), M60.
+- Revisit trigger/deadline: жалоба на потерянное подтверждение.
+
+### OI-M76-004 — Таймер в шторке: обновляется, пока живёт процесс приложения
+
+- Status: OPEN
+- Source session: M76
+- Component: `NowPresenter` + `AndroidNowNotifier` (feature/chat), `ChatSession`
+- Question: уведомление-таймер с системным обратным отсчётом строится по `/v1/now`, когда приложение живо (экран, голосовой экран, опрос раз в 30 с, пока есть активные). Таймер, поставленный с другого устройства/web, а также создание после гибели процесса не появятся в шторке, пока приложение не откроется; нет кнопки «Отменить» в шторке (нужен BroadcastReceiver в манифесте app).
+- Why non-blocking: обратный отсчёт системный (не требует обновлений), уведомление само снимается в срок; звонок по таймеру — зона M71 (Mia alarm) и push.
+- Current assumption: достаточно для «вызвал голосом — видно в шторке».
+- Options: (a) оставить; (b) data-push M71 «обновить Сейчас» будит `NowPresenter.refresh`; (c) foreground service только пока есть таймер.
+- Recommendation: (b) после M71.
+- Affected future sessions: M71, M60.
+- Revisit trigger/deadline: UC-M76-1 п. 4.
+
+### OI-M76-005 — Разрешение на уведомления для таймера
+
+- Status: DECIDED
+- Source session: M76
+- Component: `NowNotificationPermissionEffect` (app), `AndroidNowNotifier`
+- Decision: без настроенного FCM push-стек разрешение не просит, поэтому первый активный таймер на Android 13+ однократно показывает системный запрос `POST_NOTIFICATIONS` (флаг `mia_now/notification_permission_asked`). Отказ — уведомление не показывается, полоса «Сейчас» в приложении работает.
+- Affected future sessions: M71 (общий запрос разрешения push/будильника — свести).
+- Revisit trigger/deadline: M71 integration.
+
+### OI-M76-006 — Legacy `HttpConversationRemote` не удалён
+
+- Status: OPEN
+- Source session: M76
+- Component: `core/network/HttpConversationRemote`, `CachedConversationRepository`, `core/database`, `feature/conversation-list`, `AppContainer.conversationsForUser`
+- Question: OI-M74-005 рекомендовал убрать клиент старого `/v1/conversations`. Он остаётся единственным путём скрытого Gemini Live (`LIVE_VOICE_ENABLED = false`) и Room-кэша; удаление выходит за write scope M76 (core/database, feature/conversation-list, Gemini-путь).
+- Why non-blocking: чат, голос и список чатов на MVP его не используют.
+- Recommendation: отдельная cleanup-сессия после MW5b: убрать Gemini Live-путь, Room-кэш и `/v1/conversations`, затем снять роутер на backend.
+- Affected future sessions: M60, cleanup.
+- Revisit trigger/deadline: после MW5b.
+
+### OI-M76-007 — Markdown-таблицы и журнал шагов: что покрыто
+
+- Status: DECIDED
+- Source session: M76
+- Component: `ChatMarkdown.blocks`, `MarkdownTable`, `ToolStepsView`
+- Decision: OI-LIVE-001 (Android): GFM-таблицы разбираются по строкам вида `| a | b |` + строка выравнивания, ячейки с inline-Markdown, прокрутка вбок, без HTML; не таблица — обычный текст (в code fence, без строки выравнивания). Для озвучки и стримингового пузыря таблица сводится к строкам «a · b · c». OI-LIVE-003 / OI-M73-002 (Android): `arguments` и `error_detail` шагов инструментов показываются строкой шага в чате (ошибки раскрыты с причиной, успешные свёрнуты, нажатие раскрывает); шаги живых ответов остаются с ответом и после обновления ленты в той же сессии, но не хранятся в ленте на сервере — после перезапуска приложения их нет (журнал в истории — `GET /v1/runs/{id}/events`).
+- Affected future sessions: M75 (web), M60.
+- Revisit trigger/deadline: —
+
+### OI-M76-008 — Результат фоновой задачи в ленте: карточка без перехода
+
+- Status: OPEN
+- Source session: M76
+- Component: `ChatMessage.card` (`FeedCard`), `MessageRow`
+- Question: `FeedItem.card = job_result` показывается подписью «Фоновая задача выполнена/не удалась: <название>» над текстом результата; ссылки на экран задачи/входящих нет (в приложении нет такого экрана; push-карточка M24 открывается только из уведомления).
+- Why non-blocking: текст результата в чате.
+- Recommendation: после M60 — кнопка «Открыть во входящих» в web-поверхности M24.
+- Affected future sessions: M60, M75.
+- Revisit trigger/deadline: UC-M76-1 п. 6.
 
 ## M60 inbox
 
