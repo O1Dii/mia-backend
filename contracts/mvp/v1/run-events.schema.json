@@ -79,7 +79,11 @@
         "tool": { "$ref": "common.schema.json#/$defs/qualifiedToolName" },
         "plugin_id": { "$ref": "common.schema.json#/$defs/pluginId" },
         "risk": { "$ref": "common.schema.json#/$defs/risk" },
-        "executor": { "type": "string", "enum": ["server", "device"] }
+        "executor": { "type": "string", "enum": ["server", "device"] },
+        "arguments": {
+          "description": "Tool-call journal (M73): the arguments the model passed, redacted — secret-looking keys, e-mails, phone numbers and opaque tokens are masked, strings are clipped to 300 characters, device tools keep only the shape. At most 2000 bytes",
+          "$ref": "common.schema.json#/$defs/jsonObject"
+        }
       }
     },
     "toolCallCompleted": {
@@ -102,7 +106,13 @@
             { "required": ["url"], "not": { "required": ["expired"] } }
           ]
         },
-        "error": { "$ref": "common.schema.json#/$defs/publicError" }
+        "error": { "$ref": "common.schema.json#/$defs/publicError" },
+        "error_detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Tool-call journal (M73): why a not-succeeded call failed, in the tool's own words (for example the query that found nothing); redacted like arguments. Present only when the tool gave a reason; the stable machine code stays in error.code"
+        }
       }
     },
     "approvalRequested": {

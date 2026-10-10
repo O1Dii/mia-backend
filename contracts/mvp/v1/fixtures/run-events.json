@@ -55,7 +55,11 @@
       "tool": "team.telegram.send_message",
       "plugin_id": "team.telegram",
       "risk": "write_external",
-      "executor": "server"
+      "executor": "server",
+      "arguments": {
+        "to": "person:7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "text": "Надо купить молоко"
+      }
     }
   },
   {

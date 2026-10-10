@@ -55,7 +55,12 @@ START_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": ["goal"],
     "properties": {
-        "goal": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "goal": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "The task in the user's own words, as they asked for it.",
+        },
         "inputs": {"type": "object"},
         "delivery": _CHANNELS,
         "budget": {
@@ -327,8 +332,11 @@ def job_core_tools(tools: JobTools) -> list[CoreTool]:
     return [
         CoreTool(
             "background.start",
-            "Start long work in the background (profile job). Use for anything slower than a "
-            "few seconds; the result arrives in the inbox and as a push. Returns the job id.",
+            "Start a background task (profile job) ONLY for long work (over a minute), deferred "
+            "work, or when the user explicitly asks for it. Do NOT use it for questions you can "
+            "answer in this chat with a few tool calls (search, news, short summaries): answer "
+            "directly instead. `goal` is the user's request in the user's own words. The result "
+            "arrives in the inbox and as a push. Returns the job id.",
             START_SCHEMA,
             "write_reversible",
             tools.start,
