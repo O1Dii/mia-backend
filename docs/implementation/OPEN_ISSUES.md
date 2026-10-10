@@ -3982,7 +3982,41 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M75-R1 inbox
 
-- Нет записей.
+### OI-M75-R1-001 — Автоозвучка читает ответ целиком (display), а не `speech`
+
+- Status: DECIDED
+- Source session: M75-R1
+- Component: web `lib/chat.tsx` (`spokenText`, `follow`, `speechOf`)
+- Decision: и автоозвучка после надиктованного вопроса, и кнопка «Озвучить» читают один текст — `spokenText`: весь текст ответа (display; для карточки — короткая строка + текст карточки), без разметки; `response.speech` читается только когда другого текста нет.
+- Rationale: причина жалобы (live MW5b) — `response.speech` на сервере это одна сжатая фраза (≤ 250 знаков, `run_voice_speech_max_chars`), полный ответ лежит в `display`; автоозвучка брала `speech`, кнопка после перезагрузки (в ленте нет `speech`) — текст целиком.
+- Options: (a) читать всё; (b) читать `speech`, а целиком — по кнопке (для длинных отчётов голос иногда мешает); (c) порог длины.
+- Recommendation: (a); если длинные ответы станут мешать, (c) добавить как настройку «Озвучивать коротко».
+- Affected future sessions: M76-R1 (та же логика в Android), MW6.
+- Revisit trigger/deadline: жалоба «слишком долго читает».
+
+### OI-M75-R1-002 — Полный текст результата во «Входящих»: берётся из `response.display`
+
+- Status: DECIDED
+- Source session: M75-R1
+- Component: web `components/Inbox.tsx` (`ResultView`), `GET /v1/inbox`, `GET /v1/jobs`
+- Decision: клиент показывает `textOfDisplay(response.display, response.speech)` — markdown карточки/текста, иначе `speech` — свёрнутым до ~6 строк с кнопкой «Показать полностью»/«Свернуть». Новых полей и запросов не вводил: план M74-R1 не называет поле, только «отдаёт полный текст (поле или GET)».
+- Rationale: раньше экран рисовал `response.speech` даже при `display.kind=text` (в `DisplayView` текст берётся из аргумента), поэтому отчёт был виден одной фразой. Если M74-R1 введёт отдельное поле/эндпоинт, меняется одна строка в `ResultView` (источник `text`).
+- Options: (a) так; (b) раскрытие тянет `GET /v1/inbox/{id}`.
+- Recommendation: (a); интегратору сверить с реальным ответом M74-R1.
+- Affected future sessions: M74-R1 (интеграция), MW6.
+- Revisit trigger/deadline: при интеграции MW5b-repair.
+
+### OI-M75-R1-003 — Бар подтверждения без «Параметров», аргументы — на чипе вызова
+
+- Status: DECIDED
+- Source session: M75-R1
+- Component: web `components/ChatParts.tsx` (`ActivityLog`, `ApprovalCard compact`)
+- Decision: ожидающее подтверждение в чате — короткий бар (суть, риск, статус, «Одобрить/Отклонить»); аргументы и решение смотрятся по нажатию на чип вызова. Подтверждение из ленты без полного объекта (после перезагрузки) решить в чате нельзя — ссылка «Открыть подтверждения». Подтверждения с `device_consent` показывают «Подтвердите на телефоне» без кнопок (в т. ч. на экране «Подтверждения»).
+- Rationale: на 390 px бар с параметрами занимал >200 px; решение по `args_hash` требует полного `Approval`, которого в `FeedStep.approval` нет.
+- Options: (a) так; (b) отдавать в `FeedStep.approval` ещё `args_hash`/`arguments` (тогда можно решать и после перезагрузки из ленты).
+- Recommendation: (a); `resume()` по-прежнему подхватывает ждущие подтверждения живого запуска.
+- Affected future sessions: M76-R1 (та же схема), M74-R1.
+- Revisit trigger/deadline: просьба решать подтверждение в карточке из истории.
 
 ## M76-R1 inbox
 
