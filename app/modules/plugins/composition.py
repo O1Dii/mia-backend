@@ -8,12 +8,17 @@
 - :class:`GatewayHostLlm` gives plugins (``builtin.news``) the user's model through M11.
 
 M15 replaces the catalog with the store; until then only builtin packages are installable.
+
+- :class:`AlwaysOnInstallations` makes "Интернет" (search/news/read) available to every user
+  without an installation (M73, ADR-0016): the router sees a virtual, always active
+  installation whose digest is the current ``tools/list`` of the package.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -42,10 +47,17 @@ from app.modules.plugins.builtin import (
     make_inprocess_factory,
 )
 from app.modules.plugins.builtin.web import PublicWebClient
+from app.modules.plugins.registry import InstallationReader, InstallationRecord
 from app.modules.tools.digest import ServerTool, compute_tools_digest
 from app.modules.workspace.catalog import CatalogPlugin
 
+logger = logging.getLogger(__name__)
+
 HOST_LLM_MAX_OUTPUT_TOKENS = 1200
+ALWAYS_ON_PLUGINS: tuple[str, ...] = ("builtin.internet",)
+"""Builtin plugins every user has without installing them (M73)."""
+SYSTEM_INSTALLATION_PREFIX = "system:"
+SYSTEM_WORKSPACE_ID = "system"
 
 
 class RouterServerFactory:
@@ -116,6 +128,77 @@ class BuiltinPluginCatalog:
             return resolved
 
 
+class AlwaysOnInstallations:
+    """``InstallationReader`` that adds the always-on builtin plugins to the user's installs.
+
+    The virtual installation is first in the list (so the plugin tool budget never trims
+    it), status ``active``, id ``system:<plugin_id>``, with the digest of the package in this
+    image. A user's own healthy installation of the same plugin is kept; a stale one (older
+    digest, consent needed) is replaced, so search never disappears.
+    """
+
+    def __init__(
+        self,
+        inner: InstallationReader,
+        source: BuiltinManifestSource,
+        catalog: BuiltinPluginCatalog,
+        plugin_ids: Sequence[str] = ALWAYS_ON_PLUGINS,
+    ) -> None:
+        self._inner = inner
+        self._source = source
+        self._catalog = catalog
+        self._plugin_ids = tuple(plugin_ids)
+
+    async def installations(
+        self, *, user_id: str, workspace_id: str | None
+    ) -> Sequence[InstallationRecord]:
+        records = list(await self._inner.installations(user_id=user_id, workspace_id=workspace_id))
+        workspace = workspace_id or (records[0].workspace_id if records else SYSTEM_WORKSPACE_ID)
+        system: list[InstallationRecord] = []
+        for plugin_id in self._plugin_ids:
+            record = await self._system_record(plugin_id, workspace)
+            if record is not None:
+                system.append(record)
+        # A healthy installation of the user (active, current digest) stays as it is; any
+        # other row of the same plugin (stale digest, needs consent) yields to the virtual one.
+        own = {record.plugin_id: record for record in records}
+        extra: list[InstallationRecord] = []
+        replaced: set[str] = set()
+        for record in system:
+            mine = own.get(record.plugin_id)
+            if (
+                mine is not None
+                and mine.status == "active"
+                and mine.tools_digest == record.tools_digest
+            ):
+                continue
+            extra.append(record)
+            replaced.add(record.plugin_id)
+        return [*extra, *(record for record in records if record.plugin_id not in replaced)]
+
+    async def _system_record(self, plugin_id: str, workspace_id: str) -> InstallationRecord | None:
+        package = self._source.get(plugin_id)
+        if package is None:
+            return None
+        try:
+            resolved = await self._catalog.resolve(plugin_id, package.version)
+        except Exception:
+            logger.exception("always_on_plugin_unavailable", extra={"plugin_id": plugin_id})
+            return None
+        if resolved is None:
+            return None
+        return InstallationRecord(
+            id=f"{SYSTEM_INSTALLATION_PREFIX}{plugin_id}",
+            workspace_id=workspace_id,
+            plugin_id=plugin_id,
+            version=resolved.version,
+            status="active",
+            grants=(),
+            tools_digest=resolved.tools_digest,
+            manifest=resolved.manifest,
+        )
+
+
 class GatewayHostLlm:
     """``HostLlm`` over the user's model (profile ``job``, plain text, no tools)."""
 
@@ -152,6 +235,14 @@ class BuiltinPlugins:
     source: BuiltinManifestSource
     server_factory: RouterServerFactory
     catalog: BuiltinPluginCatalog
+
+    def always_on(self) -> Callable[[InstallationReader], InstallationReader]:
+        """Wrapper for ``build_tool_stack(wrap_installations=...)`` (M73)."""
+
+        def wrap(inner: InstallationReader) -> InstallationReader:
+            return AlwaysOnInstallations(inner, self.source, self.catalog)
+
+        return wrap
 
 
 def build_builtin_plugins(runtime: Runtime, *, model_gateway: ModelGateway) -> BuiltinPlugins:

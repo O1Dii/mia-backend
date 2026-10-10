@@ -58,7 +58,10 @@ def build_server(
         saved = await kit.read(identity)
         chosen = (topics or saved.get("topics") or "").strip()
         if len(chosen) < 2:
-            raise ToolError("Укажите темы новостей (topics).")
+            raise ToolError(
+                "Сводка не собрана: тема новостей не указана и не сохранена. "
+                "Укажите темы новостей (topics)."
+            )
         if services.web is None or services.llm is None:
             raise ToolError("Для сводки нужны доступ в интернет и подключённая модель.")
 
@@ -72,18 +75,18 @@ def build_server(
         try:
             items = await services.web.search(chosen, news=True)
         except PublicWebError as error:
-            raise await fail(str(error)) from None
+            raise await fail(f"Поиск новостей по запросу «{chosen}» не удался: {error}") from None
         if not items:
             raise await fail(
-                "За последние 48 часов публикаций не найдено. Уточните тему; "
-                "старая сводка сохранена."
+                f"По запросу «{chosen}» за последние 48 часов публикаций не найдено, "
+                "сводка не собрана. Уточните тему; прежняя сводка сохранена."
             )
         try:
             reply = await services.llm.generate(
                 digest_prompt(chosen, items), identity=identity, plugin_id=PLUGIN_ID
             )
         except HostLlmError as error:
-            raise await fail(str(error)) from None
+            raise await fail(f"Сводка по запросу «{chosen}» не собрана: {error}") from None
         now = services.now_ms()
 
         def save(data: dict[str, Any]) -> dict[str, Any]:

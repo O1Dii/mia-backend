@@ -156,6 +156,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         server_factory=builtin_plugins.server_factory,
         manifest_source=catalog_stack.manifest_source,
         credentials=connections,
+        wrap_installations=builtin_plugins.always_on(),
     )
     install_store(
         app,
