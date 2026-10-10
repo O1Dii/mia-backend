@@ -251,7 +251,9 @@ class ScriptedGateway:
             return
         if "в фоне" in lowered and "background.start" in names:
             # A long task asked for in the chat (M74: the result card returns to this chat).
-            call = ModelToolCall(call_id="call-1", name="background.start", arguments={"goal": user})
+            call = ModelToolCall(
+                call_id="call-1", name="background.start", arguments={"goal": user}
+            )
             yield ToolCallRequested(call)
             yield ModelDone("tool_calls")
             return
