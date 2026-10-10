@@ -3974,7 +3974,42 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M74-R1 inbox
 
-- Нет записей.
+### OI-M74-R1-001 — `notify` внутри фоновой задачи: черновик единственного результата
+
+- Status: DECIDED
+- Source session: M74-R1
+- Component: `app/modules/jobs/{tools,runner,messages,store}.py`, `jobs.notes`, промпт профиля `job`
+- Question: модель задачи «…и пришли, когда будет готово» вызывала `notify` с отчётом (M77: отдельная запись во «Входящих» и push), задача оставалась «в процессе», а финальная реплика «Отчёт готов, уведомление отправлено» становилась вторым результатом (карточка, запись, push). Что считать результатом?
+- Decision: результат задачи — один: финальный ответ run, в который вложены тексты `notify` этой задачи. `notify` внутри задачи ничего не доставляет, а сохраняет текст в `jobs.notes`; при завершении задачи текст вкладывается в результат, и в той же транзакции статус `succeeded`, одна запись во «Входящих» (с её доставками) и одна карточка в чате. Правила: ответ с display text/card → тексты `notify` над его markdown (если он их ещё не содержит); ответ только из speech («Отчёт готов, уведомление отправлено») → результатом становятся тексты `notify`, speech берётся из них; app/link-display не трогается. Промпт задачи и профиля `job` говорят, что финальный ответ доставляется сам и `notify` для результата не нужен; ответ инструмента просит не повторять текст и закончить «Готово.». `notify` вне задачи работает как раньше (M77).
+- Options: (a) так; (b) `notify` сразу закрывает задачу, финальная реплика не шлётся — отвергнуто: промежуточное «начинаю» закрыло бы задачу и оборвало run; (c) убрать `notify` из профиля `job` — отвергнуто: модель всё равно будет пытаться «прислать», получит ошибку.
+- Recommendation: (a). Известное ограничение: если финальный ответ — только speech с содержательной фразой, она уступает текстам `notify` (модель об этом предупреждена ответом инструмента).
+- Affected future sessions: M75-R1, M76-R1 (ничего делать не нужно, один результат), M60.
+- Revisit trigger/deadline: жалоба «в результате задачи пропала фраза» или повтор двойного уведомления.
+
+### OI-M74-R1-002 — Имя core-инструмента `notify` без пространства имён
+
+- Status: OPEN
+- Source session: M74-R1
+- Component: `app/modules/jobs/tools.py` (`notify`), `contracts/mvp/v1/{common,run-events}.schema.json` (`qualifiedToolName`)
+- Question: `tool.call.started` с `tool: "notify"` не проходит `qualifiedToolName` (`<namespace>.<tool>`) схемы событий; остальные core-инструменты (`background.start`, `memory.*`) имени соответствуют. Клиенты события не валидируют, поэтому вживую не ломается; тесты, валидирующие поток, обходят это (`tests/jobs/test_job_result.py`).
+- Why non-blocking: события доходят, шаги в ленте (`FeedStep.tool` — строка без шаблона) показываются.
+- Current assumption: имя не менялось (смена меняет `tools_digest` core и подсказки модели).
+- Options: (a) переименовать в `notify.send` (или `mia.notify`) с алиасом старого имени на одну волну; (b) ослабить шаблон для core-инструментов без точки.
+- Recommendation: (a) в M60 вместе с ревизией core-инструментов.
+- Affected future sessions: M60.
+- Revisit trigger/deadline: M60.
+
+### OI-M74-R1-003 — Шаги у карточки результата и ссылка на запись «Входящих»
+
+- Status: DECIDED
+- Source session: M74-R1
+- Component: `app/modules/conversations/{steps,feed}.py`, `app/modules/jobs/chats.py`, `FeedCard.inbox_item_id`, `GET /v1/inbox/{item_id}`, `InboxItem.text`
+- Question: карточка результата задачи — тоже ответ ассистента, но без `run_id`; что показывать в `steps`, и как клиенту раскрыть отчёт во «Входящих» (OI-M75-005)?
+- Decision: у карточки `steps` берутся из run задачи (подтверждение, решённое на телефоне во время фоновой задачи, видно в web). `FeedCard.inbox_item_id` называет запись с тем же результатом (новые карточки; старые — без поля), `GET /v1/inbox/{item_id}` отдаёт одну запись, `InboxItem.text` — её полный текст (markdown отчёта). Шаг без `tool.call.completed` в готовом ответе — `uncertain`; подтверждение со статусом `pending`, когда шаг уже `denied/expired/cancelled`, показывается с тем же статусом.
+- Options: (a) так; (b) шаги только у ответов с `run_id` (строго по букве контракта).
+- Recommendation: (a) — аддитивно, контракт `FeedStep` не меняется.
+- Affected future sessions: M75-R1, M76-R1, M60.
+- Revisit trigger/deadline: интеграция repair MW5b.
 
 ## M72-R1 inbox
 
