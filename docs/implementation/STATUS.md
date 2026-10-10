@@ -415,6 +415,7 @@ issuer `…/mia`. Webhook бота перерегистрирован (`message`
 API 131/384 МБ, worker 129/256 МБ, свободно 839 МБ из 1967. Живой FCM на сервере не настроен (UC-M24-1). Решения пользователя по
 вопросам MW5b — рекомендации приняты: OI-M75-006, OI-M73-001, OI-M74-003 → DECIDED.
 UC-M41-2 повтор после выкладки MW5b — **PASS** (пользователь 2026-10-10: таймер приходит в бота).
+**Живая проверка MW5b 2026-10-11** (UC-MW5b-live в USER_CHECKS): бот с таймером PASS, остальное — 6 замечаний → repair M74-R1, M72-R1, M75-R1, M76-R1 (карточки в MVP_SESSION_PLAN). M60 ждёт их.
 Проверки пользователя MW5b: UC-M73-1, UC-M74-1, UC-M75-1, UC-M76-1, UC-M71-1, UC-M71-F1, UC-M72-1, UC-M77-1, повтор UC-M41-2.
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
@@ -460,7 +461,11 @@ UC-M41-2 повтор после выкладки MW5b — **PASS** (польз�
 | M75 | MW5b | COMPLETED | M74, M73 | Sonnet 5.5 high | [M75](handoffs/M75.md) | `140c3d3` | web: чаты, «Сейчас» |
 | M76 | MW5b | COMPLETED | M74 | Sonnet 5.5 high | [M76](handoffs/M76.md) | `c714300` / Android `f24a87a` | Android: чаты, кнопка = новый диалог, «Сейчас» |
 | M77 | MW5b | COMPLETED | M70 | Sonnet 5.5 high | [M77](handoffs/M77.md) | `f11f35a` | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
-| M60 | MW6 | READY | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
+| M74-R1 | MW5b | IN_PROGRESS | M74, UC-MW5b-live | Opus 5.5 high | — | — | задача закрывается своим результатом; полный отчёт во «Входящих»; `FeedItem.steps` |
+| M72-R1 | MW5b | IN_PROGRESS | M72, UC-MW5b-live | Sonnet 5.5 high | — | — | риск из аннотаций для установок до M72 (Linear) |
+| M75-R1 | MW5b | IN_PROGRESS | M75, контракт `FeedItem.steps` | Sonnet 5.5 high | — | — | web: свёрнутые шаги/подтверждения, история шагов, озвучка целиком, отчёт во «Входящих» |
+| M76-R1 | MW5b | IN_PROGRESS | M76, контракт `FeedItem.steps` | Sonnet 5.5 high | — | — | Android: переключение чатов, свёрнутые шаги, история шагов, озвучка целиком |
+| M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 

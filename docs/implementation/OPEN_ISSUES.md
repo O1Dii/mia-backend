@@ -3972,6 +3972,22 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Affected future sessions: M60, M62.
 - Revisit trigger/deadline: M60 или повтор зависания.
 
+## M74-R1 inbox
+
+- Нет записей.
+
+## M72-R1 inbox
+
+- Нет записей.
+
+## M75-R1 inbox
+
+- Нет записей.
+
+## M76-R1 inbox
+
+- Нет записей.
+
 ## M60 inbox
 
 - Нет записей.
