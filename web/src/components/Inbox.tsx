@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import {
   CalendarClock,
   Check,
   CirclePause,
   CirclePlay,
   Inbox as InboxIcon,
+  ChevronDown,
+  ChevronUp,
   ListChecks,
   LoaderCircle,
   Play,
@@ -13,8 +15,16 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type InboxItem, type Job, type JobStatus, type Schedule } from '../lib/api'
+import {
+  api,
+  type AssistantResponse,
+  type InboxItem,
+  type Job,
+  type JobStatus,
+  type Schedule,
+} from '../lib/api'
 import { errorText } from '../lib/errors'
+import { textOfDisplay } from '../lib/chat'
 import { when } from '../lib/format'
 import { messageOf } from '../lib/http'
 import { Link } from '../lib/router'
@@ -81,6 +91,52 @@ export function describeRule(rule: string): string {
     default:
       return rule
   }
+}
+
+/**
+ * The result of a background task or a notification, folded to a few lines when it is long and
+ * opened to the whole text on demand (live check MW5b: a report could not be read in full).
+ * The full text is `response.display` (text and card: its markdown) with `response.speech` as the
+ * fallback; the backend (M74-R1) puts the final answer of the task there.
+ */
+export function ResultView({ response, label }: { response: AssistantResponse; label: string }) {
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const id = useId()
+  const text = textOfDisplay(response.display, response.speech)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (el && !open) setLong(el.scrollHeight > el.clientHeight + 4)
+  }, [text, open])
+  return (
+    <div
+      className="mw-fold"
+      data-open={open ? 'true' : 'false'}
+      data-long={long ? 'true' : 'false'}
+    >
+      <div id={id} ref={box} className="mw-fold__text">
+        <DisplayView display={response.display} text={text} />
+      </div>
+      {(long || open) && (
+        <button
+          type="button"
+          className="mw-link mw-fold__toggle"
+          aria-expanded={open}
+          aria-controls={id}
+          aria-label={`${open ? 'Свернуть' : 'Показать полностью'}: ${label}`}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? (
+            <ChevronUp size={14} aria-hidden="true" />
+          ) : (
+            <ChevronDown size={14} aria-hidden="true" />
+          )}{' '}
+          {open ? 'Свернуть' : 'Показать полностью'}
+        </button>
+      )}
+    </div>
+  )
 }
 
 /** Unread inbox items for the navigation badge; refreshes when the inbox screen changes it. */
@@ -254,7 +310,7 @@ export function Inbox() {
                         }
                         {item.read_at ? '' : ' · новое'}
                       </p>
-                      <DisplayView display={item.response.display} text={item.response.speech} />
+                      <ResultView response={item.response} label={item.title} />
                     </div>
                     {!item.read_at && (
                       <div className="mw-record__actions">
@@ -315,9 +371,7 @@ export function Inbox() {
                         {job.error && (
                           <p className="mw-error">{errorText(job.error.code, job.error.message)}</p>
                         )}
-                        {job.result && (
-                          <DisplayView display={job.result.display} text={job.result.speech} />
-                        )}
+                        {job.result && <ResultView response={job.result} label={job.goal} />}
                       </div>
                       {activeJob.includes(job.status) && (
                         <div className="mw-record__actions">
