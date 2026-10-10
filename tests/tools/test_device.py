@@ -115,12 +115,17 @@ async def test_call_goes_out_as_run_event_and_returns_the_client_result(world: W
         user_id=world.user_id,
         device_id=DEVICE,
         result=DeviceToolResult(
-            "call_dev1", "succeeded", content="Яна Петрова", structured_content={"n": 1}
+            "call_dev1",
+            "succeeded",
+            content="Яна Петрова",
+            structured_content={"matches": [{"name": "Яна Петрова", "phone_count": 1}]},
         ),
     )
     outcome = await asyncio.wait_for(task, 2)
     assert outcome.status == "succeeded" and "Яна Петрова" in outcome.content
-    assert outcome.content.startswith("<tool_result") and outcome.structured_content == {"n": 1}
+    assert outcome.content.startswith("<tool_result") and outcome.structured_content == {
+        "matches": [{"name": "Яна Петрова", "phone_count": 1}]
+    }
     # Late duplicate results are dropped.
     assert not await world.channel.deliver_result(
         user_id=world.user_id,
