@@ -130,7 +130,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M40-001 | OPEN | Plugins / Linear | Набор tools официального сервера Linear не проверен вживую | 14 имён по памяти; расхождение = `tools_mismatch` | UC-M40-1 |
 | OI-M40-002 | OPEN | MCP Apps | Отдаёт ли реальный Linear `structuredContent` для `list_issues` | плитка читает только `structuredContent` | UC-M40-1 |
 | OI-M41-001 | OPEN | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
-| OI-M41-002 | OPEN | Notifications | Telegram не входит в каналы доставки по умолчанию | явный `delivery.channels` | M31 / M60 |
+| OI-M41-002 | DECIDED | Notifications | Telegram не входит в каналы доставки по умолчанию | пользователь сам настраивает каналы и типы событий; новый канал спрашивает при подключении | M77 |
 | OI-M41-003 | OPEN | Android device tools | `telegram.handoff` успешен на заблокированном телефоне | M23-R: `device_locked` при keyguard (опц.) | M60 |
 | OI-M41-004 | OPEN | Telegram bot | Webhook вне `/v1`, регистрация вручную | `python -m app.modules.notifications.telegram_webhook set` | M62 |
 | OI-M42-001 | OPEN | Connections / Google | Google OAuth без DCR/CIMD — нет преднастроенного клиента | smoke ждёт OI-M15-004 | M51 / по ёмкости |
@@ -2473,7 +2473,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M41-002 — Telegram не входит в каналы по умолчанию
 
-- Status: OPEN
+- Status: DECIDED
 - Source session: M41
 - Component: `app/modules/notifications/inbox.py` (`DEFAULT_CHANNELS = ("inbox","push")`)
 - Question: должен ли результат фоновой задачи уходить в Telegram автоматически, если бот подключён?
@@ -2483,6 +2483,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (c) в M31 (настройки уведомлений).
 - Affected future sessions: M16 (repair), M31.
 - Revisit trigger/deadline: M31.
+- Decision (пользователь, 2026-10-10): не добавлять каналы в «стандартные» в коде. Пользователь настраивает каналы сам (переключатели + таблица «тип события × канал»), новый канал при подключении спрашивает «Присылать сюда уведомления Mia?». Живой случай: таймер на сервере сработал, отправка создана только в push (не настроен на сервере), в бот — нет. Реализация — M77.
 
 ### OI-M41-003 — Handoff на заблокированном телефоне
 
@@ -3259,6 +3260,10 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Affects sessions: M73, M60
 - Revisit trigger/by: медленные/дорогие ходы чата с крупными серверами
 - Resolution:
+
+## M77 inbox
+
+- Нет записей.
 
 ## M70 inbox
 

@@ -430,6 +430,7 @@ Playwright 68 passed / 2 skipped; Android `lint test assembleDebug` PASS (481 т
 | M72 | MW5b | PENDING | M70 | Sonnet 5.5 medium | — | — | магазин: «Где работает», возможности устройства |
 | M75 | MW5b | PENDING | M74, M73 | Sonnet 5.5 high | — | — | web: чаты, «Сейчас» |
 | M76 | MW5b | PENDING | M74 | Sonnet 5.5 high | — | — | Android: чаты, кнопка = новый диалог, «Сейчас» |
+| M77 | MW5b | PENDING | M70 | Sonnet 5.5 high | — | — | каналы уведомлений настраивает пользователь (каналы × типы событий), вопрос при подключении канала |
 | M60 | MW6 | PENDING | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
