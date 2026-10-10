@@ -414,6 +414,7 @@ Gate MW5b — PASS офлайн, живые проверки за пользов
 issuer `…/mia`. Webhook бота перерегистрирован (`message`, `callback_query`; OI-M77-001). Логи API/worker за 15 мин — 0 ошибок; память
 API 131/384 МБ, worker 129/256 МБ, свободно 839 МБ из 1967. Живой FCM на сервере не настроен (UC-M24-1). Решения пользователя по
 вопросам MW5b — рекомендации приняты: OI-M75-006, OI-M73-001, OI-M74-003 → DECIDED.
+UC-M41-2 повтор после выкладки MW5b — **PASS** (пользователь 2026-10-10: таймер приходит в бота).
 Проверки пользователя MW5b: UC-M73-1, UC-M74-1, UC-M75-1, UC-M76-1, UC-M71-1, UC-M71-F1, UC-M72-1, UC-M77-1, повтор UC-M41-2.
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
