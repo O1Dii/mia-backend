@@ -108,3 +108,11 @@ docker compose -p mia --project-directory /opt/mia -f /opt/mia/mia.compose.yml r
   mia python -m cli.mia_plugin publish-builtin --as-user <users.id>
 rm -rf /tmp/mia-pub
 ```
+
+## Telegram bot on the server (2026-10-10)
+
+`/opt/mia/secrets/app.env` holds `TELEGRAM_BOT_TOKEN` (copied from the owner's local `.env` with permission,
+never printed), `TELEGRAM_BOT_USERNAME=mia_helper_ai_bot`, `TELEGRAM_WEBHOOK_SECRET` (generated on the server).
+After editing: `docker compose -p mia --project-directory /opt/mia -f /opt/mia/mia.compose.yml up -d
+--force-recreate --no-deps mia worker`, then `… exec -T mia python -m app.modules.notifications.telegram_webhook set`.
+Webhook: `https://mindmapgen.xyz/mia/webhooks/telegram` (checked with `getWebhookInfo`, no errors).
