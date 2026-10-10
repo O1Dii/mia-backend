@@ -1,0 +1,5 @@
+{
+  "capability": "alarm.clock",
+  "description": "По вашей просьбе ставит будильник ещё и в «Часах» телефона",
+  "optional": true
+}

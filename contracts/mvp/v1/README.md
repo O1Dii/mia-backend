@@ -15,6 +15,7 @@ unchanged and keep serving the PoC until their consumers move.
 | `plugin-manifest.schema.json` | `mia.json`: `builtin` / `remote` / `declarative` server, tools risk overlay, tiles, permissions | M14, M15 |
 | `approval.schema.json` | `Approval`, `ApprovalDecision`, `ApprovalDecisionRequest` bound to `args_hash` | M13 |
 | `device-tools.schema.json` | device tool registration, call, result, errors | M13 (core), M23 (Android) |
+| `device-access.schema.json` | ADR-0016: `DeviceConsent` (`Approval.device_consent`, only the target device decides), grants, access log, capability settings, queued calls, FCM data `device_consent` / `device_tool_call`, manifest `requires.deviceCapabilities` items | M70 (server), M71 (Android), M72 (store) |
 | `memory.schema.json` | `Fact`, `Person`, `Preference`, `MemorySuggestion` | M17 |
 | `job.schema.json` | `Job`, `Schedule`, `InboxItem`, create requests | M16 |
 | `openapi.yaml` | path skeleton; bodies `$ref` the schemas above | M10…M50 |

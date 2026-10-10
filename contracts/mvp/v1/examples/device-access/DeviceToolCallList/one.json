@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "call_id": "call_c1",
+      "run_id": "8a1f0c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+      "device_id": "5b0c2a91-7e3d-4f1a-9c4b-2d8e6f0a1b3c",
+      "tool": "device.contacts.search",
+      "arguments": {
+        "query": "Яна"
+      },
+      "deadline_at": "2026-10-10T09:01:00Z",
+      "approval_id": "0f4e2d1c-6b5a-4c3d-9e8f-7a6b5c4d3e2f"
+    }
+  ]
+}

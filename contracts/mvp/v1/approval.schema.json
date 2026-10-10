@@ -45,6 +45,10 @@
         "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" },
         "decision": {
           "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ApprovalDecision" }]
+        },
+        "device_consent": {
+          "$ref": "device-access.schema.json#/$defs/DeviceConsent",
+          "description": "M70: present when only the target device may decide (a device read/action requested by another client). Other clients show «Подтвердите на телефоне»"
         }
       },
       "allOf": [
@@ -77,7 +81,12 @@
       "description": "Body of POST /v1/approvals/{id}/decision. args_hash echoes what the client displayed; a mismatch is rejected",
       "properties": {
         "decision": { "type": "string", "enum": ["approve", "deny"] },
-        "args_hash": { "$ref": "common.schema.json#/$defs/argsHash" }
+        "args_hash": { "$ref": "common.schema.json#/$defs/argsHash" },
+        "scope": {
+          "type": "string",
+          "enum": ["run", "persistent"],
+          "description": "M70, device consents only: run (default) or persistent (this requester, 30 days) when device_consent.scopes lists it, else 409 approval_scope_unavailable. Ignored for other approvals"
+        }
       }
     }
   }

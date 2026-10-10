@@ -45,6 +45,12 @@
           "uniqueItems": true,
           "items": { "$ref": "device-tools.schema.json#/$defs/deviceToolName" },
           "description": "Device tools the plugin's flows rely on (e.g. telegram.handoff). Missing tools degrade the plugin, they do not block install"
+        },
+        "deviceCapabilities": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "device-access.schema.json#/$defs/ManifestDeviceCapability" },
+          "description": "M70 (ADR-0016 §9): device capabilities the plugin may use on request, with a user-facing line each. Listed on the consent screen and in the store's «Где работает» block (M72)"
         }
       }
     },

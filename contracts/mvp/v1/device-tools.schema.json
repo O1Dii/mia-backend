@@ -101,8 +101,10 @@
             "device_locked",
             "user_cancelled",
             "timeout",
-            "execution_failed"
-          ]
+            "execution_failed",
+            "offline"
+          ],
+          "description": "offline is set by the core (M70) when the target device cannot be reached; a device does not send it"
         },
         "message": { "type": "string", "minLength": 1, "maxLength": 500 },
         "retryable": { "type": "boolean" }

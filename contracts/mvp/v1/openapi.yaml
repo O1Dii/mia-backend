@@ -198,7 +198,10 @@ paths:
             Decision recorded. 409 approval_args_mismatch / approval_expired /
             approval_already_decided (a retry with the same decision returns 200); 404
             approval_not_found for a missing or foreign approval. Bearer decisions are recorded
-            with channel android, same-origin cookie decisions with channel web.
+            with channel android, same-origin cookie decisions with channel web. M70: an approval
+            with device_consent is decided only by the app on its target device (else 403
+            approval_device_only); scope persistent needs device_consent.scopes to list it (else
+            409 approval_scope_unavailable).
           headers: *rid
           content:
             application/json:
@@ -1762,6 +1765,109 @@ paths:
           description: Declarations replaced
           headers: *rid
         default: *error
+  # --- M70 device access (ADR-0016): only the app signed in on {device_id} (else 403 device_access_forbidden)
+  /v1/devices/{device_id}/tool-calls:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Devices]
+      operationId: listDeviceToolCalls
+      summary: Device calls queued for this device by push delivery (M70)
+      description: >-
+        Calls of runs this device did not start (a browser, another device, the app's WebView)
+        wait here until their deadline; the device runs each and posts
+        POST /v1/runs/{run_id}/device-tool-results. A push device_tool_call announces them.
+      responses:
+        '200':
+          description: Pending calls, oldest first
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceToolCallList'}
+        default: *error
+  /v1/devices/{device_id}/grants:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Devices]
+      operationId: listDeviceGrants
+      summary: Persistent permissions this device gave to other clients (M70)
+      responses:
+        '200':
+          description: Active grants, newest first
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceGrantList'}
+        default: *error
+  /v1/devices/{device_id}/grants/{grant_id}:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: grant_id, in: path, required: true, schema: {type: string, format: uuid}}
+    delete:
+      tags: [Devices]
+      operationId: revokeDeviceGrant
+      summary: Revoke one persistent permission (M70); 404 device_grant_not_found
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Revoked
+          headers: *rid
+        default: *error
+  /v1/devices/{device_id}/access-log:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Devices]
+      operationId: listDeviceAccessLog
+      summary: Device reads/actions requested by other clients, newest first (M70)
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: What, from where, when, decision (no results)
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceAccessLog'}
+        default: *error
+  /v1/devices/{device_id}/capabilities:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Devices]
+      operationId: listDeviceCapabilities
+      summary: Whether other clients may ask for each capability of this device (M70)
+      responses:
+        '200':
+          description: All known capabilities with their setting
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceCapabilitySettingList'}
+        default: *error
+  /v1/devices/{device_id}/capabilities/{capability}:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: capability, in: path, required: true, schema: {type: string, maxLength: 64}}
+    put:
+      tags: [Devices]
+      operationId: putDeviceCapability
+      summary: Let other clients ask (ask) or never use (deny) a capability (M70); 404 device_capability_unknown
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeviceCapabilitySettingRequest'}
+      responses:
+        '200':
+          description: The stored setting
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceCapabilitySetting'}
+        default: *error
   /v1/telegram/link:
     get:
       tags: [Telegram]
@@ -2911,6 +3017,13 @@ components:
     ApprovalDecisionRequest: {$ref: 'approval.schema.json#/$defs/ApprovalDecisionRequest'}
     DeviceToolRegistration: {$ref: 'device-tools.schema.json#/$defs/DeviceToolRegistration'}
     DeviceToolResult: {$ref: 'device-tools.schema.json#/$defs/DeviceToolResult'}
+    DeviceConsent: {$ref: 'device-access.schema.json#/$defs/DeviceConsent'}
+    DeviceToolCallList: {$ref: 'device-access.schema.json#/$defs/DeviceToolCallList'}
+    DeviceGrantList: {$ref: 'device-access.schema.json#/$defs/DeviceGrantList'}
+    DeviceAccessLog: {$ref: 'device-access.schema.json#/$defs/DeviceAccessLog'}
+    DeviceCapabilitySetting: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySetting'}
+    DeviceCapabilitySettingList: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySettingList'}
+    DeviceCapabilitySettingRequest: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySettingRequest'}
     Fact: {$ref: 'memory.schema.json#/$defs/Fact'}
     Person: {$ref: 'memory.schema.json#/$defs/Person'}
     Preference: {$ref: 'memory.schema.json#/$defs/Preference'}

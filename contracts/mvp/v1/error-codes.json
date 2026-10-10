@@ -635,5 +635,54 @@
     "retryable": false,
     "public_message": "Sign in to this app with Mia first, then connect it again.",
     "owner": "M51"
+  },
+  {
+    "code": "device_offline",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The phone is not reachable right now.",
+    "owner": "M70"
+  },
+  {
+    "code": "device_capability_disabled",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "This action is turned off for other clients on the phone.",
+    "owner": "M70"
+  },
+  {
+    "code": "approval_device_only",
+    "http_status": 403,
+    "retryable": false,
+    "public_message": "Confirm this request on the phone.",
+    "owner": "M70"
+  },
+  {
+    "code": "approval_scope_unavailable",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "This consent cannot be given permanently.",
+    "owner": "M70"
+  },
+  {
+    "code": "device_access_forbidden",
+    "http_status": 403,
+    "retryable": false,
+    "public_message": "Only the app on this phone can manage its access.",
+    "owner": "M70"
+  },
+  {
+    "code": "device_grant_not_found",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The permission was not found.",
+    "owner": "M70"
+  },
+  {
+    "code": "device_capability_unknown",
+    "http_status": 404,
+    "retryable": false,
+    "public_message": "The capability is unknown.",
+    "owner": "M70"
   }
 ]

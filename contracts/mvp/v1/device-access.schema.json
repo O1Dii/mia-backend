@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/device-access.schema.json",
+  "title": "MIA MVP v1 device access (ADR-0016, M70)",
+  "description": "Cloud by default; device reads and actions only on request, with consent on the target device. Policy allow | ask | deny over (capability, requester, target, scope). A request from the target device itself (its app, or the app's WebView whose web session is bound to the device) is allowed; any other client gets an approval that only the target device may decide (Approval.device_consent), the run waits up to 120 s (waiting_for_device) and fails with a clear error on denial, timeout or an unreachable phone. Root document is a DeviceConsent.",
+  "$ref": "#/$defs/DeviceConsent",
+  "$defs": {
+    "deviceCapability": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "maxLength": 64,
+      "description": "Known: contacts.read (device.contacts.search), alarm.clock (device.alarm.set), apps.open (device.app.open), telegram.draft (telegram.handoff). An unknown device tool is its own capability (its tool name) with kind external"
+    },
+    "capabilityKind": {
+      "type": "string",
+      "enum": ["read", "action", "external"],
+      "description": "read = device data; action = affects only the user (may be pre-allowed); external = effect on other people (asked per action, never persistent)"
+    },
+    "DeviceRequester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["device_app", "device_webview", "web", "unknown", "job", "app"],
+          "description": "device_app = Mia app on a device; device_webview = the app's WebView (same device); web = a browser session; job/app are never offered device tools"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Russian, for «<label> просит …», e.g. «браузер Chrome на macOS», «Mia на телефоне «Galaxy S25»»"
+        }
+      }
+    },
+    "DeviceConsent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "waiting_for",
+        "target_device_id",
+        "target_device_name",
+        "requester",
+        "capability",
+        "capability_kind",
+        "capability_label",
+        "model_sees",
+        "scopes"
+      ],
+      "description": "Approval.device_consent: the approval can be decided only by the app on target_device_id (POST /v1/approvals/{id}/decision, bearer of a session on that device; others get 403 approval_device_only). Clients other than the target show «Подтвердите на телефоне» instead of approve/deny buttons",
+      "properties": {
+        "waiting_for": { "const": "device" },
+        "target_device_id": { "$ref": "common.schema.json#/$defs/id" },
+        "target_device_name": { "type": ["string", "null"], "maxLength": 128 },
+        "requester": { "$ref": "#/$defs/DeviceRequester" },
+        "capability": { "$ref": "#/$defs/deviceCapability" },
+        "capability_kind": { "$ref": "#/$defs/capabilityKind" },
+        "capability_label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "model_sees": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "What the model will receive, shown in the consent text (data minimization, ADR-0016 §6)"
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/grantScope" },
+          "description": "Scopes the device may choose: run (this request: the rest of the run, not for external acts) and, when allowed, persistent (this requester, 30 days)"
+        }
+      }
+    },
+    "grantScope": { "type": "string", "enum": ["run", "persistent"] },
+    "DeviceGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "capability", "capability_label", "requester", "created_at", "expires_at", "last_used_at"],
+      "description": "A persistent permission given on this device to one requester (this browser session or that device). Ends at expires_at (30 days), on revocation, or when the requester's web session ends",
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "capability": { "$ref": "#/$defs/deviceCapability" },
+        "capability_label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "requester": { "$ref": "#/$defs/DeviceRequester" },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "last_used_at": {
+          "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }]
+        }
+      }
+    },
+    "DeviceGrantList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "items": { "$ref": "#/$defs/DeviceGrant" } } }
+    },
+    "DeviceAccessLogEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "capability", "capability_label", "tool", "requester", "decision", "created_at"],
+      "description": "One request of another client for this device (ADR-0016 §10). Never contains the device's result",
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "capability": { "$ref": "#/$defs/deviceCapability" },
+        "capability_label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "tool": { "$ref": "device-tools.schema.json#/$defs/deviceToolName" },
+        "requester": { "$ref": "#/$defs/DeviceRequester" },
+        "decision": {
+          "type": "string",
+          "enum": ["pending", "approved", "denied", "expired", "allowed", "blocked", "offline"],
+          "description": "pending/approved/denied/expired = asked on the device; allowed = by a run or persistent grant; blocked = turned off for other clients; offline = phone not reachable"
+        },
+        "run_id": { "$ref": "common.schema.json#/$defs/id" },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "DeviceAccessLog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/DeviceAccessLogEntry" } }
+      }
+    },
+    "DeviceCapabilitySetting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "kind", "label", "model_sees", "persistent_allowed", "remote"],
+      "properties": {
+        "capability": { "$ref": "#/$defs/deviceCapability" },
+        "kind": { "$ref": "#/$defs/capabilityKind" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "model_sees": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "persistent_allowed": { "type": "boolean" },
+        "remote": {
+          "type": "string",
+          "enum": ["ask", "deny"],
+          "description": "Other clients may ask for consent (default) or never use it; the device's own requests are not affected"
+        }
+      }
+    },
+    "DeviceCapabilitySettingList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/$defs/DeviceCapabilitySetting" } }
+      }
+    },
+    "DeviceCapabilitySettingRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remote"],
+      "description": "Body of PUT /v1/devices/{device_id}/capabilities/{capability}",
+      "properties": { "remote": { "type": "string", "enum": ["ask", "deny"] } }
+    },
+    "DeviceToolCallList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "description": "GET /v1/devices/{device_id}/tool-calls: calls queued for this device by push delivery (a run from another client or from the app's WebView). The device executes each and posts POST /v1/runs/{run_id}/device-tool-results; it must skip a call_id it already runs from its own run stream",
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "device-tools.schema.json#/$defs/DeviceToolCall" } }
+      }
+    },
+    "DevicePushConsent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "approval_id",
+        "run_id",
+        "tool",
+        "capability",
+        "capability_label",
+        "requester_label",
+        "model_sees",
+        "summary",
+        "args_hash",
+        "expires_at",
+        "scopes",
+        "title"
+      ],
+      "description": "FCM data-only message (high priority, TTL = time left) to the target device. The app shows a notification with actions «Разрешить» (decision approve, scope run) and «Отклонить» (deny), and the consent sheet on tap. All values are strings",
+      "properties": {
+        "type": { "const": "device_consent" },
+        "approval_id": { "type": "string", "format": "uuid" },
+        "run_id": { "type": "string", "format": "uuid" },
+        "tool": { "type": "string" },
+        "capability": { "type": "string" },
+        "capability_label": { "type": "string" },
+        "requester_label": { "type": "string" },
+        "model_sees": { "type": "string" },
+        "summary": { "type": "string" },
+        "args_hash": { "$ref": "common.schema.json#/$defs/argsHash" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "scopes": { "type": "string", "description": "Comma-separated grantScope values, e.g. run,persistent" },
+        "title": { "type": "string" }
+      }
+    },
+    "DevicePushToolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "run_id", "call_id", "tool", "deadline_at"],
+      "description": "FCM data-only wake-up (TTL 60 s): a call is queued for this device; fetch GET /v1/devices/{device_id}/tool-calls. Arguments never travel through FCM",
+      "properties": {
+        "type": { "const": "device_tool_call" },
+        "run_id": { "type": "string", "format": "uuid" },
+        "call_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "tool": { "type": "string" },
+        "deadline_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ManifestDeviceCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "description"],
+      "description": "plugin-manifest requires.deviceCapabilities item (for M72 «Где работает» and the consent screen)",
+      "properties": {
+        "capability": { "$ref": "#/$defs/deviceCapability" },
+        "description": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200,
+          "description": "User-facing, e.g. «По вашей просьбе ставит будильник ещё и в «Часах» телефона»"
+        },
+        "optional": {
+          "type": "boolean",
+          "default": true,
+          "description": "The plugin works in the cloud without it (ADR-0016 §1)"
+        }
+      }
+    }
+  }
+}
