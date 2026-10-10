@@ -11,7 +11,9 @@ events. Guarantees:
   flight is allowed to finish (an external write must not be torn);
 - time spent waiting for a human approval does not count against the budget;
 - a tool's screen-only action (M41-R1) goes to ``tool.call.completed`` and to the
-  feed entry of the answer, never into a message the model sees.
+  feed entry of the answer, never into a message the model sees;
+- ``tool.call.started`` carries the redacted arguments and ``tool.call.completed`` the
+  reason of a failure (``error_detail``), so the tool-call journal is readable (M73).
 """
 
 from __future__ import annotations
@@ -63,6 +65,7 @@ from app.modules.runs.errors import public_error, tool_error
 from app.modules.runs.notifier import RunNotifier
 from app.modules.runs.profiles import ProfileLimits, RunLimits
 from app.modules.runs.prompts import system_instruction
+from app.modules.runs.redaction import failure_reason, redact_arguments
 from app.modules.runs.response import ParsedResponse, clip, parse_response
 from app.modules.runs.store import RunStore
 
@@ -497,6 +500,10 @@ class RunExecution:
             return _model_result("failed", error="duplicate_call_id")
         descriptor = self.descriptors.get(call.name)
         if descriptor is None:
+            logger.warning(
+                "tool_call_unknown",
+                extra={"run_id": str(self.record.id), "tool_name": call.name[:128]},
+            )
             return _model_result("failed", error="tool_not_found")
         if self.tool_calls >= self.limits.max_tool_calls:
             return _model_result("skipped", error="tool_budget_exceeded")
@@ -506,6 +513,7 @@ class RunExecution:
             "tool": call.name,
             "risk": descriptor.risk,
             "executor": descriptor.executor,
+            "arguments": redact_arguments(call.arguments, device=descriptor.executor == "device"),
         }
         if descriptor.plugin_id is not None:
             started["plugin_id"] = descriptor.plugin_id
@@ -715,6 +723,9 @@ def _completed_payload(call_id: str, outcome: ToolOutcome) -> dict[str, Any]:
         payload["action"] = action
     if status != "succeeded":
         payload["error"] = tool_error(status, outcome.error_code)
+        reason = failure_reason(outcome.content)
+        if reason is not None:
+            payload["error_detail"] = reason
     return payload
 
 

@@ -12,6 +12,7 @@ M14 supplies ``server_factory`` (in-process MCP servers) and, if needed, a
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from app.core.runtime import Runtime
 from app.modules.auth.composition import request_authenticator
 from app.modules.plugins.registry import (
     DirectoryManifestSource,
+    InstallationReader,
     ManifestSource,
     PluginRegistry,
     SqlInstallationReader,
@@ -62,10 +64,14 @@ def build_tool_stack(
     server_factory: InProcessServerFactory | None = None,
     manifest_source: ManifestSource | None = None,
     credentials: RemoteCredentials | None = None,
+    wrap_installations: Callable[[InstallationReader], InstallationReader] | None = None,
 ) -> ToolStack:
     session_factory = runtime.database.session_factory
+    reader: InstallationReader = SqlInstallationReader(session_factory)
+    if wrap_installations is not None:
+        reader = wrap_installations(reader)
     registry = PluginRegistry(
-        SqlInstallationReader(session_factory),
+        reader,
         manifest_source or DirectoryManifestSource(BUILTIN_PLUGINS_DIR),
     )
     connector = McpConnector(
@@ -102,6 +108,7 @@ def install_tools(
     server_factory: InProcessServerFactory | None = None,
     manifest_source: ManifestSource | None = None,
     credentials: RemoteCredentials | None = None,
+    wrap_installations: Callable[[InstallationReader], InstallationReader] | None = None,
 ) -> ToolStack:
     """Mount ``/v1/approvals*``; the stack is also exposed as ``app.state.tools``."""
     stack = build_tool_stack(
@@ -110,6 +117,7 @@ def install_tools(
         server_factory=server_factory,
         manifest_source=manifest_source,
         credentials=credentials,
+        wrap_installations=wrap_installations,
     )
     app.state.tools = stack
     app.include_router(

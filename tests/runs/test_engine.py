@@ -150,6 +150,7 @@ async def test_tool_events_and_model_sees_only_compact_content(world: RunWorld) 
         "risk": "read",
         "executor": "server",
         "plugin_id": "test.tools",
+        "arguments": {"q": "кофе"},
     }
     completed = payload_of(events, "tool.call.completed")
     assert completed["status"] == "succeeded"

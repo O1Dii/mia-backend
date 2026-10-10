@@ -44,10 +44,11 @@ def build_server(
         return services.web
 
     async def lookup(query: str, *, news: bool) -> CallToolResult:
+        kind = "Поиск новостей" if news else "Поиск"
         try:
             items = await web().search(query, news=news)
         except PublicWebError as error:
-            raise ToolError(str(error)) from None
+            raise ToolError(f"{kind} по запросу «{query}» не удался: {error}") from None
         now = services.now_ms()
         data = {
             "query": query,
@@ -57,8 +58,16 @@ def build_server(
             "untrusted_content": True,
         }
         if not items:
-            hint = "За последние 48 часов публикаций не найдено." if news else "Ничего не найдено."
-            return ok(hint + " Не придумывай результаты.", data)
+            hint = (
+                f"По запросу «{query}» за последние 48 часов публикаций не найдено."
+                if news
+                else f"По запросу «{query}» ничего не найдено."
+            )
+            return ok(
+                hint + " Скажи об этом пользователю, назови запрос и не придумывай результаты; "
+                "можно переформулировать запрос.",
+                data,
+            )
         return ok(f"{UNTRUSTED}\n{format_items(items)}", data)
 
     @kit.tool("search", description="Search public web pages.", ui="results", open_world=True)
@@ -89,7 +98,7 @@ def build_server(
         try:
             page = await web().read(url)
         except PublicWebError as error:
-            raise ToolError(str(error)) from None
+            raise ToolError(f"Страницу {url[:200]} не удалось прочитать: {error}") from None
         data = {**page, "untrusted_content": True}
         return ok(f"{UNTRUSTED}\n{page['url']}\n{page['text'][:6000]}", data)
 

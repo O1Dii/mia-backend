@@ -59,6 +59,7 @@ async def test_in_process_timer_through_the_engine(world: RunWorld, tmp_path: Pa
         "risk": "write_reversible",
         "executor": "server",
         "plugin_id": PLUGIN_ID,
+        "arguments": {"seconds": 300},
     }
     completed = payload_of(events, "tool.call.completed")
     assert completed["status"] == "succeeded"

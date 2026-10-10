@@ -97,9 +97,14 @@ async def test_internet_empty_results_and_errors_are_tool_errors_not_crashes() -
     web = FakeWeb([])
     async with connect(server_for("builtin.internet", make_services(web=web))) as client:
         call = Caller(client, meta())
-        assert "Не придумывай" in await call.text("news", {"query": "ничего"})
+        empty = await call.text("news", {"query": "ничего"})
+        assert "По запросу «ничего»" in empty and "не придумывай" in empty
+        assert "По запросу «ничего» ничего не найдено" in await call.text(
+            "search", {"query": "ничего"}
+        )
         web.fail = "Разрешены только публичные HTTPS-сайты."
         assert "публичные" in await call.error("read", {"url": "https://127.0.0.1/"})
+        assert "«ничего»" in await call.error("search", {"query": "ничего"})
         assert await call.error("search", {"query": "a"})  # too short
     async with connect(server_for("builtin.internet", make_services())) as client:
         assert "не настроен" in await Caller(client, meta()).error("search", {"query": "abc"})
@@ -138,14 +143,17 @@ async def test_news_failures_keep_old_digest_and_store_the_error() -> None:
         call = Caller(client, meta())
         await call("refresh", {"topics": "ИИ"})
         web.items = []
-        assert "не найдено" in await call.error("refresh")
+        empty = await call.error("refresh")
+        assert "По запросу «ИИ»" in empty and "не найдено" in empty
         state = await call("get")
-        assert state["summary"] == "Сводка [1]" and "не найдено" in state["error"]
+        assert state["summary"] == "Сводка [1]" and "«ИИ»" in state["error"]
         web.items = list(ITEMS)
         llm.fail = "Выберите модель для сводки."
-        assert "Выберите модель" in await call.error("refresh")
+        reason = await call.error("refresh")
+        assert "Выберите модель" in reason and "«ИИ»" in reason
         web.fail = "Источник недоступен."
-        assert "Источник недоступен" in await call.error("refresh")
+        reason = await call.error("refresh")
+        assert "Источник недоступен" in reason and "«ИИ»" in reason
         assert "Укажите темы" in await Caller(client, meta(installation="fresh")).error("refresh")
     async with connect(server_for("builtin.news", make_services(web=web))) as client:
         assert "нужны доступ" in await Caller(client, meta()).error("refresh", {"topics": "ИИ"})
