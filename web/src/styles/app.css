@@ -380,6 +380,27 @@
   display: grid;
   gap: var(--mia-space-3);
 }
+.mw-where__list li,
+.mw-device .mw-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: var(--mia-space-2);
+}
+.mw-where__list li > small,
+.mw-device .mw-list li > small,
+.mw-device .mw-list li > .mia-chip {
+  grid-column: 2;
+  justify-self: start;
+}
+.mw-device {
+  display: grid;
+  gap: var(--mia-space-2);
+}
+.mw-risk {
+  min-height: var(--mia-size-touch-web);
+  border-radius: var(--mia-radius-sm);
+}
 .mw-lead {
   max-width: 70ch;
   color: var(--mia-color-text-secondary);

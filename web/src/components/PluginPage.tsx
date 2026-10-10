@@ -12,6 +12,7 @@ import {
 import { messageOf } from '../lib/http'
 import { Link } from '../lib/router'
 import { ConsentDialog } from './StoreConsent'
+import { WhereItRuns } from './StoreWhere'
 import { ConsentSummary, PluginMark, Stars, categoryTitles, connectAccount } from './StoreShared'
 
 export function PluginPage({ pluginId }: { pluginId: string }) {
@@ -159,6 +160,8 @@ export function PluginPage({ pluginId }: { pluginId: string }) {
           ))}
         </ul>
       )}
+
+      <WhereItRuns consent={consent} />
 
       <div className="mia-glass mw-block">
         <ConsentSummary consent={consent} />

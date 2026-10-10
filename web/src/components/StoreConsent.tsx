@@ -4,6 +4,7 @@ import type { Consent } from '../lib/api'
 import { messageOf } from '../lib/http'
 import { Dialog } from './Dialog'
 import { ConsentSummary } from './StoreShared'
+import { DeviceCapabilities } from './StoreWhere'
 
 /** The consent screen: what the plugin can do, exactly the digest and grants the user saw. */
 export function ConsentDialog({
@@ -46,6 +47,7 @@ export function ConsentDialog({
       {/* The consent scrolls between the title and the actions, which always stay on screen. */}
       <div className="mw-dialog__body">
         <ConsentSummary consent={consent} added={added} />
+        <DeviceCapabilities consent={consent} />
       </div>
       {error && (
         <p className="mw-error" role="alert">
