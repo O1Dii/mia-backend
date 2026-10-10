@@ -203,6 +203,16 @@ async def test_inbox_notify_and_push_token_with_web_and_android() -> None:
         assert everything[0]["read_at"] is not None
         missing = await client.post(f"/v1/inbox/{uuid.uuid4()}/read", headers={**auth, **key()})
         assert missing.status_code == 404
+        # One item with its full text, for the web (cookie) and Android (bearer) (M74-R1).
+        one = await browser.get(f"/v1/inbox/{item['id']}")
+        assert one.status_code == 200 and one.json()["text"] == "Привет из веба"
+        assert_mvp_valid(one.json(), "job", "InboxItem")
+        android = await client.get(f"/v1/inbox/{item['id']}", headers=auth)
+        assert android.json()["id"] == item["id"]
+        for wrong in (str(uuid.uuid4()), "not-a-uuid"):
+            gone = await client.get(f"/v1/inbox/{wrong}", headers=auth)
+            assert gone.status_code == 404
+            assert gone.json()["error"]["code"] == "inbox_item_not_found"
 
         await client.post("/v1/notify", headers={**auth, **key()}, json={"text": "2"})
         limited = await client.post("/v1/notify", headers={**auth, **key()}, json={"text": "3"})
@@ -234,6 +244,7 @@ async def test_routes_are_mounted_by_the_application() -> None:
         "/v1/schedules/{schedule_id}",
         "/v1/schedules/{schedule_id}/run",
         "/v1/inbox",
+        "/v1/inbox/{item_id}",
         "/v1/inbox/{item_id}/read",
         "/v1/notify",
         "/v1/devices/push-token",

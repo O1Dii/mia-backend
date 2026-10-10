@@ -5,6 +5,9 @@ While the run is live the runner renews the lease every ``lease/3`` seconds, mir
 ``max_duration_seconds``. A lost lease cancels the local run and writes nothing.
 Failed runs are retried only when the error is retryable and the run performed no write
 tool call (an external effect is never repeated).
+
+A job has one result (M74-R1): the run's final answer with the job's ``notify`` notes folded
+in, delivered once together with the terminal status.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from app.modules.jobs.messages import (
     public_error,
     reminder_draft,
     success_draft,
+    with_notes,
 )
 from app.modules.jobs.settings import JobsSettings
 from app.modules.jobs.store import SqlJobStore
@@ -161,13 +165,15 @@ class JobRunner:
             logger.warning("job_run_cancel_failed", extra={"job_id": str(job.id)})
 
     async def _conclude(self, job: Job, record: RunRecord, cancel_reason: str | None) -> None:
+        notes = await self.store.notes(job.id)
         if record.status == "completed" and record.response is not None:
+            result = with_notes(dict(record.response), notes)
             await self.store.finish(
                 job,
                 worker_id=self.worker_id,
                 status="succeeded",
-                result=record.response,
-                inbox=success_draft(job.goal, record.response),
+                result=result,
+                inbox=success_draft(job.goal, result),
             )
             return
         if record.status == "cancelled":
@@ -177,7 +183,7 @@ class JobRunner:
                     worker_id=self.worker_id,
                     status="failed",
                     error=public_error("job_budget_exceeded"),
-                    inbox=failure_draft(job.goal),
+                    inbox=failure_draft(job.goal, notes),
                 )
             else:
                 await self.store.finish(job, worker_id=self.worker_id, status="cancelled")
@@ -199,5 +205,5 @@ class JobRunner:
             worker_id=self.worker_id,
             status="failed",
             error=error,
-            inbox=failure_draft(job.goal),
+            inbox=failure_draft(job.goal, notes),
         )

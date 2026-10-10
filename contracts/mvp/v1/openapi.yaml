@@ -1872,6 +1872,21 @@ paths:
                   items: {type: array, items: {$ref: '#/components/schemas/InboxItem'}}
                   next_cursor: {type: [string, 'null']}
         default: *error
+  /v1/inbox/{item_id}:
+    parameters:
+      - {name: item_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Background]
+      operationId: getInboxItem
+      summary: One inbox item with its full text (M74-R1), e.g. a job report to expand
+      responses:
+        '200':
+          description: The item (404 inbox_item_not_found for a foreign or missing one)
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InboxItem'}
+        default: *error
   /v1/inbox/{item_id}/read:
     parameters:
       - {name: item_id, in: path, required: true, schema: {type: string, format: uuid}}
@@ -2895,6 +2910,49 @@ components:
             expired=true. Never part of the model's history.
         card:
           $ref: '#/components/schemas/FeedCard'
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: {$ref: '#/components/schemas/FeedStep'}
+          description: >-
+            Tool steps of an assistant answer in call order (M74-R1), with their approvals, read
+            from the run's tool.call.* events and the approvals; a job result card has the steps
+            of the job's run. Absent when the answer called no tool. Lets a client show steps,
+            failure reasons and decided approvals after a reload or on another device.
+    FeedStep:
+      type: object
+      additionalProperties: false
+      required: [tool_call_id, tool, status]
+      description: >-
+        One tool call of an answer (M74-R1). arguments and error_detail are exactly those of
+        tool.call.started / tool.call.completed (already redacted, M73). A call that never
+        completed in a finished answer is uncertain.
+      properties:
+        tool_call_id: {type: string, minLength: 1, maxLength: 128}
+        tool: {type: string, minLength: 1, maxLength: 200}
+        plugin_id: {type: string, maxLength: 128}
+        risk: {type: string, enum: [read, write_reversible, write_external]}
+        executor: {type: string, enum: [server, device]}
+        status: {type: string, enum: [running, succeeded, failed, denied, expired, uncertain, cancelled]}
+        arguments: {type: object, description: Redacted arguments as in tool.call.started}
+        error_code: {type: string, maxLength: 64, description: error.code of tool.call.completed (not succeeded)}
+        error_detail: {type: string, minLength: 1, maxLength: 300, description: Why it failed, as in tool.call.completed}
+        approval: {$ref: '#/components/schemas/FeedStepApproval'}
+    FeedStepApproval:
+      type: object
+      additionalProperties: false
+      required: [id, status, summary]
+      description: >-
+        The approval this call asked for. channel and device_id say where it was decided
+        (android with device_id = on the phone; web; voice_trusted).
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, approved, denied, expired, cancelled]}
+        summary: {type: string, minLength: 1, maxLength: 500}
+        decided_at: {type: string, format: date-time}
+        channel: {type: string, enum: [web, android, voice_trusted]}
+        device_id: {type: string, format: uuid}
     ScreenAction:
       type: object
       additionalProperties: false
@@ -2936,6 +2994,12 @@ components:
         job_id: {type: string, format: uuid}
         status: {type: string, enum: [succeeded, failed]}
         title: {type: string, maxLength: 200}
+        inbox_item_id:
+          type: string
+          format: uuid
+          description: >-
+            The inbox item with the same result (M74-R1): open it with GET /v1/inbox/{item_id}
+            (full text in InboxItem.text). Absent on cards posted before M74-R1
     Chat:
       type: object
       additionalProperties: false

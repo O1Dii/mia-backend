@@ -72,33 +72,44 @@ def card_text(response: dict[str, Any]) -> str:
     return speech if isinstance(speech, str) and speech.strip() else ""
 
 
-async def post_result_card(
-    session: AsyncSession, row: JobRow, draft: InboxDraft, now: datetime
-) -> SourceChat | None:
-    """Post the job's result card into its source chat; returns the chat when posted."""
+async def source_chat(session: AsyncSession, row: JobRow) -> SourceChat | None:
+    """The chat the job was started from, if it still exists."""
     run_id = origin_run_id(row.origin_type, row.origin_id)
     if run_id is None:
         return None
-    chat = (await source_chats(session, row.user_id, [run_id])).get(run_id)
-    if chat is None:
-        return None
+    return (await source_chats(session, row.user_id, [run_id])).get(run_id)
+
+
+async def post_result_card(
+    session: AsyncSession,
+    row: JobRow,
+    draft: InboxDraft,
+    now: datetime,
+    *,
+    chat: SourceChat,
+    inbox_item_id: uuid.UUID | None = None,
+) -> bool:
+    """Post the job's result card into its source chat; ``inbox_item_id`` names the inbox
+    item with the same result (M74-R1), so a client can open exactly that item."""
     text_value = card_text(draft.response) or draft.title
-    posted = await append_card(
+    card: dict[str, Any] = {
+        "type": "job_result",
+        "job_id": str(row.id),
+        "status": row.status,
+        "title": draft.title,
+    }
+    if inbox_item_id is not None:
+        card["inbox_item_id"] = str(inbox_item_id)
+    return await append_card(
         session,
         user_id=row.user_id,
         conversation_id=chat.conversation_id,
         key=f"job:{row.id}",
         text_value=text_value,
         response=draft.response,
-        card={
-            "type": "job_result",
-            "job_id": str(row.id),
-            "status": row.status,
-            "title": draft.title,
-        },
+        card=card,
         now=now,
     )
-    return chat if posted else None
 
 
 def event_type_of(row: JobRow) -> EventType:

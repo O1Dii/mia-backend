@@ -305,26 +305,46 @@ class JobTools:
 
     async def notify(self, context: ToolContext, args: JsonObject) -> CoreToolResult:
         user = self._user(context)
-        source_type: Any = "system"
-        source_id = f"run:{context.run_id}"
-        owner = await self.service.store.job_for_run(uuid.UUID(context.run_id))
+        run_id = uuid.UUID(context.run_id)
+        owner = await self.service.store.job_for_run(run_id)
         if owner is not None:
-            source_type, source_id = "job", str(owner.id)
+            return await self._note(owner, run_id, args)
         channels = args.get("channels")
         try:
             item = await self.service.notify(
-                event_type="job_result" if owner is not None else "plugin_message",
+                event_type="plugin_message",
                 user_id=user,
                 text=str(args["text"]),
                 channels=[str(c) for c in channels] if isinstance(channels, list) else None,
                 heading=str(args["title"]) if args.get("title") else None,
-                source_type=source_type,
-                source_id=source_id,
+                source_type="system",
+                source_id=f"run:{context.run_id}",
             )
         except JobError as error:
             return _error_text(error)
         return CoreToolResult(
             content="Уведомление отправлено.", structured_content={"inbox_item": item.to_wire()}
+        )
+
+    async def _note(self, job: Job, run_id: uuid.UUID, args: JsonObject) -> CoreToolResult:
+        """``notify`` inside a background job drafts the job's single result (M74-R1).
+
+        Nothing is delivered now: the worker folds the text into the job's result and delivers
+        it once, with the job's own channels, when the job finishes.
+        """
+        note: dict[str, Any] = {"text": str(args["text"])}
+        if args.get("title"):
+            note["title"] = str(args["title"])
+        if not await self.service.store.add_note(job.id, run_id, note):
+            return _failed("job_notes_unavailable", "Текст не принят: задача уже завершается.")
+        return CoreToolResult(
+            content=(
+                "Принято: текст войдёт в результат задачи. Mia доставит результат пользователю "
+                "один раз, когда задача завершится, — не повторяй его и не пиши, что отправила "
+                "уведомление. Заверши задачу итоговым ответом; если всё уже в этом тексте, "
+                "ответь просто «Готово.»"
+            ),
+            structured_content={"job_id": str(job.id), "result_note": True},
         )
 
 
@@ -422,7 +442,9 @@ def job_core_tools(tools: JobTools) -> list[CoreTool]:
         CoreTool(
             "notify",
             "Notify the user: the inbox and the channels the user chose in settings (push, the "
-            "Telegram bot, ...); pass `channels` only if the user names one.",
+            "Telegram bot, ...); pass `channels` only if the user names one. Inside a background "
+            "task do not use it for the result: the task's final answer is delivered once by "
+            "itself (a notify text there only becomes part of that single result).",
             NOTIFY_SCHEMA,
             "write_reversible",
             tools.notify,

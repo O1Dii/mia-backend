@@ -38,6 +38,7 @@ from app.modules.conversations.repositories import (
     ConversationNotFoundError,
     ConversationRepository,
 )
+from app.modules.conversations.steps import Steps, job_runs, steps_of_runs
 from app.modules.users.models import User
 
 SUMMARY_MAX_CHARS = 4000
@@ -125,6 +126,9 @@ class FeedItem:
     """Screen-only actions of the answer (M41-R1); expired ones come without ``url``."""
     card: dict[str, Any] | None = None
     """A result card posted into the chat (M74), e.g. ``{"type": "job_result", ...}``."""
+    steps: tuple[dict[str, Any], ...] = ()
+    """Tool steps and approvals of the answer (``FeedStep``, M74-R1); a result card has the
+    steps of its job's run."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +182,39 @@ def _display_of(entry: Entry) -> dict[str, Any] | None:
     response = entry.content.get("response")
     display = response.get("display") if isinstance(response, dict) else None
     return display if isinstance(display, dict) else None
+
+
+def _card_job_id(entry: Entry) -> uuid.UUID | None:
+    card = _card_of(entry)
+    if card is None:
+        return None
+    try:
+        return uuid.UUID(str(card.get("job_id")))
+    except ValueError:
+        return None
+
+
+async def _page_steps(
+    session: AsyncSession, user_id: uuid.UUID, page: Sequence[Any]
+) -> dict[uuid.UUID, Steps]:
+    """Entry id → steps, for the assistant entries of one page (batched by run ids)."""
+    answers: dict[uuid.UUID, uuid.UUID] = {}
+    cards: dict[uuid.UUID, uuid.UUID] = {}
+    for entry, _source, key in page:
+        if entry.role != EntryRole.ASSISTANT:
+            continue
+        run_id = _run_id_of(key)
+        job_id = _card_job_id(entry) if run_id is None else None
+        if run_id is not None:
+            answers[entry.id] = run_id
+        elif job_id is not None:
+            cards[entry.id] = job_id
+    runs_of_jobs = await job_runs(session, user_id, cards.values())
+    for entry_id, job_id in cards.items():
+        if job_id in runs_of_jobs:
+            answers[entry_id] = runs_of_jobs[job_id]
+    by_run = await steps_of_runs(session, user_id, answers.values())
+    return {entry_id: by_run[run_id] for entry_id, run_id in answers.items() if run_id in by_run}
 
 
 class FeedSummarizer(Protocol):
@@ -481,7 +518,8 @@ class FeedService:
                 position = FeedCursor.decode(before, conversation_id=feed_id)
                 statement = statement.where(Entry.sequence < position.sequence)
             rows = (await session.execute(statement)).all()
-        page = rows[:limit]
+            page = rows[:limit]
+            steps = await _page_steps(session, user_id, page)
         now = self._clock()
         items = tuple(
             FeedItem(
@@ -495,6 +533,7 @@ class FeedService:
                 sequence=entry.sequence,
                 actions=_actions_of(entry, now),
                 card=_card_of(entry),
+                steps=steps.get(entry.id, ()),
             )
             for entry, source, key in page
         )

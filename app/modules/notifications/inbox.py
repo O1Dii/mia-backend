@@ -21,6 +21,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.notifications.channels import is_channel_name
+from app.modules.notifications.content import full_text
 from app.modules.notifications.models import DeliveryRow, InboxItemRow
 from app.modules.notifications.preferences import DEFAULT_ENABLED, EventType, resolve_channels
 
@@ -57,12 +58,13 @@ class InboxItem:
     read_at: datetime | None
 
     def to_wire(self) -> dict[str, Any]:
-        """``job.schema.json#/$defs/InboxItem``."""
+        """``job.schema.json#/$defs/InboxItem``; ``text`` is the full text (M74-R1)."""
         return {
             "id": str(self.id),
             "source": {"type": self.source_type, "id": self.source_id},
             "title": self.title,
             "response": self.response,
+            "text": full_text(self.response),
             "created_at": isoformat(self.created_at),
             "read_at": None if self.read_at is None else isoformat(self.read_at),
         }
@@ -219,6 +221,15 @@ class InboxService:
             else None
         )
         return items, following
+
+    async def get(self, *, user_id: uuid.UUID, item_id: uuid.UUID) -> InboxItem | None:
+        async with self._session_factory() as session:
+            row = await session.scalar(
+                select(InboxItemRow).where(
+                    InboxItemRow.id == item_id, InboxItemRow.user_id == user_id
+                )
+            )
+        return None if row is None else _item(row)
 
     async def mark_read(self, *, user_id: uuid.UUID, item_id: uuid.UUID) -> bool:
         async with self._session_factory() as session, session.begin():

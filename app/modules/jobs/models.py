@@ -87,6 +87,9 @@ class JobRow(Base):
     """``schedule:<id>:<occurrence>``: one job per schedule occurrence, whoever fires it."""
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    notes: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    """M74-R1: what the job's model passed to ``notify`` while the job runs
+    (``[{text, title?}]``); folded into the single result when the job finishes."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

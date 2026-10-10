@@ -55,6 +55,19 @@ def build_inbox_router(
             request, {"items": [item.to_wire() for item in items], "next_cursor": following}
         )
 
+    @router.get("/v1/inbox/{item_id}")
+    async def get_inbox_item(item_id: str, request: Request) -> JSONResponse:
+        """One item with its full result (``text``), e.g. a job report to expand (M74-R1)."""
+        user = await user_of(request)
+        try:
+            parsed = uuid.UUID(item_id)
+        except ValueError:
+            return error_response(request, "inbox_item_not_found")
+        item = await inbox.get(user_id=user, item_id=parsed)
+        if item is None:
+            return error_response(request, "inbox_item_not_found")
+        return json_response(request, item.to_wire())
+
     @router.post("/v1/inbox/{item_id}/read", status_code=204)
     async def mark_read(
         item_id: str, request: Request, idempotency_key: IdempotencyKey

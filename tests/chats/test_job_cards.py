@@ -85,11 +85,13 @@ async def test_job_from_chat_a_answers_in_a_and_in_the_inbox(world: ChatWorld) -
         ).json()
         check("FeedPage", feed_a)
         card_item = feed_a["items"][0]
+        [item] = await inbox(world, user)
         assert card_item["card"] == {
             "type": "job_result",
             "job_id": str(job.id),
             "status": "succeeded",
             "title": "Сводка новостей",
+            "inbox_item_id": str(item.id),
         }
         assert card_item["source"] == "run_job" and card_item["role"] == "assistant"
         assert card_item["run_id"] is None and card_item["text"] == speech
@@ -98,7 +100,6 @@ async def test_job_from_chat_a_answers_in_a_and_in_the_inbox(world: ChatWorld) -
         ).json()
         assert all("card" not in item for item in feed_b["items"])
 
-        [item] = await inbox(world, user)
         assert (item.source_type, item.source_id) == ("job", str(job.id))
 
         # The card is part of chat A's history for the model.

@@ -160,6 +160,11 @@
         },
         "title": { "type": "string", "minLength": 1, "maxLength": 200 },
         "response": { "$ref": "assistant-response.schema.json" },
+        "text": {
+          "type": "string",
+          "maxLength": 32000,
+          "description": "M74-R1: the item's full text to show when expanded — display markdown (an app's fallback, a link as markdown), else speech. For a job result it is the whole result, e.g. the full report"
+        },
         "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
         "read_at": { "oneOf": [{ "type": "null" }, { "$ref": "common.schema.json#/$defs/timestamp" }] }
       }

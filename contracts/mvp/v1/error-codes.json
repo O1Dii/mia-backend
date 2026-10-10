@@ -705,5 +705,12 @@
     "retryable": false,
     "public_message": "The notification event type is unknown.",
     "owner": "M77"
+  },
+  {
+    "code": "job_notes_unavailable",
+    "http_status": null,
+    "retryable": false,
+    "public_message": "The background task is already finishing; the text was not added to its result.",
+    "owner": "M74"
   }
 ]

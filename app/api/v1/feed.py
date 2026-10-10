@@ -53,7 +53,7 @@ def _iso(value: Any) -> str:
 
 def feed_item_body(item: FeedItem) -> dict[str, Any]:
     """``FeedItem`` schema (``actions`` only when the answer has screen actions, M41-R1;
-    ``card`` only on result cards, M74)."""
+    ``card`` only on result cards, M74; ``steps`` only when the answer called tools, M74-R1)."""
     body: dict[str, Any] = {
         "id": str(item.id),
         "role": item.role,
@@ -67,6 +67,8 @@ def feed_item_body(item: FeedItem) -> dict[str, Any]:
         body["actions"] = [dict(action) for action in item.actions]
     if item.card is not None:
         body["card"] = dict(item.card)
+    if item.steps:
+        body["steps"] = [dict(step) for step in item.steps]
     return body
 
 

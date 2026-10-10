@@ -41,3 +41,19 @@ def text_response(speech: str, markdown: str | None = None) -> dict[str, Any]:
     if markdown is not None and markdown.strip() and markdown.strip() != spoken:
         display = {"kind": "text", "markdown": markdown.strip()[:32000]}
     return {"speech": spoken, "display": display, "followups": []}
+
+
+def full_text(response: dict[str, Any]) -> str:
+    """Everything an item says, for a client that expands it (M74-R1): the display's
+    markdown (or an app's fallback, a link's title and URL), else the spoken line."""
+    display = response.get("display")
+    if isinstance(display, dict):
+        kind = display.get("kind")
+        if kind in ("text", "card") and str(display.get("markdown") or "").strip():
+            return str(display["markdown"])
+        if kind == "app" and str(display.get("fallback_markdown") or "").strip():
+            return str(display["fallback_markdown"])
+        if kind == "link" and display.get("url"):
+            return f"[{display.get('title') or display['url']}]({display['url']})"
+    speech = response.get("speech")
+    return speech if isinstance(speech, str) else ""
