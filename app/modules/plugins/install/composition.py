@@ -146,6 +146,7 @@ def install_store(
         connections,
         tools.connector,
         connections.oauth,
+        registry=tools.registry,
         invalidate=tools.router.invalidate,
     )
     app.include_router(

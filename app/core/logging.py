@@ -4,6 +4,12 @@ The formatter is an allow-list: it emits server-authored event names and typed,
 content-free fields only. Log messages, arguments, exception text, tracebacks and
 arbitrary ``extra`` values may contain credentials, transcripts or provider
 payloads, so they are never serialized.
+
+Event names stay readable: application code (``app.*`` loggers) logs a snake_case
+literal such as ``plugin_manifest_invalid`` with no ``%`` arguments, and that name is
+emitted as is. A message with arguments, any other shape, or a record of a library
+logger is a ``redacted_event`` unless listed in :data:`KNOWN_EVENTS`. Only values are
+redacted, never the name of what happened.
 """
 
 import hashlib
@@ -41,10 +47,27 @@ _OPAQUE_ID = re.compile(
 )
 _ROUTE = re.compile(r"^[A-Za-z0-9_{}/:.\-]{1,128}$")
 _TOKEN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_PLUGIN_ID = re.compile(r"^[a-z][a-z0-9-]{1,31}(\.[a-z][a-z0-9-]{1,47}){1,2}$")
+_TOOL = re.compile(r"^[a-z][a-z0-9_]{0,63}(\.[a-z][a-z0-9_-]{0,63}){0,3}$")
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER"})
-_UUID_FIELDS = ("user_id", "conversation_id", "turn_id", "response_id", "session_id")
-_INT_FIELDS = ("status_code", "duration_ms", "close_code", "retry_after_seconds")
-_TOKEN_FIELDS = ("environment", "ai_provider", "provider", "reason", "dependency")
+_UUID_FIELDS = (
+    "user_id",
+    "conversation_id",
+    "turn_id",
+    "response_id",
+    "session_id",
+    "installation_id",
+    "run_id",
+)
+_INT_FIELDS = (
+    "status_code",
+    "duration_ms",
+    "close_code",
+    "retry_after_seconds",
+    "tool_count",
+    "limit",
+)
+_TOKEN_FIELDS = ("environment", "ai_provider", "provider", "reason", "dependency", "kind")
 
 
 def _safe_uuid(value: object) -> str | None:
@@ -58,11 +81,25 @@ def _safe_uuid(value: object) -> str | None:
     return None
 
 
+def _event_name(record: logging.LogRecord) -> str | None:
+    message = record.msg
+    if not isinstance(message, str):
+        return None
+    if message in KNOWN_EVENTS:
+        return message
+    # Application events are snake_case literals without arguments; anything else (a
+    # formatted sentence, a library's message) may carry content and stays redacted.
+    from_app = record.name == "app" or record.name.startswith("app.")
+    if from_app and not record.args and _TOKEN.fullmatch(message):
+        return message
+    return None
+
+
 class JsonFormatter(logging.Formatter):
     """Serialize one JSON object per record using only allow-listed fields."""
 
     def format(self, record: logging.LogRecord) -> str:
-        event = record.msg if isinstance(record.msg, str) and record.msg in KNOWN_EVENTS else None
+        event = _event_name(record)
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, UTC).isoformat(),
             "level": record.levelname,
@@ -95,6 +132,12 @@ class JsonFormatter(logging.Formatter):
             safe = _safe_uuid(getattr(record, key, None))
             if safe is not None:
                 payload[key] = safe
+        plugin_id = getattr(record, "plugin_id", None)
+        if isinstance(plugin_id, str) and _PLUGIN_ID.fullmatch(plugin_id):
+            payload["plugin_id"] = plugin_id
+        tool = getattr(record, "tool", None)
+        if isinstance(tool, str) and _TOOL.fullmatch(tool):
+            payload["tool"] = tool
         configured = getattr(record, "gemini_api_key_configured", None)
         if type(configured) is bool:
             payload["gemini_api_key_configured"] = configured
