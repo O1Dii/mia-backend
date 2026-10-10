@@ -241,4 +241,6 @@ async def test_routes_are_mounted_by_the_application() -> None:
     assert isinstance(app.state.jobs, JobsStack)
     names = {tool.name for tool in app.state.tools.core_tools.tools()}
     assert {"background.start", "schedule.create", "notify"} <= names
-    assert type(app.state.runs.engine.feed).__name__ == "AwaySummaryFeed"
+    feed = app.state.runs.engine.feed  # chat titles (M74) wrap the away summary
+    assert type(feed).__name__ == "TitlingFeed"
+    assert type(feed.inner).__name__ == "AwaySummaryFeed"

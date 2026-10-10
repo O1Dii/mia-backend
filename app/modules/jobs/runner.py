@@ -87,6 +87,9 @@ class JobRunner:
             is None
         ):
             return
+        # Job runs keep their own hidden context; the result reaches the source chat as a
+        # card when the job finishes (M74, ADR-0017 §4).
+        conversation_id = await self.store.background_conversation(job.user_id)
         with suppress_away_summary():
             await self.runs.start(
                 NewRun(
@@ -94,6 +97,7 @@ class JobRunner:
                     user_id=job.user_id,
                     profile="job",
                     input_text=job_prompt(job.goal, job.inputs),
+                    conversation_id=conversation_id,
                 )
             )
         outcome = await self._supervise(job, run_id)
