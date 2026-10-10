@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Link2, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type Discovery, type Installation } from '../lib/api'
+import { api, type Discovery, type Installation, type Risk } from '../lib/api'
 import { ApiError, messageOf } from '../lib/http'
 import { errorText } from '../lib/errors'
 import { Link, navigate } from '../lib/router'
@@ -19,6 +19,8 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
   const [discovery, setDiscovery] = useState<Discovery | null>(null)
   const [busy, setBusy] = useState(false)
   const [chosen, setChosen] = useState<Set<string>>(new Set())
+  /** Risks the user changed from what the server's MCP hints (or an earlier choice) proposed. */
+  const [edited, setEdited] = useState<Record<string, Risk>>({})
   const [error, setError] = useState(
     search.get('connection') === 'error'
       ? errorText(search.get('code') ?? 'connection_oauth_failed')
@@ -53,7 +55,19 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
   )
   useEffect(() => {
     setChosen(recommended())
+    setEdited({})
   }, [recommended])
+  const riskOf = (tool: { name: string; risk: Risk }): Risk => edited[tool.name] ?? tool.risk
+  const riskGrants = discovery?.risk_grants ?? []
+  const shownGrants = [
+    ...riskGrants.filter((grant) =>
+      usable.some((tool) => chosen.has(tool.name) && `tools.${riskOf(tool)}` === grant.id),
+    ),
+    ...(discovery?.grants ?? []).filter(
+      (grant) => !grant.id.startsWith('tools.') || riskGrants.length === 0,
+    ),
+  ]
+  const reads = usable.filter((tool) => chosen.has(tool.name) && riskOf(tool) === 'read').length
   const limit = discovery?.tool_limit ?? usable.length
   const over = chosen.size - limit
   const editing = installation?.status === 'active'
@@ -100,7 +114,13 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
     setError('')
     try {
       const tools = usable.filter((tool) => chosen.has(tool.name)).map((tool) => tool.name)
-      await api.consentCustom(installation, discovery, tools)
+      const changed = Object.fromEntries(
+        Object.entries(edited).filter(
+          ([name, risk]) =>
+            tools.includes(name) && usable.find((tool) => tool.name === name)?.risk !== risk,
+        ),
+      )
+      await api.consentCustom(installation, discovery, tools, changed)
       toast.success(editing ? 'Инструменты сохранены' : 'Сервер добавлен')
       navigate('/installed')
     } catch (e) {
@@ -127,8 +147,8 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
         <h1 id="add-title">Добавить MCP-сервер по URL</h1>
         <p>
           Подключите свой сервер инструментов. Мия проверит его, покажет инструменты — отметьте
-          нужные — и спросит разрешение. Каждое действие такого сервера потребует вашего
-          подтверждения.
+          нужные — и спросит разрешение. Чтение сервер выполняет без вопросов, а действия во внешнем
+          сервисе потребуют вашего подтверждения.
         </p>
       </header>
 
@@ -199,10 +219,10 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
         <div className="mia-glass mw-block" aria-live="polite">
           <h2>Сервер {discovery.host}</h2>
           <h3>Инструменты ({usable.length})</h3>
-          <p>
-            {/* Every tool of a server added by URL has the same risk: one chip, not one per row. */}
-            <span className="mia-chip mia-chip--warning">{riskLabel.write_external}</span> — так Мия
-            считает каждый инструмент сервера, добавленного по URL.
+          <p className="mw-muted">
+            Уровень риска Мия берёт из пометок самого сервера (только чтение, не разрушает данные);
+            без пометки действие считается внешним и ждёт вашего подтверждения. Его можно изменить у
+            каждого инструмента. Чтение (выбрано: {reads}) выполняется без подтверждения.
           </p>
           <p className="mw-muted" role="status" aria-live="polite">
             Выбрано {chosen.size} из {usable.length}
@@ -250,6 +270,27 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
                   />
                   <strong>{tool.name.replace(/_/g, ' ')}</strong>
                 </label>
+                <select
+                  className="mw-risk"
+                  aria-label={`Риск: ${tool.name.replace(/_/g, ' ')}`}
+                  value={riskOf(tool)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setEdited((current) => ({
+                      ...current,
+                      [tool.name]: event.target.value as Risk,
+                    }))
+                  }
+                >
+                  {(['read', 'write_reversible', 'write_external'] as const).map((risk) => (
+                    <option key={risk} value={risk}>
+                      {riskLabel[risk]}
+                    </option>
+                  ))}
+                </select>
+                {tool.risk_source === 'annotation' && edited[tool.name] === undefined && (
+                  <span className="mia-chip">по пометке сервера</span>
+                )}
                 {tool.description && <small>{tool.description}</small>}
               </li>
             ))}
@@ -272,7 +313,7 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
           )}
           <h3>Разрешения</h3>
           <ul className="mw-list">
-            {discovery.grants.map((grant) => (
+            {shownGrants.map((grant) => (
               <li key={grant.id}>{grant.text}</li>
             ))}
           </ul>

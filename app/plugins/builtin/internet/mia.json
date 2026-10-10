@@ -31,6 +31,9 @@
       "timeoutSeconds": 20
     }
   },
+  "whereItRuns": {
+    "cloud": "Поиск и чтение публичных страниц выполняет сервер Mia, телефон не участвует."
+  },
   "permissions": {
     "network": [
       "news.google.com",

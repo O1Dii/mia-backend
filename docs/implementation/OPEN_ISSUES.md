@@ -3486,7 +3486,55 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M72 inbox
 
-- Нет записей.
+### OI-M72-001 — Неразмеченный инструмент сервера по URL считается внешним действием
+
+- Status: DECIDED
+- Source session: M72
+- Component: `annotation_risk` (`app/modules/plugins/install/service.py`)
+- Decision: `readOnlyHint:true` → read; `destructiveHint:false` → write_reversible; всё остальное, включая сервер без аннотаций, → write_external (как раньше). Пользователь меняет риск каждого инструмента на экране добавления.
+- Rationale: OI-LIVE-002 предлагал «иначе write_reversible», но по MCP отсутствие `destructiveHint` означает «разрушающий»; доверять молчанию сервера небезопасно. Сервер с аннотациями (Linear) читает без вопросов.
+- Affected future sessions: M60.
+
+### OI-LIVE-002 — resolution update (M72)
+
+- Status: RESOLVED
+- Resolution: риск из MCP-аннотаций, показ и правка на экране добавления по URL, чтение без подтверждения. Evidence: `tests/catalog/test_where_it_runs.py`, `web/tests/where-it-runs.spec.ts`, `large-server.spec.ts`.
+
+### OI-M72-002 — Опубликованные релизы не получают «Где работает» без повторной публикации
+
+- Status: OPEN
+- Source session: M72
+- Component: каталог (`plugin_releases.manifest`), `catalog/sources.py`
+- Question: встроенные плагины читаются из образа и показывают блок сразу, а уже опубликованные в БД релизы хранят старый манифест.
+- Why non-blocking: блок показывает безопасное «Работает на сервере Mia / телефон не участвует», пока релиз не перепубликован; у встроенных данные верные.
+- Current assumption: перепубликация при следующем релизе пакета.
+- Options: (a) ждать новой версии; (b) разовая перепубликация встроенных при выкладке.
+- Recommendation: (a).
+- Affected future sessions: MW5b-integrator.
+- Revisit trigger/deadline: выкладка MW5b.
+
+### OI-M72-003 — Блок «Где работает» ещё не на Android и в «Моих плагинах»
+
+- Status: OPEN
+- Source session: M72
+- Component: Android store (если появится), web `StoreInstalled`
+- Question: показывать ли то же в «Моих плагинах» и в приложении.
+- Why non-blocking: данные уже в `Consent` (`where_it_runs`, `device_capabilities`); магазин в приложении отсутствует.
+- Current assumption: только страница плагина и экран согласия.
+- Recommendation: добавить строку «Телефон: …» в «Мои плагины» вместе с M60.
+- Affected future sessions: M60, M71.
+- Revisit trigger/deadline: M60.
+
+### OI-M72-004 — Кнопки на экран от удалённых плагинов (OI-M41-R1-001)
+
+- Status: OPEN
+- Source session: M72
+- Component: Tool Router `_call_plugin`
+- Question: решение вместе с «Где работает».
+- Why non-blocking: не реализовано, сценария нет.
+- Current assumption: вариант (b) остаётся рекомендацией: только `https`-ссылки на хост `server.url`/`permissions.network` с доменом на кнопке; в блоке «Где работает» эта возможность не показывается. Пока нужно только Linear «Открыть в Linear», что даёт текстовая ссылка.
+- Affected future sessions: M75, M76.
+- Revisit trigger/deadline: первый удалённый плагин с кнопкой.
 
 ## M73 inbox
 

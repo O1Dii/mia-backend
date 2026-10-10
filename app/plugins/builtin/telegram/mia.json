@@ -29,7 +29,18 @@
   "requires": {
     "deviceTools": [
       "telegram.handoff"
+    ],
+    "deviceCapabilities": [
+      {
+        "capability": "telegram.draft",
+        "description": "По вашей просьбе открывает Telegram на телефоне с готовым текстом; отправляете вы сами",
+        "optional": false
+      }
     ]
+  },
+  "whereItRuns": {
+    "cloud": "Бот Mia присылает результаты фоновых задач в Telegram из облака.",
+    "device": "Сообщение человеку готовится на телефоне: Mia открывает чат с готовым текстом, а отправляете его вы сами."
   },
   "permissions": {
     "network": [],

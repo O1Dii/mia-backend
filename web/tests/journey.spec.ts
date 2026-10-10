@@ -143,7 +143,8 @@ test('a server added by URL: probe, sign in, review tools, consent, use', async 
   await expect(page.getByRole('heading', { name: 'Сервер mcp.test.example' })).toBeVisible()
   await expect(page.getByText('list issues')).toBeVisible()
   await expect(page.getByText('create issue')).toBeVisible()
-  await expect(page.getByText('Действие во внешнем сервисе').first()).toBeVisible()
+  // A server without MCP hints is not trusted: every tool is an external action (M72).
+  await expect(page.getByLabel('Риск: create issue')).toHaveValue('write_external')
   await page.getByRole('button', { name: 'Разрешить и добавить' }).click()
 
   await expect(page).toHaveURL(/\/installed$/)

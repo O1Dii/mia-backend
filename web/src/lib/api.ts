@@ -179,6 +179,22 @@ export type Consent = {
   device_tools: string[]
   requires_connection: boolean
   stores_state: boolean
+  /** M72: «Где работает»; absent in answers of an older server. */
+  where_it_runs?: WhereItRuns
+  device_capabilities?: DeviceCapability[]
+}
+export type WhereItRuns = {
+  cloud: string
+  device: string | null
+  runs_on: 'cloud' | 'cloud_and_device'
+}
+export type DeviceCapability = {
+  capability: string
+  kind: 'read' | 'action' | 'external'
+  label: string
+  description: string
+  optional: boolean
+  model_sees: string
 }
 export type CatalogDetail = CatalogEntry & { versions: string[]; consent: Consent }
 export type Review = {
@@ -220,9 +236,18 @@ export type UpdateInfo = {
 export type Discovery = {
   installation_id: string
   state: 'needs_connection' | 'ready'
-  tools: { name: string; description: string; risk: Risk; selected?: boolean }[]
+  tools: {
+    name: string
+    description: string
+    risk: Risk
+    /** M72: where the proposed risk comes from (the server's MCP hints, an earlier choice, none). */
+    risk_source?: 'annotation' | 'saved' | 'default'
+    selected?: boolean
+  }[]
   tools_digest: string | null
   grants: { id: string; text: string }[]
+  /** The `tools.<risk>` grant of every risk a tool may be set to. */
+  risk_grants?: { id: string; text: string }[]
   host: string
   skipped_tools: string[]
   /** How many tools this server may enable next to the other plugins (M15-R1). */
@@ -504,15 +529,31 @@ export const api = {
   createCustom: (url: string) =>
     http<Installation>('POST', '/v1/installations', { body: { custom_mcp_url: url } }),
   discovery: (id: string) => http<Discovery>('GET', `/v1/installations/${enc(id)}/discovery`),
-  consentCustom: (installation: Installation, discovery: Discovery, tools?: string[]) =>
-    http<Installation>('POST', `/v1/installations/${enc(installation.id)}/consent`, {
+  consentCustom: (
+    installation: Installation,
+    discovery: Discovery,
+    tools?: string[],
+    risks?: Record<string, Risk>,
+  ) => {
+    // The grants of the resulting risks: the probe's own (network, ...) plus one per chosen risk.
+    const chosen = new Set(tools ?? discovery.tools.map((t) => t.name))
+    const effective = new Set(
+      discovery.tools.filter((t) => chosen.has(t.name)).map((t) => risks?.[t.name] ?? t.risk),
+    )
+    const grants = new Set(
+      discovery.grants.map((g) => g.id).filter((id) => !id.startsWith('tools.')),
+    )
+    for (const risk of effective) grants.add(`tools.${risk}`)
+    return http<Installation>('POST', `/v1/installations/${enc(installation.id)}/consent`, {
       body: {
         expected_version: installation.state_version,
         tools_digest: discovery.tools_digest,
-        grants: discovery.grants.map((g) => g.id),
+        grants: [...grants],
         ...(tools ? { tools } : {}),
+        ...(risks && Object.keys(risks).length ? { risks } : {}),
       },
-    }),
+    })
+  },
   installationHealth: (id: string) =>
     http<InstallationHealth>('GET', `/v1/installations/${enc(id)}/health`),
   uninstall: (id: string) => http<void>('DELETE', `/v1/installations/${enc(id)}`),

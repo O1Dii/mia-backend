@@ -28,6 +28,9 @@
       "risk": "write_reversible"
     }
   },
+  "whereItRuns": {
+    "cloud": "Новости собираются и пересказываются в облаке Mia, телефон не участвует."
+  },
   "surfaces": {
     "tiles": [
       {

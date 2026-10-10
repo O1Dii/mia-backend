@@ -45,10 +45,9 @@ test('a 76-tool server: pick tools, consent, see the count, call from chat', asy
   const field = page.getByRole('textbox', { name: 'Сообщение Мии' })
   await field.fill('Покажи список задач')
   await field.press('Enter')
-  const approval = page.getByRole('region', { name: /Подтверждение/ })
-  await expect(approval).toBeVisible()
-  await approval.getByRole('button', { name: 'Одобрить' }).click()
+  // M72: the server marks list_issues read-only, so it runs without asking.
   await expect(page.getByText('Вот что нашлось.')).toBeVisible()
+  await expect(page.getByRole('region', { name: /Подтверждение/ })).toHaveCount(0)
   expect((await world(page)).big_calls.map(([name]) => name)).toContain('list_issues')
 })
 

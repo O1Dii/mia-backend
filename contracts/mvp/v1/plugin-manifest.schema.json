@@ -54,6 +54,16 @@
         }
       }
     },
+    "whereItRuns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cloud"],
+      "description": "M72: where the plugin works, in the user's words, for the store's «Где работает» block. Absent: the store derives the cloud line from server.kind. Device capabilities come from requires.deviceCapabilities",
+      "properties": {
+        "cloud": { "type": "string", "minLength": 5, "maxLength": 200, "description": "What runs in the Mia cloud, e.g. «Будильники хранятся и срабатывают на сервере Mia»" },
+        "device": { "type": "string", "minLength": 5, "maxLength": 200, "description": "What may run on the phone, only by request and with consent (ADR-0016); omit when nothing does" }
+      }
+    },
     "surfaces": {
       "type": "object",
       "additionalProperties": false,
