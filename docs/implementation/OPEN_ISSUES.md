@@ -3224,7 +3224,98 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M70 inbox
 
-- Нет записей.
+### OI-M70-001 — Событие `approval.requested` не несёт `device_consent`
+
+- Status: OPEN
+- Source session: M70
+- Component: run engine `approval_payload` (`app/modules/runs/engine.py`, владелец M73)
+- Question: клиенты (web M75, Android M71) должны показывать «Подтвердите на телефоне» вместо кнопок для согласия, которое решает только телефон. `Approval.device_consent` есть в `GET /v1/approvals*` и в контракте события (оно ссылается на `Approval`), но движок собирает payload по полям и его не копирует.
+- Why non-blocking: `summary` начинается с «Подтвердите на телефоне: …»; кнопки в браузере получают `403 approval_device_only` с понятным текстом; клиент может дочитать `GET /v1/approvals/{id}`.
+- Current assumption: M73/integrator добавит в `approval_payload` после блока `decision`: `if approval.device_consent is not None: body["device_consent"] = json.loads(json.dumps(dict(approval.device_consent)))`.
+- Options: (a) эта правка (2 строки, контракт уже позволяет); (b) клиенты всегда дочитывают approval.
+- Recommendation: (a) при интеграции MW5b-1.
+- Affected future sessions: M73, M75, M71, MW5b-integrator.
+- Revisit trigger/deadline: интеграция MW5b-1.
+
+### OI-M70-002 — `people.resolve` и `builtin.telegram.send_message` из браузера не доходят до телефона
+
+- Status: OPEN
+- Source session: M70
+- Component: `app/modules/memory/tools.py` (M17), `app/plugins/builtin/telegram/runtime.py`
+- Question: оба вызывают канал устройства напрямую для устройства самого run (как раньше). Run из браузера устройства не имеет, поэтому контакты телефона ищутся только через `device.contacts.search` с согласием, а Telegram-черновик из браузера отвечает «открывается на телефоне».
+- Why non-blocking: ADR-0016 §7 — сначала память; модель видит `device.contacts.search` с пометкой про согласие; черновик в Telegram — внешнее действие, его просят на телефоне.
+- Current assumption: так и остаётся в MVP; WebView и нативное приложение работают как раньше (run несёт проверенное устройство).
+- Options: (a) оставить; (b) `people.resolve` вызывает роутер (тот же поток согласия); (c) Telegram из браузера = согласие на телефоне на каждое действие.
+- Recommendation: (b) и (c) после живой проверки M71, если пользователи просят это из браузера.
+- Affected future sessions: M60, M71.
+- Revisit trigger/deadline: UC M71 «web-запрос → телефон».
+
+### OI-M70-003 — Фоновые задачи и сторонние приложения не получают инструменты телефона
+
+- Status: OPEN
+- Source session: M70
+- Component: `device_policy.decide` (`requester_not_allowed`), worker
+- Question: ADR-0016 §3 допускает запрос от задачи с согласием на телефоне. Канал устройства живёт в процессе API, задачи — в отдельном worker; общий канал между процессами не построен.
+- Why non-blocking: облачные сценарии задач (напоминания, будильники Mia, дайджесты) телефону не нужны; модель задачи инструментов телефона просто не видит (нет тихого отката).
+- Current assumption: job и app → deny; инструменты не перечисляются.
+- Options: (a) оставить; (b) очередь вызовов устройства в Postgres + LISTEN/NOTIFY; (c) задача пишет во «Входящие» «сделайте на телефоне».
+- Recommendation: (a) до первого сценария; затем (b) вместе с многоэкземплярным API (OI-S18-002).
+- Affected future sessions: M60, M62.
+- Revisit trigger/deadline: задача, которой нужен телефон; второй экземпляр API.
+
+### OI-M70-004 — Целевое устройство = телефон, последним объявивший инструменты
+
+- Status: OPEN
+- Source session: M70
+- Component: `DeviceAccess.target`
+- Question: при двух телефонах с Mia запрос из браузера идёт на последний зарегистрировавший инструменты; выбора «основного телефона» нет.
+- Why non-blocking: у пилотных пользователей один телефон; молча на другое устройство запрос не уходит — согласие показывает имя устройства.
+- Current assumption: последний по `device_tool_declarations.updated_at`.
+- Options: (a) оставить; (b) настройка «основной телефон»; (c) модель указывает устройство.
+- Recommendation: (b), когда появится второй узел (Personal Node).
+- Affected future sessions: M71, M60.
+- Revisit trigger/deadline: второй телефон или ПК-узел.
+
+### OI-M70-005 — Старые web-сессии WebView не привязаны к устройству
+
+- Status: OPEN
+- Source session: M70
+- Component: `web_sessions.device_id`, M24 hand-off
+- Question: сессии WebView, созданные до выкладки M70, не знают устройство и считаются браузером (нужно согласие).
+- Why non-blocking: каждое открытие WebView берёт новый код и новую сессию, которая уже привязана; старые истекают (30 дней) или вытесняются лимитом сессий.
+- Current assumption: миграция не трогает старые сессии.
+- Options: (a) оставить; (b) M71 при старте сбрасывает cookies WebView (уже делает при выходе).
+- Recommendation: (a); (b) если UC покажет запрос согласия в WebView.
+- Affected future sessions: M71.
+- Revisit trigger/deadline: первая живая проверка WebView после выкладки.
+
+### OI-M70-006 — Хранение журнала обращений и строк грантов
+
+- Status: OPEN
+- Source session: M70
+- Component: `device_access_log`, `device_grants`
+- Question: журнал хранится 90 дней (чистка при записи по устройству); истёкшие/отозванные гранты и гранты на run не удаляются.
+- Why non-blocking: строки маленькие, без данных устройства; списки фильтруют неактивные.
+- Current assumption: как выше.
+- Options: (a) оставить; (b) периодическая чистка вместе с retention M17/M74.
+- Recommendation: (b) в ревью retention перед бетой.
+- Affected future sessions: M62.
+- Revisit trigger/deadline: ревью retention.
+
+### OI-M70-007 — «Ещё в Часах»: предпочтение хранится в памяти, а не в плагине
+
+- Status: DECIDED
+- Source session: M70
+- Component: `builtin.alarm`
+- Question: ADR-0016 §2 — после первого облачного будильника одно предложение и запомнить ответ.
+- Decision: плагин помнит только, что предложение сделано (`clock_offer` в состоянии плагина): текст результата первого `set` просит модель предложить один раз. Согласие пользователя модель предлагает запомнить через `memory.remember` (подтверждение пользователя); SKILL.md велит при таком предпочтении ставить и в «Часах». Описания и схемы инструментов не менялись: иначе изменился бы `tools_digest`, и существующие установки будильника потребовали бы повторного согласия.
+- Affected future sessions: M71 (будильник Mia), M72.
+- Revisit trigger/deadline: если нужна явная настройка в UI — новый инструмент с пересогласием.
+
+### OI-M15-R1-001 — resolution update (M70)
+
+- Status: RESOLVED
+- Resolution: роутер ограничивает итоговый список `RouterConfig.max_model_tools = 128`: лишние инструменты плагинов (с конца, последние установки) отбрасываются и отвечают `tool_unavailable`, в лог пишется `plugin_tools_over_budget`. Evidence: `tests/device_access/test_router.py::test_tool_list_is_capped_at_the_model_limit`.
 
 ## M71 inbox
 
