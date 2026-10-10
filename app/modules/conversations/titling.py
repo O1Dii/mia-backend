@@ -85,9 +85,14 @@ class ModelChatTitler:
 
 def clean_title(raw: str) -> str | None:
     for line in raw.splitlines():
-        value = line.strip().strip(_QUOTES).strip().rstrip(".").strip()
-        if value.lower().startswith("название:"):
-            value = value.split(":", 1)[1].strip().strip(_QUOTES).strip()
+        value = line
+        if value.strip().lower().startswith("название:"):
+            value = value.split(":", 1)[1]
+        while True:
+            stripped = value.strip().strip(_QUOTES).rstrip(".!").strip()
+            if stripped == value:
+                break
+            value = stripped
         if value:
             return clip(value, TITLE_MAX_CHARS)
     return None
