@@ -50,7 +50,7 @@ async def _jobs(world: JobsWorld) -> list[JobRow]:
 
 async def test_schedule_missed_while_worker_was_down_runs_after_restart(world: JobsWorld) -> None:
     first = await _start_worker()
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(3.0)  # app start ≈ 1.5 s; SIGTERM before the handler kills it (-15)
     await _stop(first)
 
     # While no worker runs, occurrences of an hourly reminder pass: it was created 2.5 h ago,
