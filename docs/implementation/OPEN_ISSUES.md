@@ -3263,7 +3263,61 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M77 inbox
 
-- Нет записей.
+### OI-M77-001 — После выкладки: перерегистрировать webhook бота и включить Telegram тем, кто привязан давно
+
+- Status: OPEN
+- Source session: M77
+- Component: `app/modules/notifications/telegram_webhook.py`, `telegram.py`
+- Question: бот теперь принимает `callback_query` (кнопки «Да / Нет»), но Telegram присылает только те типы обновлений, что указаны в `setWebhook.allowed_updates`; старый webhook просил только `message`. Кроме того, привязка, сделанная до M77, не содержит ответа на вопрос, поэтому канал Telegram у такого пользователя выключен.
+- Why non-blocking: ничего не ломается: уведомления идут во «Входящие» и push, как раньше; нет ответа = канал выключен (OI-M41-002: каналы по умолчанию не добавляются).
+- Current assumption: при выкладке выполнить `python -m app.modules.notifications.telegram_webhook set` (нужны `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `PUBLIC_BASE_URL`; значения не печатаются). Давно привязанный пользователь либо включает Telegram на странице «Уведомления», либо нажимает Start в боте (без токена) — бот спросит один раз; либо `/stop` и новая привязка.
+- Options: (a) как выше; (b) разово разослать вопрос всем привязанным (нужен скрипт и согласие пользователя на сообщение от бота).
+- Recommendation: (a), затем повторить UC-M41-2.
+- Affected future sessions: MW5b integrator, M62 (выкладка), UC-M41-2.
+- Revisit trigger/deadline: выкладка MW5b.
+- Resolution:
+
+### OI-M77-002 — Событие «подтверждения» покрывает только фоновые задачи
+
+- Status: OPEN
+- Source session: M77
+- Component: `app/modules/jobs/runner.py` (`_tell_waiting`), `app/modules/jobs/store.py` (`notify_waiting_approval`)
+- Question: тип события `approval` в настройках и таблице есть, и по нему уходит уведомление, когда фоновая задача (run профиля `job`) ждёт решения пользователя. Подтверждения внутри чата и согласие устройства (`device_consent`, M70) этим каналом не рассылаются: в чате пользователь видит карточку сам, а push для согласия устройства — служебный (FCM data-only для приложения телефона), без него запрос не дойдёт до телефона, поэтому он не зависит от настроек.
+- Why non-blocking: фоновые подтверждения (единственный случай, когда пользователь не смотрит на экран) покрыты; остальное работало и раньше.
+- Current assumption: оставить так. Явные `delivery.channels` задачи относятся к её результату и к уведомлению о подтверждении не применяются (оно идёт по настройкам).
+- Options: (a) оставить; (b) для подтверждений в чате, если вкладка закрыта, слать push/Telegram по таблице (нужен признак «пользователь на экране» от M73/runs); (c) разрешить пользователю отключить служебный push согласия (ломает ADR-0016, не рекомендуется).
+- Recommendation: (a); (b) вернуться после M71 и живой проверки.
+- Affected future sessions: M71, M73, M60.
+- Revisit trigger/deadline: живая проверка ADR-0016 на телефоне.
+- Resolution:
+
+### OI-M77-003 — Канал плагина: только точка расширения в манифесте
+
+- Status: OPEN
+- Source session: M77
+- Component: `contracts/mvp/v1/plugin-manifest.schema.json` (`provides.notificationChannel`), `ChannelRegistry`
+- Question: манифест может объявить `provides.notificationChannel {id, label, description?}`, а реестр принимает любой канал с именем `[a-z][a-z0-9_.:-]*`, показывает его в настройках со статусом и маршрутизирует по таблице. Но связки «установленный плагин → зарегистрированный канал → доставка в сервер плагина» пока нет (нужен вызов инструмента плагина или webhook); явные `delivery.channels` в API/инструментах остаются `push | telegram | inbox`.
+- Why non-blocking: ни один встроенный плагин канал не объявляет; точка расширения готова, ядро для первого канала править не придётся.
+- Current assumption: первый канал плагина добавит сессия, которой он понадобится (регистрация через `app.state.notifications.channels.register(...)`, схема доставки — отдельное решение).
+- Options: (a) как есть; (b) сразу сделать адаптер «вызвать инструмент `notify` сервера плагина».
+- Recommendation: (a).
+- Affected future sessions: M43 (документация плагинов), M72.
+- Revisit trigger/deadline: первый плагин с каналом.
+- Resolution:
+
+### OI-M77-004 — `delivery.channels` задачи без явных каналов показывает заглушку `[inbox, push]`
+
+- Status: OPEN
+- Source session: M77
+- Component: `app/modules/jobs/domain.py` (`delivery_of`, `delivery_wire`), `job.schema.json`
+- Question: задача или расписание без `delivery` теперь хранят маркер `auto` и отдают в API `delivery.channels = ["inbox","push"]` как раньше (схема требует минимум один канал), хотя фактические каналы определяются настройками в момент завершения. Клиент, показывающий «куда придёт результат», будет неточен.
+- Why non-blocking: ни web, ни Android этого поля не показывают.
+- Current assumption: оставить; миграция пометила `auto` существующие задачи и расписания с каналами ровно `[inbox, push]`.
+- Options: (a) оставить; (b) в `Job`/`Schedule` добавить необязательное `delivery.follows_settings: true` (аддитивно) и показывать «по вашим настройкам».
+- Recommendation: (b), когда клиенту понадобится.
+- Affected future sessions: M71, M75.
+- Revisit trigger/deadline: экран задач с каналами.
+- Resolution:
 
 ## M70 inbox
 
