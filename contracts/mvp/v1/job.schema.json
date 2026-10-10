@@ -9,6 +9,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["channels"],
+      "description": "Explicit channels win over the user's notification settings (notifications.schema.json). A job or schedule created without delivery reports the placeholder [inbox, push]: where its result goes is decided when it finishes, from the settings (M77)",
       "properties": {
         "channels": {
           "type": "array",
@@ -129,7 +130,7 @@
     "CreateScheduleRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rule", "timezone", "goal", "delivery"],
+      "required": ["rule", "timezone", "goal"],
       "description": "Body of POST /v1/schedules and arguments of the schedule.create tool",
       "properties": {
         "rule": { "$ref": "#/$defs/Schedule/properties/rule" },

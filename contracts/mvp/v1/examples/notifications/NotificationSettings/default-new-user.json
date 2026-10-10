@@ -1,0 +1,19 @@
+{
+  "inbox_always": true,
+  "channels": [
+    { "name": "push", "label": "Push на телефон", "status": "connected", "detail": null, "enabled": true, "decided": false },
+    { "name": "telegram", "label": "Telegram-бот", "status": "connected", "detail": null, "enabled": false, "decided": false }
+  ],
+  "event_types": [
+    { "id": "timer_alarm", "label": "Таймеры и будильники" },
+    { "id": "job_result", "label": "Результаты задач" },
+    { "id": "approval", "label": "Подтверждения" },
+    { "id": "plugin_message", "label": "Сообщения плагинов" }
+  ],
+  "matrix": {
+    "timer_alarm": { "push": true, "telegram": true },
+    "job_result": { "push": true, "telegram": true },
+    "approval": { "push": true, "telegram": true },
+    "plugin_message": { "push": true, "telegram": false }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "channels": { "telegram": true },
+  "matrix": {
+    "job_result": { "telegram": false },
+    "plugin_message": { "telegram": false }
+  }
+}
