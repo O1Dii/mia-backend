@@ -35,7 +35,7 @@ test.describe('screen-only actions from tool results', () => {
     await ask(page, 'Подключи telegram бота')
 
     const reply = page.locator('[data-role="assistant"]').last()
-    await expect(reply.getByText('connect bot · готово')).toBeVisible()
+    await expect(reply.getByRole('button', { name: 'connect bot · готово' })).toBeVisible()
     const button = reply.getByRole('link', { name: 'Открыть Telegram' })
     await expect(button).toBeVisible()
     await expect(button).toHaveAttribute('href', BOT_LINK)

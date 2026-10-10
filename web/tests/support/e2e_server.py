@@ -314,6 +314,20 @@ class ScriptedGateway:
                 {"kind": "card", "title": "Сегодня", "markdown": "- 10:00 Олег\n- 13:00 Команда"},
                 ["Что дальше?"],
             )
+        elif "несколько абзацев" in lowered:
+            # `speech` is the short line (clipped to 250 characters on the real server), `display`
+            # carries the whole answer: read aloud must follow the display (M75-R1).
+            reply = answer(
+                "Коротко: три абзаца.",
+                {
+                    "kind": "text",
+                    "markdown": (
+                        "Первый абзац: Мия отвечает подробно.\n\n"
+                        "Второй абзац: дальше идут детали.\n\n"
+                        "Третий абзац: и вот итог."
+                    ),
+                },
+            )
         elif "длинн" in lowered:
             reply = answer("Это длинный ответ.", {"kind": "text", "markdown": "строка\n\n" * 40})
         else:

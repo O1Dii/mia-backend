@@ -238,7 +238,7 @@ test.describe('answers and steps', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 
-  test('the call journal: arguments fold, a failed step shows its reason open', async ({
+  test('the call journal: chips in a row, arguments and the reason open on a tap', async ({
     page,
   }) => {
     await signIn(page)
@@ -298,24 +298,27 @@ test.describe('answers and steps', () => {
     const steps = page.getByRole('list', { name: 'Действия Мии' })
     await expect(steps.locator('.mw-step')).toHaveCount(3)
 
-    // A successful step: only the chip, its arguments are folded.
-    const ok = steps.locator('.mw-step', { hasText: 'search' })
-    await expect(ok.getByText('search · готово')).toBeVisible()
-    await expect(ok.getByText('курс доллара')).toBeHidden()
-    await ok.getByText('search · готово').click()
-    await expect(ok.getByRole('term').first()).toHaveText('query')
-    await expect(ok.getByText('курс доллара')).toBeVisible()
-    await expect(ok.getByText('[email]')).toBeVisible()
+    // Everything is folded at first: chips only, no reason, no arguments.
+    await expect(page.getByTestId('step-reason')).toHaveCount(0)
+    await expect(page.getByText('курс доллара')).toHaveCount(0)
 
-    // A failed step: the reason is open, the arguments are there to read.
-    const failed = steps.locator('.mw-step', { hasText: 'refresh' })
-    await expect(failed.getByTestId('step-reason')).toContainText('источник недоступен')
-    await expect(failed.getByTestId('step-reason')).toContainText('Причина:')
-    await expect(failed.getByText('48')).toBeVisible()
+    // A successful step: a tap shows its redacted arguments.
+    const ok = steps.getByRole('button', { name: 'search · готово' })
+    await expect(ok).toBeVisible()
+    await ok.click()
+    await expect(page.getByRole('term').first()).toHaveText('query')
+    await expect(page.getByText('курс доллара')).toBeVisible()
+    await expect(page.getByText('[email]')).toBeVisible()
+
+    // A failed step: the reason is behind its chip, with the arguments.
+    await steps.getByRole('button', { name: 'refresh · не удалось' }).click()
+    await expect(page.getByTestId('step-reason')).toContainText('источник недоступен')
+    await expect(page.getByTestId('step-reason')).toContainText('Причина:')
+    await expect(page.getByText('48')).toBeVisible()
 
     // Without a reason from the tool the public error code is told in words.
-    const denied = steps.locator('.mw-step', { hasText: 'start' })
-    await expect(denied.getByTestId('step-reason')).toHaveText('Причина: Вы отклонили действие.')
+    await steps.getByRole('button', { name: 'start · отклонено' }).click()
+    await expect(page.getByTestId('step-reason')).toHaveText('Причина: Вы отклонили действие.')
   })
 
   test('the arguments of a real call reach the step', async ({ page }) => {
@@ -328,10 +331,9 @@ test.describe('answers and steps', () => {
       .getByRole('button', { name: 'Одобрить' })
       .click()
     await expect(page.getByText('Готово, задача создана.')).toBeVisible()
-    const step = page.locator('.mw-step', { hasText: 'create issue' })
-    await step.getByText('create issue · готово').click()
-    await expect(step.getByRole('term')).toHaveText('title')
-    await expect(step.getByRole('definition')).toHaveText('Купить хлеб')
+    await page.getByRole('button', { name: 'create issue · готово' }).click()
+    await expect(page.getByRole('term')).toHaveText('title')
+    await expect(page.getByRole('definition')).toHaveText('Купить хлеб')
   })
 
   test('after a lost event stream the chat re-reads the feed and shows the screen action', async ({
