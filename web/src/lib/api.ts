@@ -42,6 +42,30 @@ export type FeedCard = {
   title: string
 }
 
+/**
+ * One tool call of an assistant answer (FeedItem.steps, M74-R1): the same data the live stream
+ * carries, so a reload and another device show the journal and the decided approvals.
+ */
+export type FeedStep = {
+  tool_call_id: string
+  tool: string
+  plugin_id?: string
+  risk?: Risk
+  executor?: string
+  status: 'running' | 'succeeded' | 'failed' | 'denied' | 'expired' | 'uncertain' | 'cancelled'
+  arguments?: Record<string, unknown>
+  error_code?: string
+  error_detail?: string
+  approval?: {
+    id: string
+    status: 'pending' | 'approved' | 'denied' | 'expired' | 'cancelled'
+    summary: string
+    decided_at?: string
+    channel?: string
+    device_id?: string
+  }
+}
+
 export type FeedItem = {
   id: string
   role: 'user' | 'assistant'
@@ -52,6 +76,8 @@ export type FeedItem = {
   created_at: string
   actions?: ScreenAction[]
   card?: FeedCard
+  /** Tool calls of this answer, up to 32, in call order; absent when there were none. */
+  steps?: FeedStep[]
 }
 export type FeedPage = {
   items: FeedItem[]
@@ -127,7 +153,14 @@ export type Approval = {
   status: 'pending' | 'approved' | 'denied' | 'expired' | 'cancelled'
   created_at: string
   expires_at: string
-  decision: { decision: 'approve' | 'deny'; decided_at: string; channel: string } | null
+  decision: {
+    decision: 'approve' | 'deny'
+    decided_at: string
+    channel: string
+    device_id?: string
+  } | null
+  /** M70: only the app on the target device may decide; other clients show «Подтвердите на телефоне». */
+  device_consent?: { waiting_for: 'device'; target_device_name?: string | null }
 }
 
 // ------------------------------------------------------------------------------- store
