@@ -140,6 +140,10 @@ class PushMessage:
     body: str
     data: dict[str, str]
     collapse_key: str | None = None
+    data_only: bool = False
+    """No ``notification`` block: the app builds the notification itself (M70: consent
+    request with «Разрешить»/«Отклонить» actions, silent wake-up for a device call)."""
+    ttl_seconds: int = 86400
 
 
 class FcmClient:
@@ -158,17 +162,13 @@ class FcmClient:
         self._timeout_s = timeout_s
 
     def body(self, device_token: str, message: PushMessage) -> dict[str, Any]:
-        android: dict[str, Any] = {"priority": "HIGH", "ttl": "86400s"}
+        android: dict[str, Any] = {"priority": "HIGH", "ttl": f"{message.ttl_seconds}s"}
         if message.collapse_key is not None:
             android["collapse_key"] = message.collapse_key
-        return {
-            "message": {
-                "token": device_token,
-                "notification": {"title": message.title, "body": message.body},
-                "data": message.data,
-                "android": android,
-            }
-        }
+        body: dict[str, Any] = {"token": device_token, "data": message.data, "android": android}
+        if not message.data_only:
+            body["notification"] = {"title": message.title, "body": message.body}
+        return {"message": body}
 
     async def send(self, device_token: str, message: PushMessage) -> FcmResult:
         try:

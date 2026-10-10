@@ -199,6 +199,7 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         channel=tools.device_channel,
         runs=runs,
         authenticator=request_authenticator(app),
+        sessions=tools.device_access.store if tools.device_access else None,
     )
     oauth = install_oauth(
         app,

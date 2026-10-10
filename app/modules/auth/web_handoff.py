@@ -7,6 +7,10 @@ then loads ``GET /v1/auth/web/handoff/redeem?code=...``, which turns the code in
 Only the SHA-256 of the code is stored (Redis, key TTL = code TTL, ``GETDEL`` = single use).
 The landing path is bound to the code at issue time, so the redeem URL carries nothing else and
 cannot be turned into an open redirect.
+
+M70 (ADR-0016 §3): the code also carries the device of the app session that asked for it; the
+web session created on redeem is bound to that device (``web_sessions.device_id``), so the
+WebView's requests count as requests from the phone itself.
 """
 
 from __future__ import annotations
@@ -21,8 +25,10 @@ from typing import Protocol
 from urllib.parse import urlsplit
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.auth.models import AuthSession, Device
 from app.modules.auth.repositories import AuthRepository
 from app.modules.auth.service import WebSignIn
 from app.modules.auth.tokens import TokenManager
@@ -121,12 +127,30 @@ class WebHandoffService:
         self._web_session_ttl = timedelta(days=web_session_ttl_days)
         self._max_web_sessions = max(1, max_web_sessions_per_user)
 
+    async def session_device(self, user_id: UUID, family_id: UUID) -> UUID | None:
+        """Device of the app's refresh-token family (the phone asking for a WebView page)."""
+        async with self._session_factory() as database_session:
+            device = await database_session.scalar(
+                select(AuthSession.device_id)
+                .where(AuthSession.family_id == family_id, AuthSession.user_id == user_id)
+                .limit(1)
+            )
+        return device
+
     async def issue(
-        self, user_id: UUID, landing_path: str | None, *, now: datetime | None = None
+        self,
+        user_id: UUID,
+        landing_path: str | None,
+        *,
+        now: datetime | None = None,
+        device_id: UUID | None = None,
     ) -> IssuedHandoff:
         landing = normalize_landing_path(landing_path)
         current_time = now or datetime.now(UTC)
-        payload = json.dumps({"u": str(user_id), "p": landing}, separators=(",", ":"))
+        body = {"u": str(user_id), "p": landing}
+        if device_id is not None:
+            body["d"] = str(device_id)
+        payload = json.dumps(body, separators=(",", ":"))
         for _ in range(3):
             code = secrets.token_urlsafe(32)
             if await self._store.set_if_absent(
@@ -152,6 +176,7 @@ class WebHandoffService:
             data = json.loads(raw)
             user_id = UUID(data["u"])
             landing = normalize_landing_path(data["p"])
+            device_id = UUID(data["d"]) if data.get("d") else None
         except (ValueError, KeyError, TypeError):
             return None
         current_time = now or datetime.now(UTC)
@@ -165,10 +190,15 @@ class WebHandoffService:
             await repository.prune_web_sessions(
                 user_id=user.id, keep=self._max_web_sessions - 1, now=current_time
             )
-            await repository.create_web_session(
+            web_session = await repository.create_web_session(
                 user_id=user.id,
                 token_hash=self._tokens.hash_web_session_token(session_token),
                 expires_at=expires_at,
                 now=current_time,
             )
+            if device_id is not None:
+                owned = await database_session.scalar(
+                    select(Device.id).where(Device.id == device_id, Device.user_id == user.id)
+                )
+                web_session.device_id = owned
         return WebSignIn(session_token=session_token, user=user, expires_at=expires_at), landing
