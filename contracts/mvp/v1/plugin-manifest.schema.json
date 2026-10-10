@@ -31,10 +31,10 @@
     "tools": {
       "type": "object",
       "minProperties": 1,
-      "maxProperties": 64,
+      "maxProperties": 96,
       "propertyNames": { "$ref": "common.schema.json#/$defs/toolName" },
       "additionalProperties": { "$ref": "#/$defs/toolPolicy" },
-      "description": "Mia policy overlay for the server's tools. Publication checks that this set equals the server's tools/list"
+      "description": "Mia policy overlay for the server's tools. Publication checks that this set equals the server's tools/list. At most 96 tools: one model request carries at most 128 tools and 32 are reserved for core and device tools (M15-R1)"
     },
     "requires": {
       "type": "object",

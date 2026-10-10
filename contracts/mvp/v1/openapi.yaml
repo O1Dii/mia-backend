@@ -648,6 +648,25 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DiscoverResult'}
         default: *error
+  /v1/installations/{installation_id}/health:
+    parameters: [{$ref: '#/components/parameters/InstallationId'}]
+    get:
+      tags: [Plugins]
+      operationId: getInstallationHealth
+      summary: Whether the installation's tools reach the model now, and why not (M15-R1)
+      description: >-
+        Resolves the manifest the way the tool router does and, for an active installation,
+        lists the server's tools (through the SSRF guard) and compares their digest with the
+        consented one. An installation that cannot be offered is reported here instead of
+        disappearing from the model's tools.
+      responses:
+        '200':
+          description: Health of the installation
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InstallationHealth'}
+        default: *error
   /v1/installations/{installation_id}/consent:
     parameters: [{$ref: '#/components/parameters/InstallationId'}]
     post:
@@ -667,6 +686,13 @@ paths:
                 expected_version: {type: integer, minimum: 0}
                 tools_digest: {type: string}
                 grants: {type: array, maxItems: 128, items: {type: string}}
+                tools:
+                  type: array
+                  maxItems: 1024
+                  items: {type: string}
+                  description: >-
+                    Tools to enable (M15-R1); omitted means every usable tool. 422 validation_error
+                    when a name is not served, none is chosen, or more than DiscoverResult.tool_limit.
       responses:
         '200':
           description: Installation is active
@@ -2663,6 +2689,7 @@ components:
               name: {type: string}
               description: {type: string}
               risk: {type: string, enum: [write_external]}
+              selected: {type: boolean, description: Ticked on the consent screen by default (M15-R1)}
         tools_digest: {type: [string, 'null']}
         grants:
           type: array
@@ -2674,6 +2701,31 @@ components:
               text: {type: string}
         host: {type: string}
         skipped_tools: {type: array, items: {type: string}, description: Tool names the manifest grammar cannot hold; Mia does not offer them}
+        tool_limit:
+          type: integer
+          minimum: 0
+          maximum: 96
+          description: >-
+            Tools this server may enable (M15-R1): at most 96 per installation and what the user's
+            other active plugins leave of the 96-tool plugin budget (one model request carries at
+            most 128 tools; 32 are reserved for core and device tools).
+    InstallationHealth:
+      type: object
+      required: [installation_id, plugin_id, state, tools, declared_tools, tool_limit]
+      properties:
+        installation_id: {type: string, format: uuid}
+        plugin_id: {type: string}
+        state:
+          type: string
+          enum: [ok, limited, needs_attention, needs_connection, needs_consent, disabled]
+          description: limited — only `tools` of `declared_tools` fit the plugin tool budget; needs_attention — nothing is offered, see problem
+        problem:
+          type: [string, 'null']
+          enum: [manifest_invalid, manifest_missing, manifest_mismatch, tool_budget, tools_changed, server_unavailable, null]
+        reason: {type: [string, 'null'], description: Content-free detail such as too_many_tools or timeout}
+        tools: {type: integer, minimum: 0, description: Tools Mia offers the model from this installation}
+        declared_tools: {type: integer, minimum: 0}
+        tool_limit: {type: integer, minimum: 0}
     ReviewList:
       type: object
       required: [items, rating]

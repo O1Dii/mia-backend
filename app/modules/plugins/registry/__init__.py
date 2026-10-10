@@ -5,6 +5,7 @@ builtins, declarative servers) is reached through an injected factory.
 """
 
 from app.modules.plugins.registry.installed import (
+    NEEDS_ATTENTION,
     InstallationReader,
     InstallationRecord,
     InstalledPlugin,
@@ -12,6 +13,11 @@ from app.modules.plugins.registry.installed import (
     SkillSummary,
     SqlInstallationReader,
     StaticInstallationReader,
+)
+from app.modules.plugins.registry.limits import (
+    MAX_PLUGIN_TOOLS,
+    MODEL_TOOL_LIMIT,
+    PLUGIN_TOOL_BUDGET,
 )
 from app.modules.plugins.registry.manifest import (
     ManifestError,
@@ -28,6 +34,10 @@ from app.modules.plugins.registry.source import (
 )
 
 __all__ = [
+    "MAX_PLUGIN_TOOLS",
+    "MODEL_TOOL_LIMIT",
+    "NEEDS_ATTENTION",
+    "PLUGIN_TOOL_BUDGET",
     "DirectoryManifestSource",
     "InstallationReader",
     "InstallationRecord",

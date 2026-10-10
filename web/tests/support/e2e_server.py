@@ -489,6 +489,7 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         return JSONResponse(
             {
                 "calls": world.calls,
+                "big_calls": world.big_calls,
                 "revocations": auth_server.revocations,
                 "registrations": len(auth_server.registrations),
                 "authorize_requests": auth_server.authorize_requests,

@@ -15,6 +15,7 @@ from typing import Literal, cast
 from urllib.parse import urlsplit
 
 from app.core.ports.types import JsonObject, Risk
+from app.modules.plugins.registry.limits import MAX_PLUGIN_TOOLS
 
 PLUGIN_ID = re.compile(r"^[a-z][a-z0-9-]{1,31}(\.[a-z][a-z0-9-]{1,47}){1,2}$")
 TOOL_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -28,7 +29,14 @@ RemoteAuth = Literal["none", "oauth", "mia_token"]
 
 
 class ManifestError(ValueError):
-    """The manifest is missing or violates a rule the router enforces."""
+    """The manifest is missing or violates a rule the router enforces.
+
+    ``code`` is a content-free token for logs and the installation health view.
+    """
+
+    def __init__(self, message: str, code: str = "manifest_invalid") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,15 +85,15 @@ class PluginManifest:
 
 def _object(value: object, where: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
-        raise ManifestError(f"{where} must be an object")
+        raise ManifestError(f"{where} must be an object", "not_an_object")
     return cast(Mapping[str, object], value)
 
 
 def _string(value: object, where: str, *, pattern: re.Pattern[str] | None = None) -> str:
     if not isinstance(value, str) or not value:
-        raise ManifestError(f"{where} must be a non-empty string")
+        raise ManifestError(f"{where} must be a non-empty string", "missing_field")
     if pattern is not None and not pattern.match(value):
-        raise ManifestError(f"{where} has an invalid format")
+        raise ManifestError(f"{where} has an invalid format", "invalid_format")
     return value
 
 
@@ -101,12 +109,14 @@ def _server(raw: Mapping[str, object], network: frozenset[str]) -> ServerSpec:
         url = _string(raw.get("url"), "server.url")
         parts = urlsplit(url)
         if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-            raise ManifestError("server.url must be a plain https URL")
+            raise ManifestError("server.url must be a plain https URL", "invalid_server")
         if parts.hostname.lower() not in network:
-            raise ManifestError("server.url host must be listed in permissions.network")
+            raise ManifestError(
+                "server.url host must be listed in permissions.network", "invalid_server"
+            )
         auth = raw.get("auth", "none")
         if auth not in ("none", "oauth", "mia_token"):
-            raise ManifestError("server.auth is invalid")
+            raise ManifestError("server.auth is invalid", "invalid_server")
         version = raw.get("protocolVersion")
         return ServerSpec(
             kind="remote",
@@ -114,19 +124,19 @@ def _server(raw: Mapping[str, object], network: frozenset[str]) -> ServerSpec:
             auth=cast(RemoteAuth, auth),
             protocol_version=version if isinstance(version, str) else None,
         )
-    raise ManifestError("server.kind is invalid")
+    raise ManifestError("server.kind is invalid", "invalid_server")
 
 
 def _tool_policy(name: str, raw: object) -> ToolPolicy:
     body = _object(raw, f"tools.{name}")
     risk = body.get("risk")
     if risk not in RISKS:
-        raise ManifestError(f"tools.{name}.risk is invalid")
+        raise ManifestError(f"tools.{name}.risk is invalid", "invalid_tool_policy")
     timeout = body.get("timeoutSeconds")
     if timeout is not None and (
         not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 300
     ):
-        raise ManifestError(f"tools.{name}.timeoutSeconds is invalid")
+        raise ManifestError(f"tools.{name}.timeoutSeconds is invalid", "invalid_tool_policy")
     return ToolPolicy(
         risk=cast(Risk, risk),
         voice=body.get("voice") is True,
@@ -139,7 +149,7 @@ def parse_manifest(raw: object) -> PluginManifest:
     """Parse the router-relevant part of ``mia.json``; raise ``ManifestError``."""
     body = _object(raw, "manifest")
     if body.get("schemaVersion") != "mia.plugin/1":
-        raise ManifestError("schemaVersion must be mia.plugin/1")
+        raise ManifestError("schemaVersion must be mia.plugin/1", "unsupported_schema")
     plugin_id = _string(body.get("id"), "id", pattern=PLUGIN_ID)
     version = _string(body.get("version"), "version")
     name = _string(body.get("name"), "name")
@@ -148,22 +158,24 @@ def parse_manifest(raw: object) -> PluginManifest:
     if not isinstance(hosts, list) or not all(
         isinstance(host, str) and HOSTNAME.match(host) for host in hosts
     ):
-        raise ManifestError("permissions.network must list hostnames")
+        raise ManifestError("permissions.network must list hostnames", "invalid_network")
     network = frozenset(cast(list[str], hosts))
     server = _server(_object(body.get("server"), "server"), network)
     tools_raw = _object(body.get("tools"), "tools")
-    if not tools_raw or len(tools_raw) > 64:
-        raise ManifestError("tools must declare 1..64 tools")
+    if not tools_raw:
+        raise ManifestError("tools must declare at least one tool", "no_tools")
+    if len(tools_raw) > MAX_PLUGIN_TOOLS:
+        raise ManifestError(f"tools must declare 1..{MAX_PLUGIN_TOOLS} tools", "too_many_tools")
     tools: dict[str, ToolPolicy] = {}
     for tool_name, policy in tools_raw.items():
         if not TOOL_NAME.match(tool_name):
-            raise ManifestError("tool names must match the toolName pattern")
+            raise ManifestError("tool names must match the toolName pattern", "invalid_tool_name")
         tools[tool_name] = _tool_policy(tool_name, policy)
     skills_raw = body.get("skills", [])
     if not isinstance(skills_raw, list) or not all(
         isinstance(path, str) and RELATIVE_PATH.match(path) for path in skills_raw
     ):
-        raise ManifestError("skills must be relative paths")
+        raise ManifestError("skills must be relative paths", "invalid_skills")
     requires = body.get("requires")
     device_tools: tuple[str, ...] = ()
     if isinstance(requires, Mapping):

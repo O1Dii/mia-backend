@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Link2, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Discovery, type Installation } from '../lib/api'
@@ -8,13 +8,17 @@ import { Link, navigate } from '../lib/router'
 import { riskLabel } from './ChatParts'
 import { connectAccount } from './StoreShared'
 
-/** Add an MCP server by URL: probe, sign in if it asks, review the tools, consent. */
+/** Tools of a server this large start without destructive ones (mirrors the API default). */
+const LARGE_SERVER = 24
+
+/** Add an MCP server by URL: probe, sign in if it asks, pick the tools, consent. */
 export function StoreAddUrl({ search }: { search: URLSearchParams }) {
   const resume = search.get('installation')
   const [url, setUrl] = useState('')
   const [installation, setInstallation] = useState<Installation | null>(null)
   const [discovery, setDiscovery] = useState<Discovery | null>(null)
   const [busy, setBusy] = useState(false)
+  const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [error, setError] = useState(
     search.get('connection') === 'error'
       ? errorText(search.get('code') ?? 'connection_oauth_failed')
@@ -38,6 +42,30 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
   useEffect(() => {
     if (resume) void inspect(resume)
   }, [resume, inspect])
+
+  const usable = useMemo(() => {
+    const skipped = new Set(discovery?.skipped_tools ?? [])
+    return (discovery?.tools ?? []).filter((tool) => !skipped.has(tool.name))
+  }, [discovery])
+  const recommended = useCallback(
+    () => new Set(usable.filter((tool) => tool.selected ?? true).map((tool) => tool.name)),
+    [usable],
+  )
+  useEffect(() => {
+    setChosen(recommended())
+  }, [recommended])
+  const limit = discovery?.tool_limit ?? usable.length
+  const over = chosen.size - limit
+  const editing = installation?.status === 'active'
+
+  function toggle(name: string, on: boolean) {
+    setChosen((current) => {
+      const next = new Set(current)
+      if (on) next.add(name)
+      else next.delete(name)
+      return next
+    })
+  }
 
   async function probe() {
     setBusy(true)
@@ -71,8 +99,9 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
     setBusy(true)
     setError('')
     try {
-      await api.consentCustom(installation, discovery)
-      toast.success('Сервер добавлен')
+      const tools = usable.filter((tool) => chosen.has(tool.name)).map((tool) => tool.name)
+      await api.consentCustom(installation, discovery, tools)
+      toast.success(editing ? 'Инструменты сохранены' : 'Сервер добавлен')
       navigate('/installed')
     } catch (e) {
       setError(messageOf(e))
@@ -81,8 +110,11 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
   }
 
   async function cancel() {
-    if (installation && installation.status !== 'active')
-      await api.uninstall(installation.id).catch(() => undefined)
+    if (editing) {
+      navigate('/installed')
+      return
+    }
+    if (installation) await api.uninstall(installation.id).catch(() => undefined)
     navigate('/store')
   }
 
@@ -94,8 +126,9 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
       <header className="mw-page__head">
         <h1 id="add-title">Добавить MCP-сервер по URL</h1>
         <p>
-          Подключите свой сервер инструментов. Мия проверит его, покажет все инструменты и спросит
-          разрешение. Каждое действие такого сервера потребует вашего подтверждения.
+          Подключите свой сервер инструментов. Мия проверит его, покажет инструменты — отметьте
+          нужные — и спросит разрешение. Каждое действие такого сервера потребует вашего
+          подтверждения.
         </p>
       </header>
 
@@ -165,12 +198,58 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
       {discovery?.state === 'ready' && (
         <div className="mia-glass mw-block" aria-live="polite">
           <h2>Сервер {discovery.host}</h2>
-          <h3>Инструменты ({discovery.tools.length})</h3>
-          <ul className="mw-list">
-            {discovery.tools.map((tool) => (
+          <h3>Инструменты ({usable.length})</h3>
+          <p>
+            {/* Every tool of a server added by URL has the same risk: one chip, not one per row. */}
+            <span className="mia-chip mia-chip--warning">{riskLabel.write_external}</span> — так Мия
+            считает каждый инструмент сервера, добавленного по URL.
+          </p>
+          <p className="mw-muted" role="status" aria-live="polite">
+            Выбрано {chosen.size} из {usable.length}
+            {limit < usable.length ? `, можно не больше ${limit}` : ''}.
+          </p>
+          {limit < usable.length && (
+            <p className="mw-muted">
+              Модель получает за раз ограниченное число инструментов всех плагинов вместе, поэтому у
+              этого сервера можно включить не больше {limit}. Выбор можно изменить позже в «Моих
+              плагинах».
+            </p>
+          )}
+          {usable.length > LARGE_SERVER && (
+            <p className="mw-muted">
+              Удаление и архивирование не отмечены — отметьте их, если они нужны.
+            </p>
+          )}
+          <div className="mw-actions">
+            <button
+              type="button"
+              className="mia-btn mia-btn--ghost"
+              disabled={busy}
+              onClick={() => setChosen(recommended())}
+            >
+              Рекомендуемые
+            </button>
+            <button
+              type="button"
+              className="mia-btn mia-btn--ghost"
+              disabled={busy || chosen.size === 0}
+              onClick={() => setChosen(new Set())}
+            >
+              Снять все
+            </button>
+          </div>
+          <ul className="mw-list" aria-label="Инструменты сервера">
+            {usable.map((tool) => (
               <li key={tool.name}>
-                <strong>{tool.name.replace(/_/g, ' ')}</strong>
-                <span className="mia-chip mia-chip--warning">{riskLabel[tool.risk]}</span>
+                <label className="mw-switch">
+                  <input
+                    type="checkbox"
+                    checked={chosen.has(tool.name)}
+                    disabled={busy}
+                    onChange={(event) => toggle(tool.name, event.target.checked)}
+                  />
+                  <strong>{tool.name.replace(/_/g, ' ')}</strong>
+                </label>
                 {tool.description && <small>{tool.description}</small>}
               </li>
             ))}
@@ -178,6 +257,17 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
           {discovery.skipped_tools.length > 0 && (
             <p className="mw-muted">
               Пропущены инструменты с неподходящими именами: {discovery.skipped_tools.join(', ')}.
+            </p>
+          )}
+          {limit === 0 && (
+            <p className="mw-error" role="alert">
+              Места для инструментов не осталось: другие плагины уже занимают всё, что модель
+              получает за раз. Удалите плагин или уменьшите выбор у другого сервера.
+            </p>
+          )}
+          {limit > 0 && over > 0 && (
+            <p className="mw-error" role="alert">
+              Выбрано больше, чем можно: снимите отметку ещё с {over}.
             </p>
           )}
           <h3>Разрешения</h3>
@@ -189,10 +279,11 @@ export function StoreAddUrl({ search }: { search: URLSearchParams }) {
           <div className="mw-actions">
             <button
               className="mia-btn mia-btn--primary"
-              disabled={busy}
+              disabled={busy || chosen.size === 0 || over > 0}
               onClick={() => void allow()}
             >
-              {busy && <LoaderCircle size={16} className="spin" />} Разрешить и добавить
+              {busy && <LoaderCircle size={16} className="spin" />}{' '}
+              {editing ? 'Сохранить выбор' : 'Разрешить и добавить'}
             </button>
             <button
               className="mia-btn mia-btn--ghost"

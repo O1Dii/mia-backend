@@ -28,6 +28,7 @@ from app.modules.plugins.catalog.schemas import (
     ConsentCustomRequest,
     ConsentView,
     DiscoverResult,
+    InstallationHealth,
     InstallRequest,
     PutReviewRequest,
     ReviewList,
@@ -189,6 +190,10 @@ def build_plugins_router(
     @router.get("/installations/{installation_id}/discovery", response_model=DiscoverResult)
     async def discover_custom(ctx: Context, installation_id: UUID) -> Any:
         return await _guard(installs.discover_custom(ctx, installation_id))
+
+    @router.get("/installations/{installation_id}/health", response_model=InstallationHealth)
+    async def installation_health(ctx: Context, installation_id: UUID) -> Any:
+        return await _guard(installs.health(ctx, installation_id))
 
     @router.post("/installations/{installation_id}/consent", response_model=InstallationView)
     async def consent_custom(

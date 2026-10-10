@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { LoaderCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type CatalogDetail, type Installation, type UpdateInfo } from '../lib/api'
+import {
+  api,
+  type CatalogDetail,
+  type Installation,
+  type InstallationHealth,
+  type UpdateInfo,
+} from '../lib/api'
 import { messageOf } from '../lib/http'
 import { Link } from '../lib/router'
 import { Dialog } from './Dialog'
@@ -15,9 +21,38 @@ const statusChip: Record<Installation['status'], { text: string; className: stri
   disabled: { text: 'Выключен', className: '' },
 }
 
+/** Why the model does not get (all) the tools of an installation; null when it does. */
+function healthNote(health: InstallationHealth | undefined, custom: boolean): string | null {
+  if (!health) return null
+  if (health.state === 'limited')
+    return `Модель получает ${health.tools} из ${health.declared_tools} инструментов: у всех плагинов вместе их не может быть больше, чем модель принимает за раз.`
+  if (health.state !== 'needs_attention') return null
+  switch (health.problem) {
+    case 'manifest_invalid':
+      return health.reason === 'too_many_tools'
+        ? 'Инструментов больше, чем Мия может передать модели, поэтому модель их не видит. Выберите нужные.'
+        : 'Описание плагина повреждено, поэтому модель его не видит. Переустановите плагин.'
+    case 'manifest_missing':
+      return 'Пакет плагина не найден, поэтому модель его не видит. Переустановите плагин.'
+    case 'manifest_mismatch':
+      return 'Описание плагина не совпадает с установленной версией. Переустановите плагин.'
+    case 'tool_budget':
+      return 'Для инструментов этого плагина не осталось места: модель принимает за раз ограниченное число инструментов. Уменьшите выбор у другого сервера или удалите плагин.'
+    case 'tools_changed':
+      return custom
+        ? 'Сервер изменил свои инструменты. Проверьте их и подтвердите заново.'
+        : 'Сервер плагина изменил инструменты. Они вернутся после обновления плагина.'
+    case 'server_unavailable':
+      return 'Сервер сейчас не отвечает, инструменты временно недоступны.'
+    default:
+      return 'Модель сейчас не получает инструменты этого плагина.'
+  }
+}
+
 export function StoreInstalled() {
   const state = useStoreState()
   const [updates, setUpdates] = useState<Record<string, UpdateInfo>>({})
+  const [health, setHealth] = useState<Record<string, InstallationHealth>>({})
   const [removing, setRemoving] = useState<Installation | null>(null)
   const [updating, setUpdating] = useState<Installation | null>(null)
   const [busy, setBusy] = useState('')
@@ -33,6 +68,26 @@ export function StoreInstalled() {
             infos
               .filter((info): info is UpdateInfo => Boolean(info?.update_available))
               .map((info) => [info.installation_id, info]),
+          ),
+        )
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [state.installations])
+
+  useEffect(() => {
+    let active = true
+    const all = state.installations ?? []
+    void Promise.all(all.map((i) => api.installationHealth(i.id).catch(() => null))).then(
+      (items) => {
+        if (!active) return
+        setHealth(
+          Object.fromEntries(
+            items
+              .filter((item): item is InstallationHealth => item !== null)
+              .map((item) => [item.installation_id, item]),
           ),
         )
       },
@@ -111,7 +166,13 @@ export function StoreInstalled() {
           const entry = state.catalog[installation.plugin_id]
           const connection = state.connections.find((c) => c.installation_id === installation.id)
           const update = updates[installation.id]
-          const chip = statusChip[installation.status]
+          const status = health[installation.id]
+          const custom = installation.source === 'custom'
+          const note = healthNote(status, custom)
+          const attention = status?.state === 'needs_attention'
+          const chip = attention
+            ? { text: 'Требует внимания', className: 'mia-chip--warning' }
+            : statusChip[installation.status]
           const name =
             entry?.name ??
             (installation.custom_url
@@ -153,15 +214,36 @@ export function StoreInstalled() {
                       Есть обновление {update.latest_version}
                     </span>
                   )}
+                  {status?.state === 'limited' && (
+                    <span className="mia-chip mia-chip--warning">
+                      Инструментов: {status.tools} из {status.declared_tools}
+                    </span>
+                  )}
+                  {status?.state === 'ok' && custom && (
+                    <span className="mia-chip">Инструментов: {status.tools}</span>
+                  )}
                 </p>
+                {note && (
+                  <p className="mw-muted" role="note">
+                    {note}
+                  </p>
+                )}
               </div>
               <div className="mw-installed__actions">
-                {installation.status === 'needs_consent' && installation.source === 'custom' && (
+                {installation.status === 'needs_consent' && custom && (
                   <Link
                     to={`/store/add-url?installation=${installation.id}`}
                     className="mia-btn mia-btn--primary"
                   >
                     Продолжить настройку
+                  </Link>
+                )}
+                {installation.status === 'active' && custom && (
+                  <Link
+                    to={`/store/add-url?installation=${installation.id}`}
+                    className={`mia-btn ${note ? 'mia-btn--primary' : 'mia-btn--secondary'}`}
+                  >
+                    Выбрать инструменты
                   </Link>
                 )}
                 {installation.source !== 'legacy_web' &&
