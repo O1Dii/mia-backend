@@ -12,7 +12,7 @@ import {
 import { api } from '../lib/api'
 import { speechOf, useChat, type ChatMessage } from '../lib/chat'
 import { Link } from '../lib/router'
-import { ApprovalCard, DisplayView, ToolSteps } from './ChatParts'
+import { ApprovalCard, DisplayView, ScreenActions, ToolSteps } from './ChatParts'
 
 const starters = [
   'Привет! Что ты умеешь?',
@@ -293,6 +293,7 @@ function MessageView({ message }: { message: ChatMessage }) {
   return (
     <div className="mw-reply mia-rise" data-role="assistant">
       <ToolSteps steps={message.steps} />
+      <ScreenActions actions={message.actions} />
       {message.approvals.map((approval) => (
         <ApprovalCard key={approval.id} approval={approval} onDecide={chat.decide} compact />
       ))}

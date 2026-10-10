@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -8,7 +8,7 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react'
-import type { Approval, Display, Risk } from '../lib/api'
+import type { Approval, Display, Risk, ScreenAction } from '../lib/api'
 import { messageOf } from '../lib/http'
 import { Markdown } from '../lib/markdown'
 import type { ToolStep } from '../lib/chat'
@@ -88,6 +88,72 @@ export function ToolSteps({ steps }: { steps: ToolStep[] }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+/** Only links a button may open: https with a host, or the Telegram app (tg://). */
+export function openableUrl(url: string | undefined): string | null {
+  if (!url || /[\s"'<>`\\]/.test(url)) return null
+  if (/^tg:\/\/\S+$/.test(url)) return url
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' && parsed.hostname && !parsed.username ? url : null
+  } catch {
+    return null
+  }
+}
+
+function expiryOf(action: ScreenAction): number | null {
+  const at = action.expires_at ? Date.parse(action.expires_at) : NaN
+  return Number.isNaN(at) ? null : at
+}
+
+/** True once the action expired; re-renders by itself at the moment of expiry. */
+function useExpired(action: ScreenAction): boolean {
+  const at = expiryOf(action)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (at === null || at <= now) return
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(at - now, 2 ** 31 - 1))
+    return () => window.clearTimeout(timer)
+  }, [at, now])
+  return action.expired === true || (at !== null && at <= now)
+}
+
+function ScreenActionButton({ action }: { action: ScreenAction }) {
+  const expired = useExpired(action)
+  const url = expired ? null : openableUrl(action.url)
+  if (!url)
+    return (
+      <button
+        type="button"
+        className="mia-btn mia-btn--secondary"
+        disabled
+        data-expired={expired ? 'true' : undefined}
+      >
+        <ExternalLink size={16} aria-hidden="true" /> {action.label}
+        {expired ? ' · ссылка устарела' : ''}
+      </button>
+    )
+  return (
+    <a className="mia-btn mia-btn--primary" href={url} target="_blank" rel="noopener noreferrer">
+      <ExternalLink size={16} aria-hidden="true" /> {action.label}
+    </a>
+  )
+}
+
+/** Buttons from tool results (M41-R1), e.g. «Открыть Telegram» with a one-time bot link. */
+export function ScreenActions({ actions }: { actions: ScreenAction[] }) {
+  if (!actions.length) return null
+  return (
+    <div className="mw-steps" role="group" aria-label="Ссылки от Мии">
+      {actions.map((action) => (
+        <ScreenActionButton
+          key={`${action.label}|${action.url ?? action.expires_at}`}
+          action={action}
+        />
+      ))}
+    </div>
   )
 }
 

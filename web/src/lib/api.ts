@@ -22,6 +22,18 @@ export type User = {
   avatar_url: string | null
 }
 
+/**
+ * Screen-only action of a tool result (common.schema.json#/$defs/screenAction, M41-R1): a button
+ * for the user that the model never sees. `url` is absent once the feed lists it as `expired`.
+ */
+export type ScreenAction = {
+  kind: 'open_url'
+  url?: string
+  label: string
+  expires_at?: string
+  expired?: boolean
+}
+
 export type FeedItem = {
   id: string
   role: 'user' | 'assistant'
@@ -30,6 +42,7 @@ export type FeedItem = {
   display: Display | null
   run_id: string | null
   created_at: string
+  actions?: ScreenAction[]
 }
 export type FeedPage = { items: FeedItem[]; next_cursor: string | null }
 
