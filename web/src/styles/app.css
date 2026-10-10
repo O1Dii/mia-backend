@@ -654,7 +654,30 @@
   width: min(100%, 40rem);
 }
 .mw-approval--compact {
-  padding: var(--mia-space-3) var(--mia-space-4);
+  gap: var(--mia-space-2);
+  padding: var(--mia-space-2) var(--mia-space-3);
+  width: 100%;
+}
+.mw-approval--compact .mw-approval__summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--mia-type-label-size);
+}
+.mw-approval--compact .mw-approval__meta {
+  margin-top: var(--mia-space-1);
+}
+.mw-approval--compact .mw-approval__actions .mia-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.mw-approval__elsewhere {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-2);
+  margin: 0;
+  color: var(--mia-color-text-secondary);
 }
 .mw-approval__head {
   display: flex;
@@ -1156,19 +1179,43 @@
   color: var(--mia-color-text-secondary);
 }
 
-/* The call journal (M73): reason and arguments fold under the step's chip. */
+/* The call journal (M73, compacted by M75-R1): one scrolling row of chips; a tap opens the details. */
+.mw-activity {
+  display: grid;
+  gap: var(--mia-space-2);
+  width: 100%;
+  min-width: 0;
+}
+.mw-steps--row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
 .mw-step {
+  flex: none;
   max-width: 100%;
 }
-.mw-step__details[open] {
-  flex-basis: 100%;
-}
-.mw-step__details summary {
+.mw-step__chip {
+  min-height: 36px;
   cursor: pointer;
-  list-style: none;
+  font-family: inherit;
+  white-space: nowrap;
 }
-.mw-step__details summary::-webkit-details-marker {
-  display: none;
+.mw-step__chip[aria-expanded='true'] {
+  outline: 2px solid var(--mia-color-accent);
+  outline-offset: 1px;
+}
+.mw-step__name {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mw-step__approval {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 .mw-step__body {
   display: grid;

@@ -336,3 +336,30 @@
     letter-spacing: -0.02em;
   }
 }
+
+/* A long result (inbox, tasks) is folded to a few lines until the user opens it. */
+.mw-fold {
+  display: grid;
+  gap: var(--mia-space-1);
+  min-width: 0;
+}
+.mw-fold__text {
+  position: relative;
+  max-height: 9.5em;
+  overflow: hidden;
+}
+.mw-fold[data-long='true'][data-open='false'] .mw-fold__text::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 2.5em;
+  background: linear-gradient(transparent, var(--mia-color-surface-1));
+  pointer-events: none;
+}
+.mw-fold[data-open='true'] .mw-fold__text {
+  max-height: none;
+}
+.mw-fold__toggle {
+  justify-self: start;
+  min-height: 36px;
+}

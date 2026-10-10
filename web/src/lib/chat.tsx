@@ -11,10 +11,12 @@ import {
 import {
   api,
   type Approval,
+  type AssistantResponse,
   type Chat as ChatInfo,
   type Display,
   type FeedCard,
   type FeedItem,
+  type FeedStep,
   type Risk,
   type Run,
   type ScreenAction,
@@ -38,6 +40,8 @@ export type ToolStep = {
   reason?: string
   /** Fallback reason: the public error code in the user's words. */
   codeText?: string
+  /** The approval this call waited for, as the feed tells it (decided somewhere, maybe on the phone). */
+  approval?: NonNullable<FeedStep['approval']>
 }
 export type ChatMessage = {
   key: string
@@ -74,6 +78,21 @@ const blank = (patch: Partial<ChatMessage> & Pick<ChatMessage, 'key' | 'role'>):
   ...patch,
 })
 
+/** A feed step (after a reload, on another device) as the live journal's step. */
+export function stepFromFeed(step: FeedStep): ToolStep {
+  const failed = step.status !== 'succeeded' && step.status !== 'running'
+  return {
+    id: step.tool_call_id,
+    tool: step.tool,
+    risk: step.risk ?? 'read',
+    status: step.status,
+    args: step.arguments,
+    reason: step.error_detail,
+    codeText: failed && step.error_code ? errorText(step.error_code) : undefined,
+    approval: step.approval,
+  }
+}
+
 export function fromFeed(item: FeedItem): ChatMessage {
   return blank({
     key: item.id,
@@ -83,6 +102,7 @@ export function fromFeed(item: FeedItem): ChatMessage {
     runId: item.run_id,
     createdAt: item.created_at,
     actions: item.role === 'assistant' ? (item.actions ?? []) : [],
+    steps: item.role === 'assistant' ? (item.steps ?? []).map(stepFromFeed) : [],
     card: item.role === 'assistant' ? item.card : undefined,
   })
 }
@@ -209,8 +229,26 @@ function finalizeFromRun(message: ChatMessage, run: Run): ChatMessage {
   return { ...message, pending: false, error: 'Связь потеряна. Ответ появится в истории.' }
 }
 
+/**
+ * What is read aloud for an answer: everything that is on the screen (the whole text of the
+ * answer, and for a card the short line above it too). The «Озвучить» button and the automatic
+ * reading after a dictated question both come here, so they cannot differ (live check MW5b:
+ * the automatic one read only `response.speech`, a short line, while the button read it all).
+ */
+export function spokenText(answer: {
+  display: Display | null
+  speech?: string
+  text: string
+}): string {
+  const body = plainText(answer.text).trim()
+  const brief = plainText(answer.speech ?? '').trim()
+  if (answer.display && answer.display.kind !== 'text' && brief && !body.includes(brief))
+    return `${brief}\n${body}`.trim()
+  return body || brief
+}
+
 export function speechOf(message: ChatMessage): string {
-  return message.speech?.trim() || plainText(message.text)
+  return spokenText(message)
 }
 
 /** Which chat the address names: `/chat` (the latest), `/chat/new` (a draft), `/chat/<id>`. */
@@ -364,6 +402,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               (list, action) => withAction(list, action),
               m.actions,
             ),
+            steps: m.steps.length ? m.steps : (entry.steps ?? []).map(stepFromFeed),
             ...(m.text ? {} : { text: entry.text, display: entry.display, error: undefined }),
           }))
           return
@@ -389,7 +428,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               canSpeak &&
               (dictated || prefsRef.current.alwaysSpeak)
             ) {
-              const speech = String(event.payload.response?.speech ?? '')
+              const response = event.payload.response as AssistantResponse
+              const speech = spokenText({
+                display: response.display,
+                speech: response.speech,
+                text: textOfDisplay(response.display, response.speech),
+              })
               if (speech) speakRef.current(speech, botKey)
             }
           },

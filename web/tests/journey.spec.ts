@@ -45,7 +45,10 @@ test.describe('store journey: install, connect, call in chat, approve, result', 
     await approval.getByRole('button', { name: 'Одобрить' }).click()
     await expect(page.getByText('Готово, задача создана.')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Tracker', level: 3 })).toBeVisible()
-    await expect(approval.getByText('Одобрено')).toBeVisible()
+    // Decided: the bar folds into a chip of the answer's journal; the decision is behind it.
+    await expect(approval).toHaveCount(0)
+    await page.getByRole('button', { name: 'create issue · готово' }).click()
+    await expect(page.getByTestId('step-approval')).toContainText('Одобрено')
     expect((await world(page)).calls).toContainEqual(['create_issue', { title: 'Купить молоко' }])
     expect(await writes()).toBe(writesBefore + 1)
 
