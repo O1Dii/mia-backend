@@ -387,6 +387,30 @@ export type MemoryAccess = {
   app_client_id?: string
 }
 
+// ------------------------------------------------------------ notification settings (M77)
+export type NotificationEventType = 'timer_alarm' | 'job_result' | 'approval' | 'plugin_message'
+export type NotificationChannel = {
+  name: string
+  label: string
+  status: 'connected' | 'not_connected'
+  /** Machine reason when not connected (push_not_configured, no_push_token, not_linked, ...). */
+  detail: string | null
+  enabled: boolean
+  /** False until the user (or the channel's own question) chose. */
+  decided: boolean
+}
+export type NotificationSettings = {
+  inbox_always: true
+  channels: NotificationChannel[]
+  event_types: { id: NotificationEventType; label: string }[]
+  /** «Event type × channel»; a notification goes where the channel is on and the cell is on. */
+  matrix: Record<NotificationEventType, Record<string, boolean>>
+}
+export type NotificationSettingsPatch = {
+  channels?: Record<string, boolean>
+  matrix?: Partial<Record<NotificationEventType, Record<string, boolean>>>
+}
+
 // --------------------------------------------------------------------- background and inbox
 export type JobStatus =
   'queued' | 'running' | 'waiting_approval' | 'succeeded' | 'failed' | 'cancelled'
@@ -645,6 +669,11 @@ export const api = {
       query: { unread: unread ? 'true' : undefined, cursor, limit: 50 },
     }),
   markRead: (id: string) => http<void>('POST', `/v1/inbox/${enc(id)}/read`),
+
+  // ---- notification settings (M77)
+  notificationSettings: () => http<NotificationSettings>('GET', '/v1/notifications/settings'),
+  updateNotificationSettings: (patch: NotificationSettingsPatch) =>
+    http<NotificationSettings>('PATCH', '/v1/notifications/settings', { body: patch }),
 
   // ---- connected apps (M50)
   apps: () => http<{ items: ConnectedApp[] }>('GET', '/v1/apps'),

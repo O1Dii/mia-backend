@@ -60,6 +60,8 @@ const messages: Record<string, string> = {
   job_not_found: 'Задача не найдена.',
   schedule_not_found: 'Расписание не найдено.',
   inbox_item_not_found: 'Запись не найдена.',
+  notification_channel_unknown: 'Такого канала уведомлений нет.',
+  notification_event_type_unknown: 'Такого типа уведомлений нет.',
   job_limit_exceeded: 'Слишком много фоновых задач. Дождитесь завершения.',
 }
 
