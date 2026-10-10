@@ -635,5 +635,12 @@
     "retryable": false,
     "public_message": "Sign in to this app with Mia first, then connect it again.",
     "owner": "M51"
+  },
+  {
+    "code": "invalid_chat_cursor",
+    "http_status": 400,
+    "retryable": false,
+    "public_message": "The chat list cursor is invalid.",
+    "owner": "M74"
   }
 ]

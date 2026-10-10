@@ -16,6 +16,8 @@ security:
 tags:
   - name: Runs
   - name: Feed
+  - name: Chats
+  - name: Now
   - name: Approvals
   - name: Plugins
   - name: Memory
@@ -119,16 +121,19 @@ paths:
         default: *error
   /v1/feed:
     get:
-      tags: [Feed]
+      tags: [Feed, Chats]
       operationId: listFeed
-      summary: History of the user's main feed (voice and chat), newest first
+      summary: History of one chat (voice and text), newest first; the default chat without conversation_id
       description: >-
-        One continuous feed per user (M12). Keyset pagination: pass the previous page's
-        next_cursor as before to load older messages; new messages are always newer than any
-        cursor already issued, so pages never skip or repeat an item. Accepts the bearer
-        token (Android) and the HttpOnly mia_session cookie (web, M10). Only the caller's own
-        feed is reachable; a cursor that is malformed or belongs to another feed is rejected
-        with invalid_feed_cursor. Incognito runs never appear. An empty feed is an empty page.
+        Messages of one chat (ADR-0017, M74). conversation_id selects the chat; without it the
+        default chat is read - the user's most recently active chat - so single-feed clients keep
+        working, and the page names it in conversation_id (null when the user has no chat yet;
+        a read never creates one). Keyset pagination: pass the previous page's next_cursor as
+        before to load older messages; new messages are always newer than any cursor already
+        issued, so pages never skip or repeat an item. A cursor is bound to its chat. Accepts the
+        bearer token (Android) and the HttpOnly mia_session cookie (web, M10). Only the caller's
+        own chats are reachable (conversation_not_found); a cursor that is malformed or belongs
+        to another chat is rejected with invalid_feed_cursor. Incognito runs never appear.
       parameters:
         - name: before
           in: query
@@ -136,6 +141,11 @@ paths:
           description: Opaque next_cursor of the previous page
           schema: {type: string, minLength: 1, maxLength: 512}
         - {$ref: '#/components/parameters/Limit'}
+        - name: conversation_id
+          in: query
+          required: false
+          description: The chat to read (Chat.id); omitted = the default (most recently active) chat
+          schema: {type: string, format: uuid}
       responses:
         '200':
           description: A page of feed items, newest first
@@ -143,6 +153,170 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/FeedPage'}
+        default: *error
+  /v1/chats:
+    get:
+      tags: [Chats]
+      operationId: listChats
+      summary: The user's chats, pinned first, then by last activity (M74, ADR-0017)
+      description: >-
+        Chats of kind chat and telegram (the dialog with the Mia bot). Each chat has its own
+        history and model context; memory, plugins, jobs, inbox and approvals are shared by the
+        account. Order: pinned chats first, then by last_message_at (created_at for an empty
+        chat), newest first. Keyset pagination with cursor/next_cursor (invalid_chat_cursor).
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema: {type: string, minLength: 1, maxLength: 512}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: A page of chats
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatPage'}
+        default: *error
+    post:
+      tags: [Chats]
+      operationId: createChat
+      summary: Start a new empty chat (e.g. the side key on Android)
+      description: >-
+        A replayed Idempotency-Key returns the same chat. Without a title the chat gets a
+        provisional title from its first message and then a short title from the user's model
+        (title_source auto, then model). Send messages with POST /v1/runs and conversation_id.
+        An unpinned chat that never gets a message is removed after 24 hours.
+      parameters: [*idem]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateChatRequest'}
+      responses:
+        '201':
+          description: The chat
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Chat'}
+        default: *error
+  /v1/chats/continue:
+    get:
+      tags: [Chats]
+      operationId: getContinuableChat
+      summary: The chat to offer as «Продолжить прошлый» - its last answer is younger than within_seconds
+      description: >-
+        The most recent chat of kind chat whose last assistant answer (last_assistant_at) is at
+        most within_seconds old, or null. Clients call it when the assistant is invoked (side
+        key) to offer continuing instead of the new chat.
+      parameters:
+        - name: within_seconds
+          in: query
+          required: false
+          schema: {type: integer, minimum: 30, maximum: 3600, default: 300}
+      responses:
+        '200':
+          description: The chat to continue, or null
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatContinue'}
+        default: *error
+  /v1/chats/settings:
+    get:
+      tags: [Chats]
+      operationId: getChatSettings
+      summary: Chat retention setting (default 60 days of inactivity)
+      responses:
+        '200':
+          description: Settings
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatSettings'}
+        default: *error
+    put:
+      tags: [Chats]
+      operationId: updateChatSettings
+      summary: Set chat retention - 30, 60 or 180 days of inactivity, or null (never)
+      description: >-
+        An unpinned chat is deleted retention_days after its last message (checked hourly).
+        Pinned chats are never deleted; deleting chats never deletes Memory.
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateChatSettingsRequest'}
+      responses:
+        '200':
+          description: Settings
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatSettings'}
+        default: *error
+  /v1/chats/{chat_id}:
+    parameters:
+      - {name: chat_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Chats]
+      operationId: getChat
+      responses:
+        '200':
+          description: The chat
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Chat'}
+        default: *error
+    patch:
+      tags: [Chats]
+      operationId: updateChat
+      summary: Rename (title; null returns to the automatic title) and/or pin
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateChatRequest'}
+      responses:
+        '200':
+          description: The chat
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Chat'}
+        default: *error
+    delete:
+      tags: [Chats]
+      operationId: deleteChat
+      summary: Delete the chat and its messages; Memory, jobs and inbox are not touched
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Deleted
+          headers: *rid
+        default: *error
+  /v1/now:
+    get:
+      tags: [Now]
+      operationId: getNow
+      summary: The «Сейчас» strip - active timers, alarms, focus sessions and background jobs
+      description: >-
+        Account-wide (all chats). Plugin items come from the stored state of builtin.timer,
+        builtin.alarm and builtin.focus (active installations only; expired items are not
+        listed), sorted by time left with paused ones after running ones; then active jobs,
+        newest first (at most 20). Count down locally from remaining_ms against server_time.
+        cancel says how to stop an item without the model.
+      responses:
+        '200':
+          description: Active items
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NowPage'}
         default: *error
   /v1/approvals:
     get:
@@ -2518,7 +2692,12 @@ components:
           required: [text]
           properties:
             text: {type: string, minLength: 1, maxLength: 16000}
-        conversation_id: {type: string, format: uuid}
+        conversation_id:
+          type: string
+          format: uuid
+          description: >-
+            Chat to write to (Chat.id), for voice too (M74, ADR-0017); omitted = the default
+            (most recently active) chat. A foreign or missing chat is conversation_not_found.
         device_id: {type: string, format: uuid}
         incognito: {type: boolean, default: false}
     Run:
@@ -2549,7 +2728,9 @@ components:
         source:
           type: string
           enum: [run_voice, run_chat, run_job, run_app, android_text, android_voice]
-          description: Where the message came from; run_* messages carry run_id
+          description: >-
+            Where the message came from; run_* messages carry run_id. A job result card (M74)
+            is run_job with card set and run_id null
         text: {type: string, description: Message text (user input, or the answer's markdown/speech)}
         display:
           type: [object, 'null']
@@ -2566,6 +2747,8 @@ components:
             Screen-only actions of the answer's tool calls (M41-R1), e.g. the one-time Telegram
             bot link; absent when there are none. After expires_at the action has no url and
             expired=true. Never part of the model's history.
+        card:
+          $ref: '#/components/schemas/FeedCard'
     ScreenAction:
       type: object
       additionalProperties: false
@@ -2588,6 +2771,142 @@ components:
       properties:
         items: {type: array, items: {$ref: '#/components/schemas/FeedItem'}}
         next_cursor: {type: [string, 'null'], description: Pass as before; null when there is nothing older}
+        conversation_id:
+          type: [string, 'null']
+          format: uuid
+          description: >-
+            The chat of this page (M74) - the requested one, or the default chat; null when the
+            user has no chat yet
+    FeedCard:
+      type: object
+      additionalProperties: false
+      required: [type, job_id, status, title]
+      description: >-
+        A result card posted into the source chat when a background job started there
+        finishes (M74, ADR-0017 §4); the same result is also an inbox item. text/display of the
+        FeedItem carry the result; the card names the job.
+      properties:
+        type: {type: string, enum: [job_result]}
+        job_id: {type: string, format: uuid}
+        status: {type: string, enum: [succeeded, failed]}
+        title: {type: string, maxLength: 200}
+    Chat:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, title_source, pinned, pinned_at, created_at, last_message_at, last_assistant_at, preview, preview_role]
+      description: >-
+        One chat (ADR-0017). kind telegram is the dialog with the Mia bot (one per user; /new in
+        Telegram keeps it as a plain chat). title_source auto = provisional from the first message,
+        model = chosen by the model, user = renamed by the user; title is null only for a new chat
+        without messages.
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [chat, telegram]}
+        title: {type: [string, 'null'], maxLength: 80}
+        title_source: {type: [string, 'null'], enum: [auto, model, user, null]}
+        pinned: {type: boolean}
+        pinned_at: {type: [string, 'null'], format: date-time}
+        created_at: {type: string, format: date-time}
+        last_message_at: {type: [string, 'null'], format: date-time}
+        last_assistant_at: {type: [string, 'null'], format: date-time, description: Last answer; drives «Продолжить прошлый»}
+        preview: {type: [string, 'null'], maxLength: 120, description: The last message, clipped}
+        preview_role: {type: [string, 'null'], enum: [user, assistant, null]}
+    ChatPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Chat'}}
+        next_cursor: {type: [string, 'null']}
+    CreateChatRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 1, maxLength: 80}
+    UpdateChatRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: {type: [string, 'null'], minLength: 1, maxLength: 80, description: null returns to the automatic title}
+        pinned: {type: boolean}
+    ChatContinue:
+      type: object
+      additionalProperties: false
+      required: [chat, within_seconds]
+      properties:
+        chat:
+          oneOf:
+            - {type: 'null'}
+            - {$ref: '#/components/schemas/Chat'}
+        within_seconds: {type: integer}
+    ChatSettings:
+      type: object
+      additionalProperties: false
+      required: [retention_days, choices]
+      properties:
+        retention_days:
+          type: [integer, 'null']
+          enum: [30, 60, 180, null]
+          description: Days of inactivity before an unpinned chat is deleted; null = never
+        choices:
+          type: array
+          items: {type: [integer, 'null']}
+    UpdateChatSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [retention_days]
+      properties:
+        retention_days: {type: [integer, 'null'], enum: [30, 60, 180, null]}
+    NowItem:
+      type: object
+      additionalProperties: false
+      required: [kind, id, label, state, deadline_at, remaining_ms, duration_ms, started_at, plugin_id, installation_id, job_id, run_id, conversation_id, cancel]
+      description: >-
+        One active thing. Timer/alarm/focus: id is the plugin item id, deadline_at/remaining_ms
+        count down (remaining_ms is frozen and deadline_at null while paused). Job: id = job_id,
+        conversation_id = the chat it was started from (null for schedules, apps and the API).
+      properties:
+        kind: {type: string, enum: [timer, alarm, focus, job]}
+        id: {type: string, minLength: 1}
+        label: {type: [string, 'null'], maxLength: 120}
+        state: {type: string, enum: [running, scheduled, paused, queued, waiting_approval]}
+        deadline_at: {type: [string, 'null'], format: date-time}
+        remaining_ms: {type: [integer, 'null'], minimum: 0}
+        duration_ms: {type: [integer, 'null']}
+        started_at: {type: [string, 'null'], format: date-time, description: Item created / job created or started}
+        plugin_id: {type: [string, 'null']}
+        installation_id: {type: [string, 'null'], format: uuid}
+        job_id: {type: [string, 'null'], format: uuid}
+        run_id: {type: [string, 'null'], format: uuid}
+        conversation_id: {type: [string, 'null'], format: uuid}
+        cancel:
+          description: >-
+            tile_tool - POST /v1/installations/{installation_id}/tiles/{tile_id}/tool-calls with
+            {name, arguments}; job - POST /v1/jobs/{job_id}/cancel
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [type, installation_id, tile_id, name, arguments]
+              properties:
+                type: {const: tile_tool}
+                installation_id: {type: string, format: uuid}
+                tile_id: {type: string}
+                name: {type: string}
+                arguments: {type: object}
+            - type: object
+              additionalProperties: false
+              required: [type, job_id]
+              properties:
+                type: {const: job}
+                job_id: {type: string, format: uuid}
+    NowPage:
+      type: object
+      additionalProperties: false
+      required: [server_time, items]
+      properties:
+        server_time: {type: string, format: date-time}
+        items: {type: array, items: {$ref: '#/components/schemas/NowItem'}}
     CatalogEntry:
       type: object
       required: [plugin_id, version, manifest]
