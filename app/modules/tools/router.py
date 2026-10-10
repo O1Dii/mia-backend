@@ -541,6 +541,15 @@ class McpToolRouter:
             return await self._refuse(audit, request, "denied", "tool_permission_denied")
         approval_id: str | None = None
         if request.approval_id is not None:
+            # Only a consent decided for this phone may run the call (never a web approval).
+            given = (
+                await self._approvals.get(user_id=context.user_id, approval_id=request.approval_id)
+                if self._approvals is not None
+                else None
+            )
+            consent = given.device_consent if given is not None else None
+            if consent is None or consent.get("target_device_id") != target.device_id:
+                return await self._refuse(audit, request, "denied", "approval_mismatch")
             refused = await self._consume_approval(context, request, audit)
             if refused is not None:
                 return refused

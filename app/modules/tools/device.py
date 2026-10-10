@@ -154,11 +154,10 @@ class InMemoryDeviceToolChannel:
         except Exception:
             logger.warning("device_declarations_lookup_failed")
             return []
-        for item in stored:
-            if item.device_id == device_id:
-                self._tools[(user_id, device_id)] = {tool.name: tool for tool in item.tools}
-                return list(item.tools)
-        return []
+        found = next((item.tools for item in stored if item.device_id == device_id), ())
+        # Cached either way: a later registration of this device replaces the entry.
+        self._tools[(user_id, device_id)] = {tool.name: tool for tool in found}
+        return list(found)
 
     async def _delivery(self, user_id: str, call: DeviceToolCall) -> DeviceDelivery:
         if call.delivery is not None:

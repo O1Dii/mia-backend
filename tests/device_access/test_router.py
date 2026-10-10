@@ -284,3 +284,33 @@ async def test_tool_list_is_capped_at_the_model_limit(tmp_path: Path) -> None:
     (dropped,) = set(full) - set(capped)
     outcome = await router.call(context, ToolCallRequest("call_cap", dropped, {}))
     assert outcome.error_code == "tool_unavailable"
+
+
+async def test_a_web_approval_cannot_run_a_phone_call(tmp_path: Path) -> None:
+    from app.core.ports.approval_service import ApprovalRequest
+
+    dw = await device_world(tmp_path)
+    context = browser_context(dw)
+    forged = await dw.world.approvals.request(
+        ApprovalRequest(
+            user_id=dw.user_id,
+            run_id=context.run_id,
+            tool_call_id="call_f1",
+            tool="device.contacts.search",
+            risk="read",
+            summary="x",
+            arguments={"query": "Яна"},
+        )
+    )
+    await dw.world.approvals.decide(
+        user_id=dw.user_id,
+        approval_id=forged.id,
+        decision="approve",
+        args_hash=forged.args_hash,
+        channel="web",
+    )
+    outcome = await dw.world.router.call(
+        context, dataclasses.replace(search("call_f1"), approval_id=forged.id)
+    )
+    assert (outcome.status, outcome.error_code) == ("denied", "approval_mismatch")
+    assert dw.events.items == []
