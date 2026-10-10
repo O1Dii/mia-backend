@@ -2532,6 +2532,30 @@ components:
             (assistant-response.schema.json); null for user messages and plain answers
         run_id: {type: [string, 'null'], format: uuid}
         created_at: {type: string, format: date-time}
+        actions:
+          type: array
+          maxItems: 4
+          items: {$ref: '#/components/schemas/ScreenAction'}
+          description: >-
+            Screen-only actions of the answer's tool calls (M41-R1), e.g. the one-time Telegram
+            bot link; absent when there are none. After expires_at the action has no url and
+            expired=true. Never part of the model's history.
+    ScreenAction:
+      type: object
+      additionalProperties: false
+      required: [kind, label]
+      description: >-
+        Same shape as common.schema.json#/$defs/screenAction (M41-R1): a button for the user,
+        never model content. url is absent only when expired is true.
+      properties:
+        kind: {type: string, enum: [open_url]}
+        url:
+          type: string
+          maxLength: 2048
+          pattern: '^(https://[^\s@/?#]+([/?#][^\s]*)?|tg://[^\s]+)$'
+        label: {type: string, minLength: 1, maxLength: 40}
+        expires_at: {type: string, format: date-time}
+        expired: {type: boolean, const: true}
     FeedPage:
       type: object
       required: [items, next_cursor]

@@ -291,3 +291,41 @@ async def test_unauthenticated_requests_are_rejected(world: FeedWorld) -> None:
         assert bad.status_code == 401
         assert not list(ERROR_VALIDATOR.iter_errors(bad.json()))
         assert bad.headers["x-request-id"]
+
+
+async def test_screen_actions_are_listed_with_the_answer_until_they_expire(
+    world: FeedWorld,
+) -> None:
+    """M41-R1: a tool's screen-only action rides on the answer; after expiry it has no URL."""
+    live = {
+        "kind": "open_url",
+        "url": "https://t.me/mia_test_bot?start=LIVE",
+        "label": "Открыть Telegram",
+        "expires_at": "2099-01-01T00:00:00Z",
+    }
+    old = {
+        **live,
+        "url": "https://t.me/mia_test_bot?start=OLD",
+        "expires_at": "2020-01-01T00:00:00Z",
+    }
+    async with world.harness.client() as client:
+        headers, user_id = await world.alice_bearer(client, "sub-actions")
+        await world.exchange(user_id, "old", actions=(old,))
+        await world.exchange(user_id, "live", actions=(live,))
+        await world.exchange(user_id, "plain")
+
+        body = (await client.get("/v1/feed", headers=headers)).json()
+
+    check_page(body)
+    plain, _, fresh, _, stale, _ = body["items"]
+    assert "actions" not in plain
+    assert fresh["actions"] == [live]
+    assert stale["actions"] == [
+        {
+            "kind": "open_url",
+            "label": "Открыть Telegram",
+            "expires_at": "2020-01-01T00:00:00Z",
+            "expired": True,
+        }
+    ]
+    assert "OLD" not in str(body)

@@ -41,6 +41,7 @@ class FeedWorld:
         source: TurnSource = TurnSource.RUN_CHAT,
         display: dict[str, Any] | None = None,
         modality: Modality = Modality.TEXT,
+        actions: tuple[dict[str, Any], ...] = (),
     ) -> tuple[uuid.UUID, FeedTurn]:
         """One user message plus its answer in the primary feed (two entries)."""
         feed_id = await self.feed.primary_feed_id(user_id=user_id)
@@ -59,6 +60,7 @@ class FeedWorld:
             text_value=f"{label}: answer",
             response={"speech": f"{label}.", "display": display, "followups": []},
             modality=modality,
+            actions=actions,
         )
         return run_id, turn
 

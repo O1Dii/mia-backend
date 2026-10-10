@@ -44,8 +44,8 @@ def _iso(value: Any) -> str:
 
 
 def feed_item_body(item: FeedItem) -> dict[str, Any]:
-    """``FeedItem`` schema."""
-    return {
+    """``FeedItem`` schema (``actions`` only when the answer has screen actions, M41-R1)."""
+    body: dict[str, Any] = {
         "id": str(item.id),
         "role": item.role,
         "source": item.source,
@@ -54,6 +54,9 @@ def feed_item_body(item: FeedItem) -> dict[str, Any]:
         "run_id": str(item.run_id) if item.run_id is not None else None,
         "created_at": _iso(item.created_at),
     }
+    if item.actions:
+        body["actions"] = [dict(action) for action in item.actions]
+    return body
 
 
 def _request_id(request: Request) -> str:

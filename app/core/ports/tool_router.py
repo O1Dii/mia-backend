@@ -72,6 +72,9 @@ class ToolOutcome:
     approval: Approval | None = None
     """Pending approval when ``status == "approval_required"``."""
     error_code: str | None = None
+    action: JsonObject | None = None
+    """Screen-only action of a succeeded call (``screen_action.parse_action``): shown by
+    the clients as a button, never sent to the model (M41-R1)."""
 
 
 @runtime_checkable

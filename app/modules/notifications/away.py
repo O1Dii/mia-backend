@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import replace
 from typing import Any
@@ -91,9 +91,15 @@ class AwaySummaryFeed:
         text_value: str,
         response: dict[str, Any],
         modality: Modality = Modality.TEXT,
+        actions: Sequence[Mapping[str, Any]] = (),
     ) -> None:
         await self.inner.record_answer(
-            user_id=user_id, turn=turn, text_value=text_value, response=response, modality=modality
+            user_id=user_id,
+            turn=turn,
+            text_value=text_value,
+            response=response,
+            modality=modality,
+            actions=actions,
         )
 
     async def close_turn(self, *, turn: FeedTurn, status: TurnStatus) -> None:

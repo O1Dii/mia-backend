@@ -10,6 +10,7 @@ from mcp.server.apps import Apps
 from mcp.server.mcpserver import Context, MCPServer
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
 
+from app.core.ports.screen_action import ACTION_META_KEY, parse_action
 from app.modules.plugins.builtin.bridge import render_app_html
 from app.modules.plugins.builtin.identity import CallIdentity, identity_from_meta
 from app.modules.plugins.builtin.services import HostServices
@@ -19,11 +20,34 @@ T = TypeVar("T")
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 
-def ok(summary: str, data: Mapping[str, Any]) -> CallToolResult:
-    """Text for the model (``content``) plus data for the UI (``structuredContent``)."""
+def ok(
+    summary: str, data: Mapping[str, Any], *, action: Mapping[str, Any] | None = None
+) -> CallToolResult:
+    """Text for the model (``content``) plus data for the UI (``structuredContent``).
+
+    ``action`` (from :func:`screen_action`) goes to ``_meta["mia/action"]``: a button on
+    the user's screen that the model never sees (M41-R1).
+    """
     return CallToolResult(
-        content=[TextContent(type="text", text=summary)], structured_content=dict(data)
+        content=[TextContent(type="text", text=summary)],
+        structured_content=dict(data),
+        meta={ACTION_META_KEY: dict(action)} if action is not None else None,
     )
+
+
+def screen_action(url: str, label: str, *, expires_at: str | None = None) -> dict[str, Any]:
+    """A screen-only ``open_url`` action (``common.schema.json#/$defs/screenAction``).
+
+    Use it for links the user must open but the model must not repeat, such as one-time
+    bearer links. Raises ``ValueError`` for a URL that is not ``https``/``tg`` or a bad label.
+    """
+    raw: dict[str, Any] = {"kind": "open_url", "url": url, "label": label}
+    if expires_at is not None:
+        raw["expires_at"] = expires_at
+    action = parse_action(raw)
+    if action is None:
+        raise ValueError("invalid screen action")
+    return action
 
 
 def ui_meta(resource_uri: str, *, app_only: bool = False) -> dict[str, Any]:

@@ -55,6 +55,24 @@
       "maxLength": 2048,
       "pattern": "^https://[^\\s]+$"
     },
+    "screenAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label"],
+      "description": "Screen-only action of a tool result (M41-R1), from _meta[\"mia/action\"] of a trusted in-process server. Shown as a button; never sent to the model. url is absent only when expired is true (feed listing after expires_at); clients render such an action disabled.",
+      "properties": {
+        "kind": { "type": "string", "enum": ["open_url"] },
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^(https://[^\\s@/?#]+([/?#][^\\s]*)?|tg://[^\\s]+)$",
+          "description": "https with a host (no userinfo) or a tg:// link; opened outside the app"
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "expires_at": { "$ref": "#/$defs/timestamp" },
+        "expired": { "type": "boolean", "const": true }
+      }
+    },
     "jsonObject": {
       "type": "object",
       "description": "Arbitrary JSON object (tool arguments, structuredContent)"
