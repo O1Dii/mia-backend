@@ -54,6 +54,9 @@ class ApprovalRequest:
     arguments: JsonObject
     plugin_id: str | None = None
     ttl_seconds: int = DEFAULT_APPROVAL_TTL_SECONDS
+    device_consent: JsonObject | None = None
+    """Set when only the target device may decide (ADR-0016, M70): ``DeviceConsent`` of
+    ``contracts/mvp/v1/device-access.schema.json``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +83,8 @@ class Approval:
     created_at: datetime
     expires_at: datetime
     decision: ApprovalDecision | None = None
+    device_consent: JsonObject | None = None
+    """``DeviceConsent`` (M70): the approval can be decided only on that device."""
 
 
 @runtime_checkable

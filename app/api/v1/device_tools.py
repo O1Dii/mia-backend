@@ -11,6 +11,10 @@ run on the run's device. Tool declarations are kept in process memory (the
 channel) and contain no personal data; the results the model sees are the
 compact ``content`` of the call, and nothing the device returns (for example
 contact search hits) is persisted by this module.
+
+M70: a call delivered by push (run from another client or the app's WebView) is answered
+on the same endpoint by the target device; the run's own ``device_id`` is then irrelevant,
+the caller must be signed in on the call's target device.
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from app.core.ports.device_tool_channel import (
 from app.core.ports.types import Risk
 from app.modules.auth.principal import RequestAuthenticator, RequestPrincipal
 from app.modules.runs.domain import RunNotFoundError, RunRecord
+from app.modules.tools.device import PendingCall
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +132,14 @@ class DeviceToolsBackend(Protocol):
 
     def pending_run(self, *, user_id: str, device_id: str, call_id: str) -> str | None: ...
 
+    def pending_call(self, *, user_id: str, call_id: str) -> PendingCall | None: ...
+
+
+class SessionDevices(Protocol):
+    """Device of a bearer session (``DeviceAccessStore.session_device``, M70)."""
+
+    async def session_device(self, *, user_id: str, family_id: str) -> str | None: ...
+
 
 class RunsLookup(Protocol):
     """``RunService.get``: owner-scoped, raises ``RunNotFoundError``."""
@@ -193,6 +206,7 @@ def build_device_tools_router(
     channel: DeviceToolsBackend,
     runs: RunsLookup,
     authenticator: DeviceAuthenticator,
+    sessions: SessionDevices | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["Devices"], route_class=_ValidatedRoute)
     delivered: OrderedDict[tuple[str, str, str], None] = OrderedDict()
@@ -259,14 +273,28 @@ def build_device_tools_router(
             "device_call_not_pending",
             "No device tool call is waiting for this result.",
         )
-        if record.device_id is None:
-            return no_call
-        device_id = str(record.device_id)
-        pending = channel.pending_run(
-            user_id=principal.user_id, device_id=device_id, call_id=body.call_id
-        )
-        if pending != str(run_id):
-            return Response(status_code=204) if key in delivered else no_call
+        found = channel.pending_call(user_id=principal.user_id, call_id=body.call_id)
+        if found is not None and found.delivery == "push":
+            # M70: queued for a device that did not start the run; only that device answers.
+            device_id = found.device_id
+            caller = (
+                await sessions.session_device(
+                    user_id=principal.user_id, family_id=principal.session_id
+                )
+                if sessions is not None
+                else None
+            )
+            if found.run_id != str(run_id) or caller != device_id:
+                return Response(status_code=204) if key in delivered else no_call
+        else:
+            if record.device_id is None:
+                return Response(status_code=204) if key in delivered else no_call
+            device_id = str(record.device_id)
+            pending = channel.pending_run(
+                user_id=principal.user_id, device_id=device_id, call_id=body.call_id
+            )
+            if pending != str(run_id):
+                return Response(status_code=204) if key in delivered else no_call
         accepted = await channel.deliver_result(
             user_id=principal.user_id, device_id=device_id, result=body.to_port()
         )
@@ -284,8 +312,11 @@ def install_device_tools(
     channel: DeviceToolsBackend,
     runs: RunsLookup,
     authenticator: RequestAuthenticator,
+    sessions: SessionDevices | None = None,
 ) -> None:
     """Mount the two endpoints (``app/composition.py``)."""
     app.include_router(
-        build_device_tools_router(channel=channel, runs=runs, authenticator=authenticator)
+        build_device_tools_router(
+            channel=channel, runs=runs, authenticator=authenticator, sessions=sessions
+        )
     )

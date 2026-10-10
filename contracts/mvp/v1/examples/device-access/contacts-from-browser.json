@@ -1,0 +1,17 @@
+{
+  "waiting_for": "device",
+  "target_device_id": "5b0c2a91-7e3d-4f1a-9c4b-2d8e6f0a1b3c",
+  "target_device_name": "Galaxy S25",
+  "requester": {
+    "kind": "web",
+    "label": "браузер Chrome на macOS"
+  },
+  "capability": "contacts.read",
+  "capability_kind": "read",
+  "capability_label": "поиск в контактах телефона",
+  "model_sees": "только имена найденных контактов и их число, без номеров",
+  "scopes": [
+    "run",
+    "persistent"
+  ]
+}

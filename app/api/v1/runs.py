@@ -173,16 +173,21 @@ def build_runs_router(
         user = await principal(request, authorization)
         if user is None:
             return unauthorized(request)
+        new_run = NewRun(
+            user_id=user.user_id,
+            profile=body.profile,
+            input_text=body.input.text,
+            conversation_id=body.conversation_id,
+            device_id=body.device_id,
+            incognito=body.incognito,
+        )
+        # M70 (ADR-0016): verified device and requester of the run (app.state.run_origins).
+        origins = getattr(request.app.state, "run_origins", None)
+        if origins is not None:
+            new_run = await origins.prepare(request, new_run)
         try:
-            record, _ = await service.start(
-                NewRun(
-                    user_id=user.user_id,
-                    profile=body.profile,
-                    input_text=body.input.text,
-                    conversation_id=body.conversation_id,
-                    device_id=body.device_id,
-                    incognito=body.incognito,
-                ),
+            record, replayed = await service.start(
+                new_run,
                 idempotency_key=idempotency_key,
                 request_hash=canonical_request_hash(body.model_dump(mode="json")),
             )
@@ -195,6 +200,8 @@ def build_runs_router(
             )
         except ConversationNotFoundError:
             return _error(request, 404, "conversation_not_found", "The conversation was not found.")
+        if origins is not None:
+            await origins.commit(record, replayed=replayed)
         return JSONResponse(
             status_code=202,
             headers={"X-Request-ID": _request_id(request)},

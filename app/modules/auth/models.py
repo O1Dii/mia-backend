@@ -92,3 +92,8 @@ class WebSession(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    device_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE")
+    )
+    """Set for the app's WebView session (M24 hand-off, M70): requests of this session come
+    from that device (ADR-0016 §3). NULL for a browser session."""

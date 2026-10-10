@@ -1,0 +1,33 @@
+{
+  "id": "0f4e2d1c-6b5a-4c3d-9e8f-7a6b5c4d3e2f",
+  "run_id": "8a1f0c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+  "tool_call_id": "call_c1",
+  "tool": "device.contacts.search",
+  "risk": "read",
+  "summary": "Подтвердите на телефоне: браузер Chrome на macOS просит поиск в контактах телефона «Яна».",
+  "arguments": {
+    "query": "Яна"
+  },
+  "args_hash": "sha256:2f3225bc91ca9f7a1e3be19072e18625fd22f5ec902f3971f5a9c8d67e02660e",
+  "status": "pending",
+  "created_at": "2026-10-10T09:00:00Z",
+  "expires_at": "2026-10-10T09:02:00Z",
+  "decision": null,
+  "device_consent": {
+    "waiting_for": "device",
+    "target_device_id": "5b0c2a91-7e3d-4f1a-9c4b-2d8e6f0a1b3c",
+    "target_device_name": "Galaxy S25",
+    "requester": {
+      "kind": "web",
+      "label": "браузер Chrome на macOS"
+    },
+    "capability": "contacts.read",
+    "capability_kind": "read",
+    "capability_label": "поиск в контактах телефона",
+    "model_sees": "только имена найденных контактов и их число, без номеров",
+    "scopes": [
+      "run",
+      "persistent"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "type": "device_consent",
+  "approval_id": "0f4e2d1c-6b5a-4c3d-9e8f-7a6b5c4d3e2f",
+  "run_id": "8a1f0c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+  "tool": "device.contacts.search",
+  "capability": "contacts.read",
+  "capability_label": "поиск в контактах телефона",
+  "requester_label": "браузер Chrome на macOS",
+  "model_sees": "только имена найденных контактов и их число, без номеров",
+  "summary": "Подтвердите на телефоне: браузер Chrome на macOS просит поиск в контактах телефона «Яна».",
+  "args_hash": "sha256:2f3225bc91ca9f7a1e3be19072e18625fd22f5ec902f3971f5a9c8d67e02660e",
+  "expires_at": "2026-10-10T09:02:00Z",
+  "scopes": "run,persistent",
+  "title": "Mia просит разрешение"
+}

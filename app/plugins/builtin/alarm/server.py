@@ -1,7 +1,9 @@
 """Alarm: absolute-time reminders; the deadline is stored, firing is M16's job.
 
-A ringing alarm on the phone is ``device.alarm.set`` (Android); this server keeps the
-reminder in Mia so it can be pushed and shown on the dashboard.
+The alarm lives in Mia (cloud, ADR-0016): it is pushed and shown on the dashboard; the
+phone presents it as a Mia alarm. The system Clock (``device.alarm.set``) is never set
+implicitly: after the user's first alarm the result asks the model to offer it once
+(``clock_offer`` in the plugin state remembers that the offer was made).
 """
 
 from collections.abc import Mapping
@@ -21,6 +23,11 @@ from app.modules.plugins.builtin.services import HostServices
 PLUGIN_ID = "builtin.alarm"
 MAX_AHEAD_MS = 31 * 86400 * 1000
 MAX_ACTIVE = 10
+CLOCK_OFFER_KEY = "clock_offer"
+CLOCK_OFFER = (
+    "Это первый будильник пользователя: один раз предложи поставить его ещё в «Часах» "
+    "на телефоне (device.alarm.set), сам не ставь."
+)
 
 
 def build_server(
@@ -69,8 +76,12 @@ def build_server(
         if not now < deadline <= now + MAX_AHEAD_MS:
             raise ToolError("Время будильника должно быть в будущем, не дальше чем через 31 день.")
 
-        def mutate(data: dict[str, Any]) -> tuple[list[deadlines.Item], deadlines.Item]:
+        def mutate(
+            data: dict[str, Any],
+        ) -> tuple[list[deadlines.Item], deadlines.Item, bool]:
             items = stored(data)
+            first = not data.get(CLOCK_OFFER_KEY)
+            data[CLOCK_OFFER_KEY] = True
             item = deadlines.add(
                 items,
                 now_ms=now,
@@ -81,13 +92,13 @@ def build_server(
                 max_active=MAX_ACTIVE,
             )
             item["at"] = moment.isoformat()
-            return items, item
+            return items, item, first
 
-        items, item = await kit.update(identity, mutate)
-        return ok(
-            f"Будильник «{label}» установлен на {item['at']}. id {item['id']}.",
-            payload(items, now, item),
-        )
+        items, item, first = await kit.update(identity, mutate)
+        text = f"Будильник «{label}» установлен в Mia на {item['at']}. id {item['id']}."
+        if first:
+            text += " " + CLOCK_OFFER
+        return ok(text, payload(items, now, item))
 
     @kit.tool("get", description="List alarms (read only).", ui="tile")
     async def get(*, ctx: Context) -> CallToolResult:

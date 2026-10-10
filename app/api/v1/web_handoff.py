@@ -86,7 +86,9 @@ def build_web_handoff_router(
             raise AuthApiError(403, "permission_denied", "A bearer session is required.")
         await enforce("handoff-issue-user", principal.user_id, issue_limit)
         try:
-            issued = await service.issue(UUID(principal.user_id), payload.path if payload else None)
+            user = UUID(principal.user_id)
+            device = await service.session_device(user, UUID(principal.session_id))  # M70
+            issued = await service.issue(user, payload.path if payload else None, device_id=device)
         except InvalidLandingPathError as exc:
             raise AuthApiError(
                 400, "web_handoff_path_invalid", "The landing path is not allowed."

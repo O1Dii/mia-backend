@@ -756,4 +756,6 @@ def approval_payload(approval: Approval) -> dict[str, Any]:
         if approval.decision.device_id is not None:
             decision["device_id"] = approval.decision.device_id
         body["decision"] = decision
+    if approval.device_consent is not None:
+        body["device_consent"] = json.loads(json.dumps(dict(approval.device_consent)))
     return body

@@ -34,7 +34,10 @@ from app.plugins.builtin.telegram.host import (
 HANDOFF_TOOL = "telegram.handoff"
 PERSON_REF = re.compile(r"^person:([0-9a-fA-F-]{36})$")
 CONTACT_REF = re.compile(r"^contact:[0-9]{1,3}$")
-NO_PHONE = "Для отправки в Telegram нужен телефон с приложением Mia: этот запрос пришёл без него."
+NO_PHONE = (
+    "Черновик в Telegram открывается на телефоне: попросите об этом в приложении Mia на "
+    "телефоне. Ничего не отправлено."
+)
 
 DEVICE_ERRORS = {
     "unsupported_tool": "В приложении на телефоне нет передачи в Telegram: его нужно обновить.",

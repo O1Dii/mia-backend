@@ -272,7 +272,8 @@ async def test_result_round_trip_unblocks_the_waiting_call(harness: Harness) -> 
     assert response.status_code == 204 and response.content == b""
     result = await asyncio.wait_for(task, 2)
     assert result.status == "succeeded" and result.content == "1 contact: Анна"
-    assert result.structured_content == {"matches": [{"display_name": "Анна"}]}
+    # M70: contact results keep names and counts only, in one shape.
+    assert result.structured_content == {"matches": [{"name": "Анна"}]}
 
 
 async def test_structured_errors_reach_the_channel(harness: Harness) -> None:

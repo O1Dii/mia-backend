@@ -148,3 +148,12 @@ async def test_suppressed_context_skips_the_note(world: JobsWorld) -> None:
     noted = await away.context(user_id=world.user)
     assert noted.summary and "Новое" in noted.summary
     assert (await away.context(user_id=world.user)).summary is None
+
+
+async def test_note_reaches_an_explicitly_chosen_chat(world: JobsWorld) -> None:
+    _, stack = build(world, FakeModelGateway([]))
+    away = AwaySummaryFeed(FeedService(world.factory), stack.notifications.inbox)
+    chat = (await away.context(user_id=world.user)).conversation_id
+    await stack.service.notify(user_id=world.user, text="Новое")
+    noted = await away.context(user_id=world.user, conversation_id=chat)
+    assert noted.summary and "Новое" in noted.summary

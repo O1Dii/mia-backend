@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "capability": "contacts.read",
+      "kind": "read",
+      "label": "поиск в контактах телефона",
+      "model_sees": "только имена найденных контактов и их число, без номеров",
+      "persistent_allowed": true,
+      "remote": "ask"
+    },
+    {
+      "capability": "telegram.draft",
+      "kind": "external",
+      "label": "черновик сообщения в Telegram",
+      "model_sees": "открылся ли Telegram; отправляете вы сами",
+      "persistent_allowed": false,
+      "remote": "deny"
+    }
+  ]
+}

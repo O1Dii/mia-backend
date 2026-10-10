@@ -23,7 +23,10 @@ DeviceToolErrorCode = Literal[
     "user_cancelled",
     "timeout",
     "execution_failed",
+    "offline",
 ]
+"""``offline`` is set by the core (M70) when the target device cannot be reached."""
+DeviceDelivery = Literal["stream", "push"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +50,10 @@ class DeviceToolCall:
     arguments: JsonObject
     deadline_at: datetime
     approval_id: str | None = None
+    delivery: DeviceDelivery | None = None
+    """How the call reaches the device (M70): ``stream`` = ``device_tool.call`` in the run
+    stream the device follows; ``push`` = also queued for ``GET /v1/devices/{id}/tool-calls``
+    and announced by a push. ``None``: the channel decides from the run's origin."""
 
 
 @dataclass(frozen=True, slots=True)

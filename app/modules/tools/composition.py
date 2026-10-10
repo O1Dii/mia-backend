@@ -8,6 +8,10 @@ Usage in ``app/composition.py`` (after ``install_auth``)::
 
 M14 supplies ``server_factory`` (in-process MCP servers) and, if needed, a
 ``manifest_source``; M15 supplies ``credentials`` for OAuth/Mia-token remotes.
+
+M70 adds device access (ADR-0016): ``DeviceAccess`` (policy, grants, log) shared by the
+router and the device channel, ``/v1/devices/{id}/…`` for the phone, the push notifier and
+``app.state.run_origins`` (``POST /v1/runs`` records who asks).
 """
 
 from __future__ import annotations
@@ -19,9 +23,11 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.api.v1.approvals import build_approvals_router
+from app.api.v1.device_access import build_device_access_router
 from app.core.config import Settings
 from app.core.runtime import Runtime
 from app.modules.auth.composition import request_authenticator
+from app.modules.notifications.device_push import build_device_push
 from app.modules.plugins.registry import (
     DirectoryManifestSource,
     InstallationReader,
@@ -33,6 +39,9 @@ from app.modules.tools.approvals import SqlApprovalService
 from app.modules.tools.audit import SqlToolAudit
 from app.modules.tools.core_tools import CoreToolRegistry
 from app.modules.tools.device import InMemoryDeviceToolChannel
+from app.modules.tools.device_access import DeviceAccess
+from app.modules.tools.device_origin import RunOriginResolver
+from app.modules.tools.device_store import SqlDeviceAccessStore
 from app.modules.tools.mcp_client import InProcessServerFactory, McpConnector, RemoteCredentials
 from app.modules.tools.router import McpToolRouter, RouterConfig
 
@@ -48,6 +57,7 @@ class ToolStack:
     core_tools: CoreToolRegistry
     registry: PluginRegistry
     connector: McpConnector
+    device_access: DeviceAccess | None = None
 
 
 def host_allowlist(settings: Settings) -> frozenset[str] | None:
@@ -81,7 +91,8 @@ def build_tool_stack(
         list_timeout_s=settings.tools_list_timeout_seconds,
     )
     approvals = SqlApprovalService(session_factory)
-    channel = InMemoryDeviceToolChannel()
+    device_access = DeviceAccess(SqlDeviceAccessStore(session_factory))
+    channel = InMemoryDeviceToolChannel(access=device_access)
     core_tools = CoreToolRegistry()
     router = McpToolRouter(
         registry=registry,
@@ -96,8 +107,9 @@ def build_tool_stack(
             approval_ttl_s=settings.tools_approval_ttl_seconds,
             max_result_chars=settings.tools_max_result_chars,
         ),
+        device_access=device_access,
     )
-    return ToolStack(router, approvals, channel, core_tools, registry, connector)
+    return ToolStack(router, approvals, channel, core_tools, registry, connector, device_access)
 
 
 def install_tools(
@@ -120,7 +132,19 @@ def install_tools(
         wrap_installations=wrap_installations,
     )
     app.state.tools = stack
+    authenticator = request_authenticator(app)
+    access = stack.device_access
     app.include_router(
-        build_approvals_router(service=stack.approvals, authenticator=request_authenticator(app))
+        build_approvals_router(
+            service=stack.approvals, authenticator=authenticator, device_access=access
+        )
     )
+    if access is not None:
+        access.bind_notifier(build_device_push(runtime.database.session_factory))
+        app.include_router(
+            build_device_access_router(
+                access=access, calls=stack.device_channel, authenticator=authenticator
+            )
+        )
+        app.state.run_origins = RunOriginResolver(access, authenticator)
     return stack

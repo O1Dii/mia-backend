@@ -1,0 +1,7 @@
+{
+  "type": "device_tool_call",
+  "run_id": "8a1f0c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+  "call_id": "call_c1",
+  "tool": "device.contacts.search",
+  "deadline_at": "2026-10-10T09:01:00Z"
+}

@@ -55,7 +55,7 @@ class AwaySummaryFeed:
         self, *, user_id: uuid.UUID, conversation_id: uuid.UUID | None = None
     ) -> FeedContext:
         context = await self.inner.context(user_id=user_id, conversation_id=conversation_id)
-        if _SUPPRESSED.get() or conversation_id is not None:
+        if _SUPPRESSED.get():
             return context
         items, total = await self._inbox.take_unannounced(user_id=user_id, limit=self._max_items)
         if not items:

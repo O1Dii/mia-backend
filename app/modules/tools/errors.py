@@ -56,6 +56,26 @@ ROUTER_CODES: Final[dict[str, RouterCode]] = {
 ``approval_unavailable``/``tool_not_found`` are M12 codes reused by the router."""
 
 
+DEVICE_ACCESS_CODES: Final[dict[str, RouterCode]] = {
+    # Router outcomes of device calls from other clients (ADR-0016).
+    "device_offline": RouterCode(False, "The phone is not reachable right now."),
+    "device_capability_disabled": RouterCode(
+        False, "This action is turned off for other clients on the phone."
+    ),
+    # Approvals and device access API.
+    "approval_device_only": RouterCode(False, "Confirm this request on the phone.", 403),
+    "approval_scope_unavailable": RouterCode(
+        False, "This consent cannot be given permanently.", 409
+    ),
+    "device_access_forbidden": RouterCode(
+        False, "Only the app on this phone can manage its access.", 403
+    ),
+    "device_grant_not_found": RouterCode(False, "The permission was not found.", 404),
+    "device_capability_unknown": RouterCode(False, "The capability is unknown.", 404),
+}
+"""Codes owned by M70 (device access, ADR-0016)."""
+
+
 def router_message(code: str) -> str:
-    known = ROUTER_CODES.get(code)
+    known = ROUTER_CODES.get(code) or DEVICE_ACCESS_CODES.get(code)
     return known.message if known else "The tool call did not succeed."
