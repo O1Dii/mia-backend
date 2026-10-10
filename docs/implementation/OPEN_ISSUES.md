@@ -3236,7 +3236,57 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M73 inbox
 
-- Нет записей.
+### OI-M73-001 — «Интернет» нельзя отключить пользователю
+
+- Status: OPEN
+- Source session: M73
+- Component: `AlwaysOnInstallations` (`app/modules/plugins/composition.py`), реестр инструментов
+- Question: нужен ли переключатель «не искать в интернете» (приватность, правила организации)?
+- Why non-blocking: ADR-0016 и решение пользователя 2026-10-10 — поиск доступен всем без установки; инструмент только читает публичные страницы (`publicWeb`), личные данные в запрос попадают лишь со слов модели.
+- Current assumption: всегда включён; своя установка пользователя с актуальным дайджестом сохраняется как есть, устаревшая заменяется виртуальной (`system:builtin.internet`).
+- Options: (a) оставить; (b) настройка аккаунта «Поиск в интернете» (feature flag в профиле); (c) отключение политикой администратора.
+- Recommendation: (a) до первой жалобы; (b) вместе с настройками M60/M72.
+- Affected future sessions: M72, M60.
+- Revisit trigger/deadline: запрос на отключение поиска.
+
+### OI-M73-002 — Клиенты ещё не показывают аргументы и причину ошибки шага
+
+- Status: OPEN
+- Source session: M73
+- Component: web `ChatParts`/журнал шагов, Android `feature/chat`; события `tool.call.started.arguments`, `tool.call.completed.error_detail`
+- Question: как показать журнал вызова (аргументы, причина) в чате и в «Мои плагины»?
+- Why non-blocking: данные уже в событиях и в `GET /v1/runs/{id}/events`; без показа журнал виден только через API.
+- Current assumption: показ в M75 (web) и M76 (Android); формат полей описан в handoff M73.
+- Options: (a) сворачиваемая строка шага «Аргументы / Причина»; (b) только при ошибке.
+- Recommendation: (a) для ошибок открыто, для успеха свёрнуто.
+- Affected future sessions: M75, M76.
+- Revisit trigger/deadline: сразу при реализации M75/M76.
+
+### OI-M73-003 — Вызов несуществующего инструмента не попадает в журнал событий
+
+- Status: OPEN
+- Source session: M73
+- Component: `RunExecution.call_tool` (`app/modules/runs/engine.py`)
+- Question: показывать ли пользователю в журнале вызов выдуманного моделью инструмента (`tool_not_found`) и дубликат `duplicate_call_id`?
+- Why non-blocking: модель получает `failed/tool_not_found` и исправляется; на сервере пишется `tool_call_unknown` с именем инструмента; события `tool.call.started` требуют `risk` и `executor`, которых у несуществующего инструмента нет.
+- Current assumption: только лог сервера.
+- Options: (a) оставить; (b) аддитивно разрешить `tool.call.completed` без `started` с `tool` и `error_detail`.
+- Recommendation: (a), пока нет жалоб «ответ странный, а в журнале пусто».
+- Affected future sessions: M75, M76.
+- Revisit trigger/deadline: жалоба на «пустой» журнал.
+
+### OI-M73-004 — «За сегодня» — это окно новостей 48 часов
+
+- Status: OPEN
+- Source session: M73
+- Component: `PublicWebClient.search(news=True)` (Google News RSS `when:2d`), `builtin.internet.news`
+- Question: нужен ли строгий фильтр «с начала суток пользователя» для запросов «за сегодня»?
+- Why non-blocking: промпт сообщает модели дату и часовой пояс пользователя, а у каждой новости есть дата публикации — модель отбирает сама; пустая выдача честно сообщает запрос.
+- Current assumption: окно 48 часов, отбор по дате делает модель.
+- Options: (a) оставить; (b) параметр `since` у `news` (меняет digest инструмента и требует пересогласия существующих установок).
+- Recommendation: (a).
+- Affected future sessions: M60.
+- Revisit trigger/deadline: живая проверка «новости за сегодня» с устаревшими пунктами в ответе.
 
 ## M74 inbox
 
