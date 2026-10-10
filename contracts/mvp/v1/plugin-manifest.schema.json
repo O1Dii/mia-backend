@@ -248,6 +248,11 @@
           "description": "Exposed in the voice profile (fast reads only)"
         },
         "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+        "riskSource": {
+          "type": "string",
+          "enum": ["user", "annotation", "default"],
+          "description": "M72-R1: where `risk` came from. `user`: chosen by the user, never re-derived. `annotation`/`default`: derived by Mia from the server's MCP annotations (`default`: the server said nothing). Absent: stored before M72-R1, derived again once on the next tool listing. Written for servers added by URL only"
+        },
         "task": {
           "type": "boolean",
           "default": false,

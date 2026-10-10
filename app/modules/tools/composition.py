@@ -34,6 +34,7 @@ from app.modules.plugins.registry import (
     ManifestSource,
     PluginRegistry,
     SqlInstallationReader,
+    SqlRiskStore,
 )
 from app.modules.tools.approvals import SqlApprovalService
 from app.modules.tools.audit import SqlToolAudit
@@ -108,6 +109,7 @@ def build_tool_stack(
             max_result_chars=settings.tools_max_result_chars,
         ),
         device_access=device_access,
+        risk_store=SqlRiskStore(session_factory),
     )
     return ToolStack(router, approvals, channel, core_tools, registry, connector, device_access)
 

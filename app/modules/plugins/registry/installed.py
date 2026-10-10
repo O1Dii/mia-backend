@@ -53,6 +53,8 @@ class InstallationRecord:
     grants: tuple[str, ...]
     tools_digest: str | None
     manifest: Mapping[str, Any] | None
+    source: str = ""
+    """``catalog`` / ``custom`` (a server added by URL) / ``legacy_web``; empty when unknown."""
 
 
 class InstallationReader(Protocol):
@@ -95,6 +97,7 @@ class SqlInstallationReader:
                 grants=tuple(row.grants),
                 tools_digest=row.tools_digest,
                 manifest=row.manifest,
+                source=row.source,
             )
             for row in rows
         ]

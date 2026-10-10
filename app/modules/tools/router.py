@@ -64,7 +64,7 @@ from app.core.ports.tool_router import (
     ToolOutcome,
 )
 from app.core.ports.types import JsonObject, Risk
-from app.modules.plugins.registry import InstalledPlugin, PluginRegistry
+from app.modules.plugins.registry import InstalledPlugin, PluginRegistry, RiskStore, rederive_risks
 from app.modules.plugins.registry.installed import SKILL_DESCRIPTION_MAX
 from app.modules.tools.approvals import ConsumableApprovals
 from app.modules.tools.audit import AuditEntry, ToolAudit, content_digest
@@ -183,7 +183,9 @@ class McpToolRouter:
         config: RouterConfig | None = None,
         clock: Callable[[], datetime] | None = None,
         device_access: DeviceAccess | None = None,
+        risk_store: RiskStore | None = None,
     ) -> None:
+        self._risk_store = risk_store
         self._registry = registry
         self._connector = connector
         self._audit = audit
@@ -269,6 +271,8 @@ class McpToolRouter:
             logger.warning("plugin_tools_digest_mismatch", extra={"plugin_id": manifest.plugin_id})
             block("tool_consent_required")
             return
+        plugin = await self._with_current_risks(plugin, server_tools)
+        manifest = plugin.manifest
         by_name = {tool.name: tool for tool in server_tools}
         usable = False
         for local, policy in manifest.tools.items():
@@ -305,6 +309,53 @@ class McpToolRouter:
             usable = True
         if usable:
             table.plugins[manifest.plugin_id] = plugin
+
+    async def _with_current_risks(
+        self, plugin: InstalledPlugin, server_tools: list[ServerTool]
+    ) -> InstalledPlugin:
+        """Derived risks of a server added by URL, from the annotations of the tools just listed.
+
+        An installation consented before M72-R1 stores every risk as ``write_external`` without
+        telling whether the user chose it; those risks are derived again here (a risk with
+        ``riskSource: user`` is not touched), used for this call and frozen in the row.
+        """
+        stored = plugin.installation.manifest
+        if plugin.installation.source != "custom" or stored is None:
+            return plugin
+        upgraded = rederive_risks(stored, {tool.name: tool.annotations for tool in server_tools})
+        if upgraded is None:
+            return plugin
+        derived = upgraded["tools"]
+        tools = {}
+        for name, policy in plugin.manifest.tools.items():
+            fresh = derived.get(name)
+            tools[name] = (
+                dataclasses.replace(policy, risk=fresh["risk"], risk_source=fresh["riskSource"])
+                if isinstance(fresh, dict)
+                else policy
+            )
+        logger.info(
+            "plugin_risks_rederived",
+            extra={
+                "plugin_id": plugin.plugin_id,
+                "installation_id": plugin.installation.id,
+                "tool_count": len(tools),
+            },
+        )
+        if self._risk_store is not None:
+            try:
+                await self._risk_store.save(plugin.installation.id, stored, upgraded)
+            except Exception:
+                logger.warning(
+                    "plugin_risks_not_saved",
+                    extra={
+                        "plugin_id": plugin.plugin_id,
+                        "installation_id": plugin.installation.id,
+                    },
+                )
+        return dataclasses.replace(
+            plugin, manifest=dataclasses.replace(plugin.manifest, tools=tools)
+        )
 
     def _core_entries(self, context: ToolContext, table: _Table) -> None:
         for tool in self.core_tools.tools():
