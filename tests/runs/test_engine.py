@@ -274,8 +274,10 @@ async def test_no_speech_ack_while_waiting_for_approval(world: RunWorld) -> None
     decider = asyncio.create_task(decide_late())
     events = await collect(service, world.user, record.id)
     await decider
-    assert "approval.requested" in types(events)
-    assert "speech.ack" not in types(events)
+    kinds = types(events)
+    assert "approval.requested" in kinds
+    # A filler before the prompt is fine (slow first step under load); never after it.
+    assert "speech.ack" not in kinds[kinds.index("approval.requested") :]
 
 
 async def test_approval_without_service_is_denied(world: RunWorld) -> None:

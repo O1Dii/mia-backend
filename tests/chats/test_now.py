@@ -80,8 +80,8 @@ async def test_now_lists_active_timers_alarms_and_jobs(world: ChatWorld) -> None
             user,
             "builtin.timer",
             [
-                item("t1", "Паста", "running", NOW_MS + 300_000),
-                item("t2", "Чай", "running", NOW_MS + 60_000),
+                item("t1", "Паста", "running", NOW_MS + 7_200_000),
+                item("t2", "Чай", "running", NOW_MS + 3_600_000),
                 item("t3", "Пауза", "paused", None, remaining_ms=120_000),
                 item("t4", "Истёк", "running", NOW_MS - 1_000),
             ],
@@ -132,7 +132,7 @@ async def test_now_lists_active_timers_alarms_and_jobs(world: ChatWorld) -> None
             ("job", str(from_chat.id)),
         ]
         first = body["items"][0]
-        assert first["label"] == "Чай" and 0 < first["remaining_ms"] <= 60_000
+        assert first["label"] == "Чай" and 0 < first["remaining_ms"] <= 3_600_000
         assert first["cancel"] == {
             "type": "tile_tool",
             "installation_id": str(timers),

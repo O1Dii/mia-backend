@@ -554,7 +554,10 @@ class RunExecution:
             return ToolOutcome(
                 call_id=request.call_id, status="denied", error_code="approval_unavailable"
             )
-        self.approval_requested = True
+        async with self.final_lock:
+            # ``ack_after`` checks the flag and writes under this lock: a slow «Секунду.» write
+            # finishes before the prompt or not at all (OI-M22-002, found under load in M60).
+            self.approval_requested = True
         await self.emit("approval.requested", {"approval": approval_payload(approval)})
         remaining = max(0.0, (approval.expires_at - self.engine.clock()).total_seconds())
         waited_from = time.monotonic()
