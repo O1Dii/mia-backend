@@ -264,11 +264,11 @@ class Person:
 
     async def push_token(self, token: str = "fcm-token-phone") -> None:
         assert self.device_id is not None
-        response = await self.post(
+        response = await self.put(
             "/v1/devices/push-token",
             {"device_id": self.device_id, "provider": "fcm", "token": token},
         )
-        assert response.status_code in (200, 201, 204), response.text
+        assert response.status_code == 204, response.text
 
     async def answer_device_call(
         self, run_id: str, call_id: str, content: str, structured: JsonObject | None = None
