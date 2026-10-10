@@ -37,6 +37,9 @@
       "voice": true
     }
   },
+  "whereItRuns": {
+    "cloud": "Сессии фокуса считаются и хранятся в облаке Mia."
+  },
   "surfaces": {
     "tiles": [
       {

@@ -32,6 +32,27 @@ class ConsentLlm(BaseModel):
     monthly_budget_usd: float | None
 
 
+class ConsentDeviceCapability(BaseModel):
+    """A device capability the plugin may use on request (``requires.deviceCapabilities``)."""
+
+    capability: str
+    kind: Literal["read", "action", "external"]
+    label: str
+    """Short user-facing name of the capability."""
+    description: str
+    optional: bool
+    model_sees: str
+    """What the model receives from the phone (data minimization, ADR-0016 §6)."""
+
+
+class WhereItRuns(BaseModel):
+    """The store's «Где работает» block: cloud part and the part that may run on the phone."""
+
+    cloud: str
+    device: str | None = None
+    runs_on: Literal["cloud", "cloud_and_device"]
+
+
 class ConsentView(BaseModel):
     """What the install screen shows: tools and their risk, data, network and model use."""
 
@@ -49,6 +70,8 @@ class ConsentView(BaseModel):
     device_tools: list[str]
     requires_connection: bool
     stores_state: bool = True
+    where_it_runs: WhereItRuns
+    device_capabilities: list[ConsentDeviceCapability] = Field(default_factory=list)
 
 
 class RatingView(BaseModel):
@@ -134,10 +157,16 @@ class UpgradeRequest(Strict):
     grants: list[str] = Field(max_length=128)
 
 
+ToolRisk = Literal["read", "write_reversible", "write_external"]
+
+
 class DiscoveredTool(BaseModel):
     name: str
     description: str
-    risk: Literal["write_external"] = "write_external"
+    risk: ToolRisk = "write_external"
+    """Proposed risk (M72): from the server's MCP annotations, or what the user saved earlier."""
+    risk_source: Literal["annotation", "saved", "default"] = "default"
+    """``annotation``: from ``readOnlyHint``/``destructiveHint``; ``default``: none given."""
     selected: bool = False
     """Ticked on the consent screen before the user changes anything (M15-R1)."""
 
@@ -156,6 +185,8 @@ class DiscoverResult(BaseModel):
     """Tools whose names the manifest grammar cannot hold; Mia does not offer them."""
     tool_limit: int = Field(default=0, ge=0)
     """How many tools this server may enable next to the user's other plugins."""
+    risk_grants: list[ConsentGrant] = Field(default_factory=list)
+    """The ``tools.<risk>`` grant of each risk; echo those of the chosen risks."""
 
 
 class ConsentCustomRequest(Strict):
@@ -164,6 +195,8 @@ class ConsentCustomRequest(Strict):
     grants: list[str] = Field(max_length=128)
     tools: list[str] | None = Field(default=None, max_length=1024)
     """Tools to enable; omitted: every usable tool (refused when they exceed ``tool_limit``)."""
+    risks: dict[str, ToolRisk] | None = Field(default=None, max_length=1024)
+    """Risk per tool the user changed (M72); other tools get the server's annotation risk."""
 
 
 class InstallationHealth(BaseModel):

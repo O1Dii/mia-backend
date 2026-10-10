@@ -32,6 +32,9 @@
       "risk": "write_reversible"
     }
   },
+  "whereItRuns": {
+    "cloud": "Заметки хранятся и обрабатываются в облаке Mia."
+  },
   "surfaces": {
     "tiles": [
       {

@@ -28,6 +28,8 @@ class ServerTool:
     description: str
     input_schema: JsonObject
     meta: JsonObject | None = None
+    annotations: JsonObject | None = None
+    """MCP ``ToolAnnotations`` (``readOnlyHint``, ``destructiveHint``); not part of the digest."""
 
     def digest_entry(self) -> dict[str, object]:
         return {

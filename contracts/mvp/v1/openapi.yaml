@@ -849,7 +849,7 @@ paths:
     post:
       tags: [Plugins]
       operationId: consentCustomInstallation
-      summary: Consent to the probed tools of a custom MCP server (every tool is write_external)
+      summary: 'Consent to the probed tools of a custom MCP server (risk per tool: annotations, editable)'
       parameters: [*idem]
       requestBody:
         required: true
@@ -870,6 +870,14 @@ paths:
                   description: >-
                     Tools to enable (M15-R1); omitted means every usable tool. 422 validation_error
                     when a name is not served, none is chosen, or more than DiscoverResult.tool_limit.
+                risks:
+                  type: object
+                  maxProperties: 1024
+                  additionalProperties: {type: string, enum: [read, write_reversible, write_external]}
+                  description: >-
+                    Risk per chosen tool the user changed (M72); other tools get the proposed risk of
+                    DiscoverResult.tools[].risk. 422 for a tool that is not chosen. Echo in grants
+                    the tools.<risk> grant of every resulting risk (DiscoverResult.risk_grants).
       responses:
         '200':
           description: Installation is active
@@ -3090,6 +3098,27 @@ components:
         device_tools: {type: array, items: {type: string}}
         requires_connection: {type: boolean}
         stores_state: {type: boolean}
+        where_it_runs:
+          type: object
+          description: M72, the store's «Где работает» block (manifest whereItRuns; derived from server.kind when absent)
+          required: [cloud, device, runs_on]
+          properties:
+            cloud: {type: string, description: What runs in the Mia cloud}
+            device: {type: [string, 'null'], description: What may run on the phone, only on request and with consent (ADR-0016)}
+            runs_on: {type: string, enum: [cloud, cloud_and_device]}
+        device_capabilities:
+          type: array
+          description: M72, manifest requires.deviceCapabilities; listed on the consent screen
+          items:
+            type: object
+            required: [capability, kind, label, description, optional, model_sees]
+            properties:
+              capability: {type: string, description: 'contacts.read | alarm.clock | apps.open | telegram.draft | <device tool>'}
+              kind: {type: string, enum: [read, action, external]}
+              label: {type: string}
+              description: {type: string}
+              optional: {type: boolean, description: The plugin works in the cloud without it}
+              model_sees: {type: string}
     InstallRequest:
       type: object
       additionalProperties: false
@@ -3137,7 +3166,13 @@ components:
             properties:
               name: {type: string}
               description: {type: string}
-              risk: {type: string, enum: [write_external]}
+              risk:
+                type: string
+                enum: [read, write_reversible, write_external]
+                description: >-
+                  Proposed risk (M72, OI-LIVE-002): readOnlyHint -> read, destructiveHint false ->
+                  write_reversible, otherwise write_external; what the user saved earlier wins
+              risk_source: {type: string, enum: [annotation, saved, default]}
               selected: {type: boolean, description: Ticked on the consent screen by default (M15-R1)}
         tools_digest: {type: [string, 'null']}
         grants:
@@ -3149,6 +3184,15 @@ components:
               id: {type: string}
               text: {type: string}
         host: {type: string}
+        risk_grants:
+          type: array
+          description: The tools.<risk> grant of every risk a tool may be set to (M72); echo those of the chosen risks
+          items:
+            type: object
+            required: [id, text]
+            properties:
+              id: {type: string}
+              text: {type: string}
         skipped_tools: {type: array, items: {type: string}, description: Tool names the manifest grammar cannot hold; Mia does not offer them}
         tool_limit:
           type: integer

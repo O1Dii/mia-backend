@@ -144,6 +144,7 @@ async def build_store(
     access_ttl: int = 3600,
     supports_registration: bool = True,
     camel_case_tool: bool = True,
+    annotated: bool = False,
     public_base_url: str = PUBLIC_BASE,
 ) -> AsyncIterator[Store]:
     await asyncio.to_thread(migrate_to_head)
@@ -185,7 +186,9 @@ async def build_store(
     auth_server = AuthorizationServer(
         clock=clock, access_ttl=access_ttl, supports_registration=supports_registration
     )
-    remote = RemoteWorld(auth_server, require_auth=require_auth, camel_case_tool=camel_case_tool)
+    remote = RemoteWorld(
+        auth_server, require_auth=require_auth, camel_case_tool=camel_case_tool, annotated=annotated
+    )
     resolver = FakeResolver()
     oauth = OAuthClient(resolver=resolver, http_transport=transport_factory(remote), clock=clock)
     builtin = build_builtin_plugins(runtime, model_gateway=cast(ModelGateway, object()))

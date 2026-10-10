@@ -143,6 +143,22 @@ def result_text(result: CallToolResult) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def _annotations(raw: Any) -> dict[str, Any] | None:
+    """The boolean MCP hints of a tool (``readOnlyHint``, ``destructiveHint``); nothing else."""
+    if raw is None:
+        return None
+    dump = getattr(raw, "model_dump", None)
+    values = (
+        raw if isinstance(raw, dict) else dump(by_alias=True, exclude_none=True) if dump else {}
+    )
+    hints = {
+        key: value
+        for key, value in values.items()
+        if key in ("readOnlyHint", "destructiveHint") and isinstance(value, bool)
+    }
+    return hints or None
+
+
 def _server_tool(raw: Any) -> ServerTool | None:
     name = getattr(raw, "name", None)
     schema = getattr(raw, "input_schema", None)
@@ -150,6 +166,7 @@ def _server_tool(raw: Any) -> ServerTool | None:
         return None
     meta = getattr(raw, "meta", None)
     return ServerTool(
+        annotations=_annotations(getattr(raw, "annotations", None)),
         name=name,
         description=str(getattr(raw, "description", None) or ""),
         input_schema=schema,

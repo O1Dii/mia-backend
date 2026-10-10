@@ -47,7 +47,12 @@ from app.modules.plugins.catalog.schemas import (
 )
 from app.modules.plugins.catalog.service import CatalogService, consent_of
 from app.modules.plugins.catalog.versions import version_key
-from app.modules.plugins.install.grants import describe_grant, diff_grants, required_grants
+from app.modules.plugins.install.grants import (
+    RISK_GRANTS,
+    describe_grant,
+    diff_grants,
+    required_grants,
+)
 from app.modules.plugins.registry import (
     MAX_PLUGIN_TOOLS,
     InstallationRecord,
@@ -293,15 +298,13 @@ class InstallService:
         limit = await self._tool_limit(ctx, installation_id)
         usable = _usable(tools)
         enabled = _enabled_tools(installation)
+        saved = _saved_risks(installation)
         current = [name for name in usable if name in enabled] if enabled else []
         selected = set(keep_within(current, limit) if current else default_selection(usable, limit))
         return DiscoverResult(
             installation_id=installation_id,
             state="ready",
-            tools=[
-                DiscoveredTool(name=t.name, description=t.description, selected=t.name in selected)
-                for t in tools
-            ],
+            tools=[_discovered(t, t.name in selected, saved) for t in tools],
             tools_digest=compute_tools_digest(tools),
             grants=[
                 ConsentGrant(id=grant, text=describe_grant(grant))
@@ -310,6 +313,12 @@ class InstallService:
             host=host,
             skipped_tools=sorted(t.name for t in tools if not TOOL_NAME.match(t.name)),
             tool_limit=limit,
+            risk_grants=[
+                ConsentGrant(id=grant, text=describe_grant(grant))
+                for grant in (
+                    RISK_GRANTS[risk] for risk in ("read", "write_reversible", "write_external")
+                )
+            ],
         )
 
     async def consent_custom(
@@ -340,7 +349,16 @@ class InstallService:
         if not usable:
             raise ConflictError("The server offers no tool Mia can use.")
         chosen = _chosen_tools(usable, request.tools, await self._tool_limit(ctx, installation_id))
-        manifest = custom_manifest(installation.plugin_id, url, needs_auth, tools, selected=chosen)
+        if request.risks:
+            stray = sorted(set(request.risks) - set(chosen))
+            if stray:
+                raise InvalidWorkspaceRequestError(
+                    "Risks were set for tools that are not chosen.",
+                    details={"unknown_tools": stray[:20]},
+                )
+        manifest = custom_manifest(
+            installation.plugin_id, url, needs_auth, tools, selected=chosen, risks=request.risks
+        )
         required = required_grants(manifest)
         missing = sorted(required - set(request.grants))
         if missing:
@@ -503,6 +521,22 @@ class InstallService:
             ) from failure
 
 
+def annotation_risk(tool: ServerTool) -> tuple[str, bool]:
+    """Risk of a tool of a server added by URL from its MCP annotations (OI-LIVE-002).
+
+    ``readOnlyHint`` -> ``read`` (no approval); ``destructiveHint: false`` -> ``write_reversible``;
+    anything else, including no annotations, stays ``write_external`` (MCP's own default is
+    "destructive", and a server that says nothing is not trusted). The flag tells whether an
+    annotation decided.
+    """
+    hints = tool.annotations or {}
+    if hints.get("readOnlyHint") is True:
+        return "read", True
+    if hints.get("destructiveHint") is False:
+        return "write_reversible", True
+    return "write_external", hints.get("destructiveHint") is True
+
+
 def custom_manifest(
     plugin_id: str,
     url: str,
@@ -510,8 +544,12 @@ def custom_manifest(
     tools: list[ServerTool],
     *,
     selected: Sequence[str] | None = None,
+    risks: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """The generated ``mia.json`` of a custom server: every enabled tool is ``write_external``.
+    """The generated ``mia.json`` of a custom server: a risk per enabled tool.
+
+    The risk is the user's choice (``risks``), else the server's MCP annotation, else
+    ``write_external`` (see :func:`annotation_risk`).
 
     Tool names the manifest grammar cannot hold (``list-issues``, ``createIssue``) are left
     out of the overlay, so the router does not offer them (reported as ``skipped_tools``).
@@ -520,7 +558,7 @@ def custom_manifest(
     host = _host(url)
     chosen = None if selected is None else set(selected)
     overlay = {
-        tool.name: {"risk": "write_external"}
+        tool.name: {"risk": (risks or {}).get(tool.name) or annotation_risk(tool)[0]}
         for tool in tools
         if TOOL_NAME.match(tool.name) and (chosen is None or tool.name in chosen)
     }
@@ -539,6 +577,35 @@ def custom_manifest(
             "notify": False,
         },
     }
+
+
+def _saved_risks(installation: Installation) -> dict[str, str]:
+    """Risks the user consented to earlier (the stored overlay of an active installation)."""
+    manifest = installation.manifest
+    tools = manifest.get("tools") if isinstance(manifest, Mapping) else None
+    if installation.tools_digest is None or not isinstance(tools, Mapping):
+        return {}
+    return {
+        name: policy["risk"]
+        for name, policy in tools.items()
+        if isinstance(name, str)
+        and isinstance(policy, Mapping)
+        and policy.get("risk") in RISK_GRANTS
+    }
+
+
+def _discovered(tool: ServerTool, selected: bool, saved: Mapping[str, str]) -> DiscoveredTool:
+    risk, annotated = annotation_risk(tool)
+    source = "annotation" if annotated else "default"
+    if tool.name in saved:
+        risk, source = saved[tool.name], "saved"
+    return DiscoveredTool(
+        name=tool.name,
+        description=tool.description,
+        risk=risk,
+        risk_source=source,
+        selected=selected,
+    )
 
 
 def _usable(tools: list[ServerTool]) -> list[str]:

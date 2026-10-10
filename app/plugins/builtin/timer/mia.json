@@ -40,7 +40,18 @@
   "requires": {
     "deviceTools": [
       "device.alarm.set"
+    ],
+    "deviceCapabilities": [
+      {
+        "capability": "alarm.clock",
+        "description": "По вашей просьбе дублирует таймер будильником в «Часах» телефона",
+        "optional": true
+      }
     ]
+  },
+  "whereItRuns": {
+    "cloud": "Таймеры считает и запускает сервер Mia; плитка с обратным отсчётом обновляется из облака.",
+    "device": "Только по вашей просьбе таймер можно продублировать будильником в «Часах» телефона."
   },
   "surfaces": {
     "tiles": [

@@ -28,7 +28,7 @@ from typing import Any
 import httpx2
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp_types import CallToolResult, TextContent
+from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -274,7 +274,10 @@ class AuthorizationServer:
 
 
 def build_mcp_server(
-    calls: list[tuple[str, dict[str, Any]]], *, camel_case_tool: bool = True
+    calls: list[tuple[str, dict[str, Any]]],
+    *,
+    camel_case_tool: bool = True,
+    annotated: bool = False,
 ) -> MCPServer:
     """A small issue tracker; ``create_issue`` and ``delete_issue`` change things."""
     server = MCPServer("test-tracker", version="1.0.0")
@@ -296,11 +299,14 @@ def build_mcp_server(
         calls.append(("getIssue", {"issue_id": issue_id}))
         return CallToolResult(content=[TextContent(text=f"Issue {issue_id}")])
 
-    server.add_tool(list_issues, description="List open issues.")
+    # M72: an annotated server says which tools only read (OI-LIVE-002).
+    read_only = ToolAnnotations(read_only_hint=True) if annotated else None
+    changes = ToolAnnotations(destructive_hint=False) if annotated else None
+    server.add_tool(list_issues, description="List open issues.", annotations=read_only)
     if camel_case_tool:
         # camelCase: a name the manifest grammar cannot hold, so Mia leaves it out.
         server.add_tool(get_issue, name="getIssue", description="Get one issue.")
-    server.add_tool(create_issue, description="Create an issue with a title.")
+    server.add_tool(create_issue, description="Create an issue with a title.", annotations=changes)
     return server
 
 
@@ -365,12 +371,19 @@ class RemoteWorld:
     """Dispatches by ``Host`` to the MCP resource server or the authorization server."""
 
     def __init__(
-        self, auth: AuthorizationServer, *, require_auth: bool = True, camel_case_tool: bool = True
+        self,
+        auth: AuthorizationServer,
+        *,
+        require_auth: bool = True,
+        camel_case_tool: bool = True,
+        annotated: bool = False,
     ) -> None:
         self.auth = auth
         self.require_auth = require_auth
         self.calls: list[tuple[str, dict[str, Any]]] = []
-        self.mcp = build_mcp_server(self.calls, camel_case_tool=camel_case_tool)
+        self.mcp = build_mcp_server(
+            self.calls, camel_case_tool=camel_case_tool, annotated=annotated
+        )
         self.mcp_app: ASGIApp = self.mcp.streamable_http_app(
             stateless_http=True,
             json_response=True,
