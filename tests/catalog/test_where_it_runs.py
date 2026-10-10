@@ -170,13 +170,16 @@ async def test_server_by_url_reads_without_approval_and_risk_is_editable(store: 
 
     # The user raises create_issue to «действие во внешнем сервисе»: it asks again.
     again = _json(await store.get(user, f"/v1/installations/{iid}/discovery"), 200)
-    assert {t["name"]: t["risk_source"] for t in again["tools"]}["list_issues"] == "saved"
+    # Derived risks are not choices (M72-R1): they keep following the server's annotations.
+    assert {t["name"]: t["risk_source"] for t in again["tools"]}["list_issues"] == "annotation"
     raised = await _consent(store, user, iid, again, risks={"create_issue": "write_external"})
     assert _json(raised, 200)["status"] == "active"
     pending = await store.router.call(
         ctx, ToolCallRequest("c2", f"{plugin_id}.create_issue", {"title": "x"})
     )
     assert pending.status == "approval_required"
+    chosen = _json(await store.get(user, f"/v1/installations/{iid}/discovery"), 200)
+    assert {t["name"]: t["risk_source"] for t in chosen["tools"]}["create_issue"] == "saved"
 
 
 @requires_postgres

@@ -23,6 +23,7 @@ HOSTNAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-
 MODULE = re.compile(r"^app(\.[a-z_][a-z0-9_]*)+$")
 RELATIVE_PATH = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]{1,200}$")
 RISKS: frozenset[str] = frozenset({"read", "write_reversible", "write_external"})
+RISK_SOURCES: frozenset[str] = frozenset({"user", "annotation", "default"})
 
 ServerKind = Literal["builtin", "remote", "declarative"]
 RemoteAuth = Literal["none", "oauth", "mia_token"]
@@ -47,6 +48,8 @@ class ToolPolicy:
     voice: bool = False
     timeout_seconds: int | None = None
     task: bool = False
+    risk_source: str | None = None
+    """``user`` (chosen), ``annotation`` / ``default`` (derived), ``None`` (before M72-R1)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,11 +140,15 @@ def _tool_policy(name: str, raw: object) -> ToolPolicy:
         not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 300
     ):
         raise ManifestError(f"tools.{name}.timeoutSeconds is invalid", "invalid_tool_policy")
+    source = body.get("riskSource")
+    if source is not None and source not in RISK_SOURCES:
+        raise ManifestError(f"tools.{name}.riskSource is invalid", "invalid_tool_policy")
     return ToolPolicy(
         risk=cast(Risk, risk),
         voice=body.get("voice") is True,
         timeout_seconds=timeout,
         task=body.get("task") is True,
+        risk_source=cast(str | None, source),
     )
 
 

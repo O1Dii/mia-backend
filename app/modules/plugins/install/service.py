@@ -59,9 +59,11 @@ from app.modules.plugins.registry import (
     InstalledPlugin,
     PluginRegistry,
     parse_manifest,
+    risk_from_annotations,
 )
 from app.modules.plugins.registry.limits import default_selection, keep_within
 from app.modules.plugins.registry.manifest import TOOL_NAME
+from app.modules.plugins.registry.risk import USER
 from app.modules.tools.digest import ServerTool, compute_tools_digest
 from app.modules.tools.mcp_client import ConnectionRequired, McpConnector, McpFailure
 from app.modules.workspace.errors import (
@@ -356,8 +358,15 @@ class InstallService:
                     "Risks were set for tools that are not chosen.",
                     details={"unknown_tools": stray[:20]},
                 )
+        # A risk the user chose earlier stays theirs unless this request changes it.
+        kept = {n: r for n, r in _saved_risks(installation).items() if n in chosen}
         manifest = custom_manifest(
-            installation.plugin_id, url, needs_auth, tools, selected=chosen, risks=request.risks
+            installation.plugin_id,
+            url,
+            needs_auth,
+            tools,
+            selected=chosen,
+            risks={**kept, **(request.risks or {})},
         )
         required = required_grants(manifest)
         missing = sorted(required - set(request.grants))
@@ -524,17 +533,10 @@ class InstallService:
 def annotation_risk(tool: ServerTool) -> tuple[str, bool]:
     """Risk of a tool of a server added by URL from its MCP annotations (OI-LIVE-002).
 
-    ``readOnlyHint`` -> ``read`` (no approval); ``destructiveHint: false`` -> ``write_reversible``;
-    anything else, including no annotations, stays ``write_external`` (MCP's own default is
-    "destructive", and a server that says nothing is not trusted). The flag tells whether an
-    annotation decided.
+    See :func:`risk_from_annotations`. The flag tells whether an annotation decided.
     """
-    hints = tool.annotations or {}
-    if hints.get("readOnlyHint") is True:
-        return "read", True
-    if hints.get("destructiveHint") is False:
-        return "write_reversible", True
-    return "write_external", hints.get("destructiveHint") is True
+    risk, source = risk_from_annotations(tool.annotations)
+    return risk, source == "annotation"
 
 
 def custom_manifest(
@@ -548,8 +550,9 @@ def custom_manifest(
 ) -> dict[str, Any]:
     """The generated ``mia.json`` of a custom server: a risk per enabled tool.
 
-    The risk is the user's choice (``risks``), else the server's MCP annotation, else
-    ``write_external`` (see :func:`annotation_risk`).
+    The risk is the user's choice (``risks``, marked ``riskSource: user`` and never re-derived),
+    else the server's MCP annotation, else ``write_external`` (``riskSource`` ``annotation`` /
+    ``default``, see :func:`risk_from_annotations`).
 
     Tool names the manifest grammar cannot hold (``list-issues``, ``createIssue``) are left
     out of the overlay, so the router does not offer them (reported as ``skipped_tools``).
@@ -558,7 +561,7 @@ def custom_manifest(
     host = _host(url)
     chosen = None if selected is None else set(selected)
     overlay = {
-        tool.name: {"risk": (risks or {}).get(tool.name) or annotation_risk(tool)[0]}
+        tool.name: _policy(tool, (risks or {}).get(tool.name))
         for tool in tools
         if TOOL_NAME.match(tool.name) and (chosen is None or tool.name in chosen)
     }
@@ -579,8 +582,19 @@ def custom_manifest(
     }
 
 
+def _policy(tool: ServerTool, chosen: str | None) -> dict[str, str]:
+    if chosen:
+        return {"risk": chosen, "riskSource": "user"}
+    risk, source = risk_from_annotations(tool.annotations)
+    return {"risk": risk, "riskSource": source}
+
+
 def _saved_risks(installation: Installation) -> dict[str, str]:
-    """Risks the user consented to earlier (the stored overlay of an active installation)."""
+    """Risks the user chose earlier (``riskSource: user`` in the stored overlay).
+
+    A risk Mia derived (from annotations, or stored before M72-R1 without a source) is not a
+    choice: re-picking the tools shows what the server's annotations say now.
+    """
     manifest = installation.manifest
     tools = manifest.get("tools") if isinstance(manifest, Mapping) else None
     if installation.tools_digest is None or not isinstance(tools, Mapping):
@@ -591,6 +605,7 @@ def _saved_risks(installation: Installation) -> dict[str, str]:
         if isinstance(name, str)
         and isinstance(policy, Mapping)
         and policy.get("risk") in RISK_GRANTS
+        and policy.get("riskSource") == USER
     }
 
 

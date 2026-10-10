@@ -37,7 +37,7 @@ from app.modules.plugins.install.composition import (
     build_catalog_stack,
     install_store,
 )
-from app.modules.plugins.registry import PluginRegistry, SqlInstallationReader
+from app.modules.plugins.registry import PluginRegistry, SqlInstallationReader, SqlRiskStore
 from app.modules.tools.approvals import SqlApprovalService
 from app.modules.tools.audit import SqlToolAudit
 from app.modules.tools.composition import ToolStack
@@ -230,6 +230,7 @@ async def build_store(
         device_channel=channel,
         core_tools=core_tools,
         config=RouterConfig(call_timeout_s=5, list_cache_s=0),
+        risk_store=SqlRiskStore(database.session_factory),
     )
     tools = ToolStack(router, approvals, channel, core_tools, registry, connector)
     installed = install_store(

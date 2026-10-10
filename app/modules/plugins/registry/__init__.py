@@ -26,6 +26,12 @@ from app.modules.plugins.registry.manifest import (
     ToolPolicy,
     parse_manifest,
 )
+from app.modules.plugins.registry.risk import (
+    RiskStore,
+    SqlRiskStore,
+    rederive_risks,
+    risk_from_annotations,
+)
 from app.modules.plugins.registry.source import (
     DirectoryManifestSource,
     LoadedManifest,
@@ -47,11 +53,15 @@ __all__ = [
     "ManifestSource",
     "PluginManifest",
     "PluginRegistry",
+    "RiskStore",
     "ServerSpec",
     "SkillSummary",
     "SqlInstallationReader",
+    "SqlRiskStore",
     "StaticManifestSource",
     "StaticInstallationReader",
     "ToolPolicy",
     "parse_manifest",
+    "rederive_risks",
+    "risk_from_annotations",
 ]
