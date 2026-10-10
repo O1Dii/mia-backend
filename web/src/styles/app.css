@@ -1234,3 +1234,42 @@
 .mw-md-table tbody tr:last-child td {
   border-bottom: 0;
 }
+
+/* Notifications (M77): the «event type × channel» table scrolls inside its own frame. */
+.mw-matrix {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: var(--mia-space-2);
+  border-radius: var(--mia-radius-md);
+}
+.mw-matrix table {
+  width: 100%;
+  min-width: 20rem;
+  border-collapse: collapse;
+  font-size: var(--mia-type-label-size);
+}
+.mw-matrix th,
+.mw-matrix td {
+  padding: var(--mia-space-3) var(--mia-space-2);
+  border-bottom: 1px solid var(--mia-color-border);
+  text-align: center;
+  vertical-align: middle;
+}
+.mw-matrix thead th {
+  font-size: var(--mia-type-caption-size);
+  font-weight: var(--mia-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.mw-matrix th:first-child {
+  width: 34%;
+  text-align: left;
+  font-weight: var(--mia-weight-semibold);
+}
+.mw-matrix tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.mw-matrix input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--mia-color-accent-text);
+}

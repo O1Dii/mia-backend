@@ -97,7 +97,7 @@ class CreateScheduleBody(BaseModel):
     rule: str = Field(max_length=1000, pattern=RULE_PATTERN.pattern)
     timezone: str = Field(max_length=64, pattern=TIMEZONE_PATTERN.pattern)
     goal: str = Field(min_length=1, max_length=4000)
-    delivery: DeliveryBody
+    delivery: DeliveryBody | None = None
     misfire_policy: Literal["skip", "run_once", "limited_catch_up"] = "skip"
     catch_up_limit: int = Field(default=3, ge=1, le=24)
     kind: Literal["run", "reminder"] = "run"

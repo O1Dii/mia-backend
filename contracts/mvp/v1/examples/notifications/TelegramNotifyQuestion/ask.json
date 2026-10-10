@@ -1,0 +1,7 @@
+{
+  "text": "Присылать сюда уведомления Mia?",
+  "buttons": [
+    { "text": "Да", "callback_data": "notify:telegram:yes" },
+    { "text": "Нет", "callback_data": "notify:telegram:no" }
+  ]
+}

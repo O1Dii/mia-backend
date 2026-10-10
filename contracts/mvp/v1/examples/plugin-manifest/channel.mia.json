@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "mia.plugin/1",
+  "id": "community.notify-board",
+  "version": "1.0.0",
+  "name": "Доска уведомлений",
+  "listing": {
+    "description": "Показывает уведомления Mia на своей доске (пример плагина-канала уведомлений)",
+    "category": "productivity",
+    "author": "Mia"
+  },
+  "server": {
+    "kind": "declarative",
+    "actions": [
+      {
+        "name": "clear_board",
+        "description": "Очистить доску уведомлений",
+        "inputs": {},
+        "effect": "state.patch"
+      }
+    ],
+    "view": {
+      "type": "fields",
+      "fields": [
+        "board"
+      ]
+    }
+  },
+  "tools": {
+    "clear_board": {
+      "risk": "write_reversible"
+    }
+  },
+  "provides": {
+    "notificationChannel": {
+      "id": "notify-board",
+      "label": "Доска уведомлений",
+      "description": "Mia присылает уведомления на доску"
+    }
+  },
+  "permissions": {
+    "network": [],
+    "llm": {
+      "viaHost": true,
+      "monthlyBudgetUsd": 1
+    },
+    "memory": [],
+    "notify": false
+  }
+}

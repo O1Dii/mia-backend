@@ -1,8 +1,9 @@
 """Assistant inbox: results of jobs, fired timers/alarms and ``notify`` messages.
 
-Creating an item also queues its channel deliveries (push, telegram) in the same
-transaction, so an item is never lost between "stored" and "sent": the delivery
-loop picks pending rows up and retries them.
+Creating an item also queues its channel deliveries in the same transaction, so an item is
+never lost between "stored" and "sent": the delivery loop picks pending rows up and retries them.
+Which channels: the caller's explicit list, else the user's notification settings for the event
+type (:mod:`app.modules.notifications.preferences`).
 """
 
 from __future__ import annotations
@@ -19,12 +20,14 @@ from typing import Any, Literal
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.notifications.channels import is_channel_name
 from app.modules.notifications.models import DeliveryRow, InboxItemRow
+from app.modules.notifications.preferences import DEFAULT_ENABLED, EventType, resolve_channels
 
 SourceType = Literal["job", "schedule", "plugin", "system"]
 Channel = Literal["push", "telegram", "inbox"]
-DELIVERY_CHANNELS: tuple[str, ...] = ("push", "telegram")
-DEFAULT_CHANNELS: tuple[Channel, ...] = ("inbox", "push")
+DEFAULT_CHANNELS: tuple[str, ...] = ("inbox", *DEFAULT_ENABLED)
+"""What a user who never chose gets; also shown for jobs without explicit channels."""
 AWAY_WINDOW = timedelta(days=7)
 
 
@@ -101,10 +104,14 @@ async def add_item(
     source_id: str,
     title: str,
     response: dict[str, Any],
-    channels: Iterable[str],
+    channels: Iterable[str] | None,
     now: datetime,
+    event_type: EventType = "plugin_message",
 ) -> InboxItem:
-    """Insert an item and its pending deliveries inside the caller's transaction."""
+    """Insert an item and its pending deliveries inside the caller's transaction.
+
+    ``channels=None`` follows the user's settings for ``event_type``; a list is explicit and wins.
+    """
     row = InboxItemRow(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -116,8 +123,9 @@ async def add_item(
     )
     session.add(row)
     await session.flush()
-    for channel in dict.fromkeys(channels):
-        if channel not in DELIVERY_CHANNELS:
+    picked = await resolve_channels(session, user_id, event_type) if channels is None else channels
+    for channel in dict.fromkeys(picked):
+        if not is_channel_name(channel):
             continue
         session.add(
             DeliveryRow(
@@ -156,7 +164,8 @@ class InboxService:
         source_id: str,
         title: str,
         response: dict[str, Any],
-        channels: Iterable[str] = DEFAULT_CHANNELS,
+        channels: Iterable[str] | None = None,
+        event_type: EventType = "plugin_message",
     ) -> InboxItem:
         async with self._session_factory() as session, session.begin():
             item = await add_item(
@@ -168,6 +177,7 @@ class InboxService:
                 response=response,
                 channels=channels,
                 now=self._clock(),
+                event_type=event_type,
             )
         self.created()
         return item

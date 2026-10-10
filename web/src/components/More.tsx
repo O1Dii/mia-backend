@@ -1,4 +1,4 @@
-import { ChevronRight, Cpu, Layers3, ShieldHalf } from 'lucide-react'
+import { Bell, ChevronRight, Cpu, Layers3, ShieldHalf } from 'lucide-react'
 import { Link } from '../lib/router'
 import { AndroidAppRow } from './AndroidApp'
 
@@ -14,6 +14,12 @@ const items = [
     icon: Cpu,
     title: 'Модели',
     text: 'Ключи и подключения моделей, которыми отвечает Мия.',
+  },
+  {
+    to: '/notifications',
+    icon: Bell,
+    title: 'Уведомления',
+    text: 'Куда Мия присылает таймеры, результаты задач и вопросы: push, Telegram, входящие.',
   },
   {
     to: '/data',

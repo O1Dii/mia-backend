@@ -691,5 +691,19 @@
     "retryable": false,
     "public_message": "The capability is unknown.",
     "owner": "M70"
+  },
+  {
+    "code": "notification_channel_unknown",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The notification channel is unknown.",
+    "owner": "M77"
+  },
+  {
+    "code": "notification_event_type_unknown",
+    "http_status": 422,
+    "retryable": false,
+    "public_message": "The notification event type is unknown.",
+    "owner": "M77"
   }
 ]

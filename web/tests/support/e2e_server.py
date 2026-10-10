@@ -21,7 +21,8 @@ import os
 import sys
 import tempfile
 import time
-from collections.abc import AsyncIterator
+import uuid
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -59,6 +60,8 @@ from app.modules.jobs.composition import install_jobs  # noqa: E402
 from app.modules.memory import install_memory  # noqa: E402
 from app.modules.models.composition import install_models  # noqa: E402
 from app.modules.models.gateway import ProbeResult  # noqa: E402
+from app.modules.notifications.telegram import build_telegram  # noqa: E402
+from app.modules.notifications.telegram_api import InlineButton, SendResult  # noqa: E402
 from app.modules.plugins.builtin import BUILTIN_ROOT  # noqa: E402
 from app.modules.plugins.catalog.package import load_package  # noqa: E402
 from app.modules.plugins.catalog.showcase import showcase_for  # noqa: E402
@@ -130,6 +133,32 @@ class Script:
 
 
 BOT_LINK = "https://t.me/mia_e2e_bot?start=E2E-ONE-TIME-TOKEN"
+
+
+class E2EBotApi:
+    """The Telegram Bot API without a network (M77): remembers what the bot said, per chat."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict[str, Any]] = []
+
+    async def send_message(
+        self, chat_id: int, text: str, buttons: Sequence[InlineButton] | None = None
+    ) -> SendResult:
+        self.sent.append(
+            {"chat_id": chat_id, "text": text, "buttons": [b.text for b in buttons or []]}
+        )
+        return SendResult("sent")
+
+    async def answer_callback(self, callback_id: str) -> None:
+        return None
+
+    async def edit_message(self, chat_id: int, message_id: int, text: str) -> None:
+        self.sent.append({"chat_id": chat_id, "text": text, "buttons": [], "edited": True})
+
+
+def telegram_chat_of(user_id: str) -> int:
+    """A private chat id that is the same for the same user and differs between users."""
+    return 1_000_000 + uuid.UUID(user_id).int % 1_000_000_000
 
 
 class E2ETelegramHost:
@@ -494,6 +523,17 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     )
     memory.tools.bind_publisher(runs.publish)
     jobs = install_jobs(app, settings, runtime, runs=runs, core_tools=core_tools)
+    # The Telegram bot with a fake Bot API (M77): linking, the «Присылать сюда…» question, delivery.
+    bot_api = E2EBotApi()
+    telegram = build_telegram(
+        settings,
+        runtime,
+        api=bot_api,
+        preferences=jobs.notifications.preferences,  # type: ignore[arg-type]
+    )
+    assert telegram.channel is not None and telegram.bot is not None
+    jobs.notifications.channels.register(telegram.channel)
+    web_auth = request_authenticator(app)
     # Chats (M74), the feed per chat and «Сейчас»; titles come from the scripted model.
     install_chats(app, runtime, runs=runs, gateway=gateway)  # type: ignore[arg-type]
 
@@ -558,6 +598,50 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
                 "link_leaks": Script.link_leaks,
             }
         )
+
+    @test_routes.post("/telegram/link")
+    async def telegram_link(request: Request) -> JSONResponse:
+        """The user opened the deep link and pressed Start in the bot."""
+        principal = await web_auth.authenticate(request)
+        offer = await telegram.links.create_offer(uuid.UUID(principal.user_id))
+        chat = telegram_chat_of(principal.user_id)
+        assert telegram.bot is not None
+        await telegram.bot.handle_update(
+            {
+                "update_id": 1,
+                "message": {
+                    "chat": {"id": chat, "type": "private"},
+                    "from": {"id": chat, "is_bot": False},
+                    "text": f"/start {offer.token}",
+                },
+            }
+        )
+        return JSONResponse({"chat_id": chat})
+
+    @test_routes.post("/telegram/press")
+    async def telegram_press(request: Request) -> JSONResponse:
+        """The user pressed an inline button under the bot's question."""
+        principal = await web_auth.authenticate(request)
+        chat = telegram_chat_of(principal.user_id)
+        assert telegram.bot is not None
+        await telegram.bot.handle_update(
+            {
+                "update_id": 2,
+                "callback_query": {
+                    "id": "e2e-callback",
+                    "from": {"id": chat, "is_bot": False},
+                    "message": {"message_id": 7, "chat": {"id": chat, "type": "private"}},
+                    "data": (await request.json())["data"],
+                },
+            }
+        )
+        return JSONResponse({"ok": True})
+
+    @test_routes.get("/telegram/sent")
+    async def telegram_sent(request: Request) -> JSONResponse:
+        principal = await web_auth.authenticate(request)
+        chat = telegram_chat_of(principal.user_id)
+        return JSONResponse({"sent": [m for m in bot_api.sent if m["chat_id"] == chat]})
 
     @test_routes.post("/model-mode")
     async def model_mode(request: Request) -> JSONResponse:

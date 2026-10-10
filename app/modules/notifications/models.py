@@ -1,4 +1,5 @@
-"""Assistant inbox, device push tokens and per-channel deliveries (M16)."""
+"""Assistant inbox, device push tokens, per-channel deliveries (M16) and the user's notification
+settings (M77)."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -81,7 +83,10 @@ class DeliveryRow(Base):
 
     __tablename__ = "notification_deliveries"
     __table_args__ = (
-        CheckConstraint("channel IN ('push', 'telegram')", name="ck_deliveries_channel"),
+        CheckConstraint(
+            "channel ~ '^[a-z][a-z0-9_.:-]{0,47}$' AND channel <> 'inbox'",
+            name="ck_deliveries_channel",
+        ),
         CheckConstraint(
             "status IN ('pending', 'sent', 'skipped', 'failed')", name="ck_deliveries_status"
         ),
@@ -100,10 +105,54 @@ class DeliveryRow(Base):
     inbox_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("inbox_items.id", ondelete="CASCADE"), nullable=False
     )
-    channel: Mapped[str] = mapped_column(String(16), nullable=False)
+    channel: Mapped[str] = mapped_column(String(48), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False)
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_error: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class NotificationChannelSettingRow(Base):
+    """The user's own switch of one delivery channel; no row = the code default (M77)."""
+
+    __tablename__ = "notification_channel_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "channel ~ '^[a-z][a-z0-9_.:-]{0,47}$' AND channel <> 'inbox'",
+            name="ck_notification_channel_settings_channel",
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    channel: Mapped[str] = mapped_column(String(48), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    """When the user (or the channel's own question, e.g. the bot's «Да / Нет») decided."""
+
+
+class NotificationRouteRow(Base):
+    """One cell of the «event type × channel» table; no row = on (M77)."""
+
+    __tablename__ = "notification_routes"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('timer_alarm', 'job_result', 'approval', 'plugin_message')",
+            name="ck_notification_routes_event_type",
+        ),
+        CheckConstraint(
+            "channel ~ '^[a-z][a-z0-9_.:-]{0,47}$' AND channel <> 'inbox'",
+            name="ck_notification_routes_channel",
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    event_type: Mapped[str] = mapped_column(String(24), primary_key=True)
+    channel: Mapped[str] = mapped_column(String(48), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

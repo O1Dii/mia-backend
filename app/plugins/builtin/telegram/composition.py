@@ -31,7 +31,14 @@ def install_telegram_plugin(
     tools: ToolStack,
     api: TelegramBotApi | None = None,
 ) -> TelegramStack:
-    stack = install_telegram(app, settings, runtime, channels=jobs.notifications.channels, api=api)
+    stack = install_telegram(
+        app,
+        settings,
+        runtime,
+        channels=jobs.notifications.channels,
+        api=api,
+        preferences=jobs.notifications.preferences,
+    )
     bind_host(
         MiaTelegramHost(
             memory=memory.service,

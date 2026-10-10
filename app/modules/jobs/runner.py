@@ -133,6 +133,8 @@ class JobRunner:
                 lease_s=self.lease_s,
                 status=mirrored if mirrored != status else None,
             )
+            if lease is not None and mirrored == "waiting_approval" and status != mirrored:
+                await self._tell_waiting(job)
             status = mirrored
             if lease is None:
                 logger.warning("job_lease_lost", extra={"job_id": str(job.id)})
@@ -144,6 +146,13 @@ class JobRunner:
             elif cancel_reason is None and time.monotonic() - started > budget_s:
                 cancel_reason = "budget_exceeded"
                 await self._cancel_run(job, run_id, "budget_exceeded")
+
+    async def _tell_waiting(self, job: Job) -> None:
+        """The user is not watching a background run: say that it waits for their decision."""
+        try:
+            await self.store.notify_waiting_approval(job)
+        except Exception:
+            logger.warning("job_approval_notice_failed", extra={"job_id": str(job.id)})
 
     async def _cancel_run(self, job: Job, run_id: uuid.UUID, reason: Any) -> None:
         try:

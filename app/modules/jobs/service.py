@@ -13,7 +13,8 @@ from app.modules.jobs.recurrence import RecurrenceError, parse_recurrence
 from app.modules.jobs.settings import JobsSettings
 from app.modules.jobs.store import SqlJobStore
 from app.modules.notifications.content import plain, text_response, title
-from app.modules.notifications.inbox import DEFAULT_CHANNELS, InboxItem, InboxService, SourceType
+from app.modules.notifications.inbox import InboxItem, InboxService, SourceType
+from app.modules.notifications.preferences import EventType
 from app.modules.runs.domain import RunFinishedError, RunNotFoundError
 from app.modules.runs.service import RunService
 
@@ -22,11 +23,13 @@ logger = logging.getLogger(__name__)
 ALLOWED_CHANNELS = ("push", "telegram", "inbox")
 
 
-def channels_of(delivery: dict[str, Any] | None) -> tuple[str, ...]:
+def channels_of(delivery: dict[str, Any] | None) -> tuple[str, ...] | None:
+    """The channels a request asked for explicitly; ``None`` = the user's notification settings
+    decide when the result is delivered (M77)."""
     if not delivery or not delivery.get("channels"):
-        return DEFAULT_CHANNELS
+        return None
     picked = tuple(dict.fromkeys(str(c) for c in delivery["channels"] if c in ALLOWED_CHANNELS))
-    return picked or DEFAULT_CHANNELS
+    return picked or None
 
 
 class JobService:
@@ -215,6 +218,7 @@ class JobService:
         heading: str | None = None,
         source_type: SourceType = "system",
         source_id: str = "notify",
+        event_type: EventType = "plugin_message",
     ) -> InboxItem:
         since = self.store.clock() - timedelta(hours=1)
         if await self.inbox.count_since(user_id=user_id, since=since) >= (
@@ -229,4 +233,5 @@ class JobService:
             title=title(heading or plain(text, 80)),
             response=text_response(text, text),
             channels=picked,
+            event_type=event_type,
         )

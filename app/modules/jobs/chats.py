@@ -19,8 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.conversations.chats import LISTED_KINDS, append_card
 from app.modules.conversations.models import ChatKind, Conversation
+from app.modules.jobs.domain import explicit_channels
 from app.modules.jobs.messages import InboxDraft
 from app.modules.jobs.models import JobRow
+from app.modules.notifications.preferences import EventType, resolve_channels
 from app.modules.runs.models import RunRow
 
 
@@ -99,8 +101,25 @@ async def post_result_card(
     return chat if posted else None
 
 
-def delivery_channels(row: JobRow, chat: SourceChat | None) -> tuple[str, ...]:
-    channels = tuple(row.delivery.get("channels") or ())
+def event_type_of(row: JobRow) -> EventType:
+    """A reminder is a timer in the user's eyes; everything else is a task result."""
+    return "timer_alarm" if row.kind == "reminder" else "job_result"
+
+
+async def delivery_channels(
+    session: AsyncSession, row: JobRow, chat: SourceChat | None
+) -> tuple[str, ...]:
+    """Explicit ``delivery.channels`` win; otherwise the user's settings for the event type.
+
+    A result for the Telegram chat is also delivered to Telegram: it answers a question asked
+    there, whatever the notification settings say.
+    """
+    explicit = explicit_channels(row.delivery)
+    channels = (
+        explicit
+        if explicit is not None
+        else await resolve_channels(session, row.user_id, event_type_of(row))
+    )
     if chat is not None and chat.kind == ChatKind.TELEGRAM.value and "telegram" not in channels:
         channels = (*channels, "telegram")
     return channels

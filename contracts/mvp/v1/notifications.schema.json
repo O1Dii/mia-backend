@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/notifications.schema.json",
+  "title": "MIA MVP v1 notification settings (M77)",
+  "description": "The user decides where Mia's notifications arrive. The inbox always gets every item. Delivery channels (push to the devices, the Telegram bot, plugin channels) are switched per channel and per event type; a channel that was never chosen is off, except push, which is on for a new user. A newly connected channel asks «Присылать сюда уведомления Mia?» (the Telegram bot: inline buttons «Да» / «Нет») and the answer is saved here. An explicit delivery.channels of a job, schedule or notify call wins over these settings; a channel that cannot reach the user ends its delivery as skipped with a reason. Root document is NotificationSettings.",
+  "$ref": "#/$defs/NotificationSettings",
+  "$defs": {
+    "channelName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.:-]{0,47}$",
+      "not": { "const": "inbox" },
+      "description": "push, telegram or a plugin channel (provides.notificationChannel.id in the plugin manifest). inbox is not a channel: it is always on"
+    },
+    "eventType": {
+      "type": "string",
+      "enum": ["timer_alarm", "job_result", "approval", "plugin_message"],
+      "description": "timer_alarm = timers, alarms, focus sessions and reminders; job_result = results of background tasks and schedules; approval = a background task waits for the user's confirmation; plugin_message = notify messages from Mia, plugins and apps"
+    },
+    "ChannelStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "label", "status", "detail", "enabled", "decided"],
+      "properties": {
+        "name": { "$ref": "#/$defs/channelName" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Russian, for the settings screen" },
+        "status": { "type": "string", "enum": ["connected", "not_connected"], "description": "Whether the channel can reach this user now" },
+        "detail": {
+          "type": ["string", "null"],
+          "maxLength": 64,
+          "description": "Machine reason when not connected: push_not_configured (no FCM on the server), no_push_token (no phone registered), not_linked (Telegram), not_configured (channel not installed), unavailable"
+        },
+        "enabled": { "type": "boolean", "description": "The user's switch for the channel (default: on for push, off for the rest)" },
+        "decided": { "type": "boolean", "description": "False until the user (or the channel's own question) chose; the channel's question is asked while false" }
+      }
+    },
+    "EventTypeInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/eventType" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "NotificationSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inbox_always", "channels", "event_types", "matrix"],
+      "description": "GET /v1/notifications/settings. A notification goes to a channel when channels[].enabled and matrix[event_type][channel] are both true",
+      "properties": {
+        "inbox_always": { "const": true },
+        "channels": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/ChannelStatus" } },
+        "event_types": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/EventTypeInfo" } },
+        "matrix": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "«event type × channel» table; a missing cell is on",
+          "propertyNames": { "$ref": "#/$defs/eventType" },
+          "patternProperties": {
+            "^[a-z_]+$": {
+              "type": "object",
+              "propertyNames": { "$ref": "#/$defs/channelName" },
+              "additionalProperties": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "UpdateNotificationSettingsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "PATCH /v1/notifications/settings: a merge; names that are absent keep their value. 422 notification_channel_unknown / notification_event_type_unknown for names the server does not know",
+      "properties": {
+        "channels": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": { "$ref": "#/$defs/channelName" },
+          "additionalProperties": { "type": "boolean" }
+        },
+        "matrix": {
+          "type": "object",
+          "maxProperties": 4,
+          "propertyNames": { "$ref": "#/$defs/eventType" },
+          "additionalProperties": {
+            "type": "object",
+            "maxProperties": 32,
+            "propertyNames": { "$ref": "#/$defs/channelName" },
+            "additionalProperties": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "TelegramNotifyQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "buttons"],
+      "description": "What the Telegram bot sends right after linking (not an HTTP payload; documented for clients that mirror the wording). The answer is the callback data and is saved as channels.telegram",
+      "properties": {
+        "text": { "const": "Присылать сюда уведомления Mia?" },
+        "buttons": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text", "callback_data"],
+            "properties": {
+              "text": { "enum": ["Да", "Нет"] },
+              "callback_data": { "enum": ["notify:telegram:yes", "notify:telegram:no"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -13,8 +13,31 @@ OriginType = Literal["run", "schedule", "app", "user"]
 TERMINAL_JOB_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 
 
+AUTO_CHANNELS = ("inbox", "push")
+"""Shown as ``delivery.channels`` of a job or schedule without explicit channels; where its
+results really go is decided when it finishes, from the user's notification settings (M77)."""
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def delivery_of(channels: tuple[str, ...] | None) -> dict[str, Any]:
+    """Stored ``delivery``: explicit channels, or the ``auto`` marker (follow the settings)."""
+    if channels is None:
+        return {"channels": list(AUTO_CHANNELS), "auto": True}
+    return {"channels": list(channels)}
+
+
+def explicit_channels(delivery: dict[str, Any]) -> tuple[str, ...] | None:
+    """Inverse of :func:`delivery_of`: ``None`` = follow the settings."""
+    if delivery.get("auto"):
+        return None
+    return tuple(delivery.get("channels") or ()) or None
+
+
+def delivery_wire(delivery: dict[str, Any]) -> dict[str, Any]:
+    return {"channels": list(delivery.get("channels") or AUTO_CHANNELS)}
 
 
 def isoformat(value: datetime) -> str:
@@ -42,7 +65,8 @@ class NewJob:
     origin_type: OriginType
     origin_id: str
     budget: dict[str, Any]
-    channels: tuple[str, ...]
+    channels: tuple[str, ...] | None
+    """``None``: the user's notification settings decide when the job finishes."""
     inputs: dict[str, Any] | None = None
     kind: JobKind = "run"
     run_after: datetime | None = None
@@ -86,7 +110,7 @@ class Job:
             "origin": {"type": self.origin_type, "id": self.origin_id},
             "run_id": None if self.run_id is None else str(self.run_id),
             "budget": self.budget,
-            "delivery": self.delivery,
+            "delivery": delivery_wire(self.delivery),
             "attempt": self.attempt,
             "created_at": isoformat(self.created_at),
             "started_at": _iso_or_none(self.started_at),
@@ -107,7 +131,7 @@ class NewSchedule:
     rule: str
     timezone: str
     goal: str
-    channels: tuple[str, ...]
+    channels: tuple[str, ...] | None
     misfire_policy: str = "skip"
     catch_up_limit: int = 3
     kind: JobKind = "run"
@@ -138,7 +162,7 @@ class Schedule:
             "rule": self.rule,
             "timezone": self.timezone,
             "goal": self.goal,
-            "delivery": self.delivery,
+            "delivery": delivery_wire(self.delivery),
             "misfire_policy": self.misfire_policy,
             "catch_up_limit": self.catch_up_limit,
             "kind": self.kind,

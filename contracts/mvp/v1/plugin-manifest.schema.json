@@ -64,6 +64,28 @@
         "device": { "type": "string", "minLength": 5, "maxLength": 200, "description": "What may run on the phone, only by request and with consent (ADR-0016); omit when nothing does" }
       }
     },
+    "provides": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "M77: extension points the plugin offers to the core. notificationChannel makes the plugin a delivery channel of the user's notification settings (listed with a connected / not connected status; the user switches it and picks event types)",
+      "properties": {
+        "notificationChannel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "label"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.:-]{0,47}$",
+              "not": { "enum": ["inbox", "push", "telegram"] },
+              "description": "Channel name in notification settings and delivery.channels"
+            },
+            "label": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Russian, shown on the «Уведомления» screen" },
+            "description": { "type": "string", "maxLength": 200 }
+          }
+        }
+      }
+    },
     "surfaces": {
       "type": "object",
       "additionalProperties": false,

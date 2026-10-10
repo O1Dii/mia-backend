@@ -1,12 +1,17 @@
-"""Delivery channels for inbox items: push (FCM) built in, telegram as an extension point.
+"""Delivery channels for inbox items: push (FCM) built in, the Telegram bot and plugin channels.
 
 M41 registers its bot as ``notifications.channels.register(<NotificationChannel named
-"telegram">)``. Without a registered channel a delivery ends ``skipped``
+"telegram">)``; a plugin channel (``provides.notificationChannel`` in the manifest, M77) registers
+the same way under its own name. Without a registered channel a delivery ends ``skipped``
 (``channel_not_connected``); an inbox item is always stored regardless of channels.
+
+A channel may also expose ``label`` and ``async connection(user_id)``: what the settings page shows
+(«подключён / не подключён») and why a delivery would be skipped.
 """
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,6 +27,15 @@ from app.modules.notifications.fcm import FcmClient, PushMessage
 from app.modules.notifications.models import PushTokenRow
 
 DeliveryStatus = Literal["sent", "skipped", "retry", "failed"]
+
+CHANNEL_NAME = re.compile(r"^[a-z][a-z0-9_.:-]{0,47}$")
+BUILTIN_CHANNELS: dict[str, str] = {"push": "Push на телефон", "telegram": "Telegram-бот"}
+"""Always listed in the settings, connected or not."""
+
+
+def is_channel_name(name: str) -> bool:
+    """A delivery channel name; ``inbox`` is the always-on list, not a channel."""
+    return name != "inbox" and CHANNEL_NAME.fullmatch(name) is not None
 
 
 def utc_now() -> datetime:
@@ -49,9 +63,17 @@ class DeliveryResult:
     error_code: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ChannelConnection:
+    """Whether the channel can reach this user now; ``detail`` is a stable machine reason."""
+
+    connected: bool
+    detail: str | None = None
+
+
 class NotificationChannel(Protocol):
     name: str
-    """``push`` or ``telegram``."""
+    """``push``, ``telegram`` or a plugin channel (``[a-z][a-z0-9_.:-]*``)."""
 
     async def deliver(self, message: OutboundMessage) -> DeliveryResult: ...
 
@@ -61,9 +83,29 @@ class ChannelRegistry:
         self._channels: dict[str, NotificationChannel] = {}
 
     def register(self, channel: NotificationChannel) -> None:
-        if channel.name not in ("push", "telegram"):
-            raise ValueError("unknown notification channel")
+        if not is_channel_name(channel.name):
+            raise ValueError("invalid notification channel name")
         self._channels[channel.name] = channel
+
+    def label(self, name: str) -> str:
+        channel = self._channels.get(name)
+        label = getattr(channel, "label", None)
+        if isinstance(label, str) and label:
+            return label
+        return BUILTIN_CHANNELS.get(name, name)
+
+    async def connection(self, name: str, user_id: uuid.UUID) -> ChannelConnection:
+        channel = self._channels.get(name)
+        if channel is None:
+            return ChannelConnection(False, "not_configured")
+        probe = getattr(channel, "connection", None)
+        if probe is None:
+            return ChannelConnection(True)
+        try:
+            result = await probe(user_id)
+        except Exception:
+            return ChannelConnection(False, "unavailable")
+        return result if isinstance(result, ChannelConnection) else ChannelConnection(True)
 
     def get(self, name: str) -> NotificationChannel | None:
         return self._channels.get(name)
@@ -156,10 +198,18 @@ class PushChannel:
     """Sends one FCM message per valid device token of the user."""
 
     name = "push"
+    label = BUILTIN_CHANNELS["push"]
 
     def __init__(self, tokens: PushTokenStore, client: FcmClient | None) -> None:
         self._tokens = tokens
         self._client = client
+
+    async def connection(self, user_id: uuid.UUID) -> ChannelConnection:
+        if self._client is None:
+            return ChannelConnection(False, "push_not_configured")
+        if not await self._tokens.active(user_id):
+            return ChannelConnection(False, "no_push_token")
+        return ChannelConnection(True)
 
     @staticmethod
     def payload(message: OutboundMessage) -> PushMessage:

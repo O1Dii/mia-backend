@@ -19,6 +19,7 @@ import { Inbox, useUnreadInbox } from './components/Inbox'
 import { Memory } from './components/Memory'
 import { Models } from './components/Models'
 import { More } from './components/More'
+import { Notifications } from './components/Notifications'
 import { PluginPage } from './components/PluginPage'
 import { Privacy } from './components/Privacy'
 import { Store } from './components/Store'
@@ -48,7 +49,12 @@ const tabs: Tab[] = [
     icon: ShieldCheck,
     match: /^\/approvals/,
   },
-  { to: '/more', label: 'Ещё', icon: Ellipsis, match: /^\/(more|installed|models|data)/ },
+  {
+    to: '/more',
+    label: 'Ещё',
+    icon: Ellipsis,
+    match: /^\/(more|installed|models|data|notifications)/,
+  },
 ]
 
 export function App() {
@@ -80,6 +86,7 @@ function Shell() {
   else if (path.startsWith('/inbox')) screen = <Inbox />
   else if (path.startsWith('/memory')) screen = <Memory />
   else if (path.startsWith('/data')) screen = <Privacy />
+  else if (path.startsWith('/notifications')) screen = <Notifications />
   else if (path.startsWith('/more')) screen = <More />
   else if (path === '/store/connected') screen = <StoreConnected search={place.search} />
   else if (path === '/store/add-url') screen = <StoreAddUrl search={place.search} />

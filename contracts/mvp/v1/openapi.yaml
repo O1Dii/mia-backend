@@ -22,6 +22,7 @@ tags:
   - name: Plugins
   - name: Memory
   - name: Background
+  - name: Notifications
   - name: Devices
   - name: Telegram
   - name: Apps
@@ -2050,6 +2051,37 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DeviceCapabilitySetting'}
         default: *error
+  /v1/notifications/settings:
+    get:
+      tags: [Notifications]
+      operationId: getNotificationSettings
+      summary: Channels (push, Telegram, plugin channels) with their status, switches and the «event type × channel» table (M77)
+      responses:
+        '200':
+          description: The user's notification settings
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationSettings'}
+        default: *error
+    patch:
+      tags: [Notifications]
+      operationId: updateNotificationSettings
+      summary: Switch channels and table cells (a merge); 422 notification_channel_unknown / notification_event_type_unknown
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateNotificationSettingsRequest'}
+      responses:
+        '200':
+          description: The settings after the change
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationSettings'}
+        default: *error
   /v1/telegram/link:
     get:
       tags: [Telegram]
@@ -3387,6 +3419,8 @@ components:
     DeviceCapabilitySetting: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySetting'}
     DeviceCapabilitySettingList: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySettingList'}
     DeviceCapabilitySettingRequest: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySettingRequest'}
+    NotificationSettings: {$ref: 'notifications.schema.json#/$defs/NotificationSettings'}
+    UpdateNotificationSettingsRequest: {$ref: 'notifications.schema.json#/$defs/UpdateNotificationSettingsRequest'}
     Fact: {$ref: 'memory.schema.json#/$defs/Fact'}
     Person: {$ref: 'memory.schema.json#/$defs/Person'}
     Preference: {$ref: 'memory.schema.json#/$defs/Preference'}

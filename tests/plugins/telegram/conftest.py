@@ -21,7 +21,7 @@ from app.modules.memory import MemoryCipher, MemoryService, MemoryTools, SqlRunP
 from app.modules.memory.domain import PersonInput
 from app.modules.models.vault import KeyVault
 from app.modules.notifications.telegram import TelegramStack, build_telegram
-from app.modules.notifications.telegram_api import SendResult
+from app.modules.notifications.telegram_api import InlineButton, SendResult
 from app.modules.plugins.builtin import BuiltinManifestSource, HostServices
 from app.modules.plugins.builtin.factory import build_inprocess_server
 from app.modules.plugins.registry import (
@@ -132,11 +132,25 @@ class FakeBotApi:
     """The Bot API without a network: records every ``sendMessage``."""
 
     sent: list[tuple[int, str]] = field(default_factory=list)
+    buttons: list[tuple[int, str, list[InlineButton]]] = field(default_factory=list)
+    """Messages that carried inline buttons: ``(chat_id, text, buttons)``."""
+    answered: list[str] = field(default_factory=list)
+    edited: list[tuple[int, int, str]] = field(default_factory=list)
     outcomes: list[SendResult] = field(default_factory=list)
 
-    async def send_message(self, chat_id: int, text: str) -> SendResult:
+    async def send_message(
+        self, chat_id: int, text: str, buttons: Sequence[InlineButton] | None = None
+    ) -> SendResult:
         self.sent.append((chat_id, text))
+        if buttons:
+            self.buttons.append((chat_id, text, list(buttons)))
         return self.outcomes.pop(0) if self.outcomes else SendResult("sent")
+
+    async def answer_callback(self, callback_id: str) -> None:
+        self.answered.append(callback_id)
+
+    async def edit_message(self, chat_id: int, message_id: int, text: str) -> None:
+        self.edited.append((chat_id, message_id, text))
 
 
 @dataclass

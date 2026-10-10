@@ -169,6 +169,11 @@ export function Inbox() {
       <header className="mw-page__head">
         <h1 id="inbox-title">Входящие и задачи</h1>
         <p>Что Мия сделала в фоне, пока вас не было: ответы на задачи, напоминания и расписания.</p>
+        <p>
+          <Link to="/notifications" className="mw-link">
+            Настроить, куда приходят уведомления
+          </Link>
+        </p>
       </header>
       {error && (
         <p className="mw-error" role="alert">
