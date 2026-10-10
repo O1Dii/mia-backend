@@ -159,10 +159,13 @@ export function ChatList({ open, onClose }: { open: boolean; onClose: () => void
                         <span className="mw-chats__name">{name}</span>
                         {item.kind === 'telegram' && <span className="mia-chip">Telegram</span>}
                       </span>
-                      <span className="mw-chats__preview">
-                        {item.preview_role === 'user' && item.preview ? 'Вы: ' : ''}
-                        {item.preview ? plainText(item.preview) : 'Ещё без сообщений'}
-                      </span>
+                      {/* The open chat's text is on screen already: no second copy of it here. */}
+                      {!active && (
+                        <span className="mw-chats__preview">
+                          {item.preview_role === 'user' && item.preview ? 'Вы: ' : ''}
+                          {item.preview ? plainText(item.preview) : 'Ещё без сообщений'}
+                        </span>
+                      )}
                       <span className="mw-chats__when">
                         {when(item.last_message_at ?? item.created_at)}
                       </span>
