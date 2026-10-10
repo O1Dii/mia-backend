@@ -423,6 +423,7 @@ M74-R1, M72-R1 — без конфликтов; миграция `20261011_m74r1
 Linear — сохранённые до M72 риски считались выбором пользователя. Gate: ruff, format, mypy, контракты (130 operations, 102 error codes)
 PASS; pytest **1547 passed, 6 skipped, 0 failed**; Playwright с реальным backend **102 passed, 2 skipped**; Android = проверенная ветка
 M76-R1 (`lint test assembleDebug`, 710 тестов, 0 failed). Повтор пользователя — UC-MW5b-R1. M60 — READY.
+Выкладка 2026-10-11: образ из `92667d7` (`sha256:9172bba2…`), APK `0.1.0 (08fe646)` 42 385 410 байт — PASS без отката; миграция `m74r1_job_notes` применена; `/mia/health/ready`, `/mia/` 200, анонимные `/v1/feed`, `/v1/inbox` 401, соседние приложения 200; логи API/worker за 5 мин — 0 ошибок; свободно 678 МБ.
 Проверки пользователя MW5b: UC-M73-1, UC-M74-1, UC-M75-1, UC-M76-1, UC-M71-1, UC-M71-F1, UC-M72-1, UC-M77-1, повтор UC-M41-2.
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
