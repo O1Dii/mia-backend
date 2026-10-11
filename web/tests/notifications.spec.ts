@@ -135,8 +135,15 @@ test.describe('notification channels', () => {
     await expect(
       page.getByRole('checkbox', { name: 'Таймеры и будильники → Telegram-бот' }),
     ).toBeDisabled()
-    const saved = await (await page.request.get('/v1/notifications/settings')).json()
-    expect(saved.channels.find((c: { name: string }) => c.name === 'telegram').enabled).toBe(false)
+    // The switch flips before its save lands; wait for the server to agree.
+    const settings = async () => (await page.request.get('/v1/notifications/settings')).json()
+    await expect
+      .poll(
+        async () =>
+          (await settings()).channels.find((c: { name: string }) => c.name === 'telegram').enabled,
+      )
+      .toBe(false)
+    const saved = await settings()
     expect(saved.matrix.job_result.telegram).toBe(false)
     expect(saved.matrix.timer_alarm.telegram).toBe(true)
 
