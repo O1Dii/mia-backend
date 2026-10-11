@@ -249,7 +249,7 @@ async def test_another_tenant_reaches_nothing_of_anns_over_http(sec: Mvp, tmp_pa
     connection_id = (await ann.get("/v1/connections")).json()["items"][0]["id"]
 
     secrets_of_ann = [
-        "4711",
+        "сейфа 4711",  # not bare digits: a hex request_id may contain them
         "Яна Анина",
         "Отчёт Анны",
         "Сводка Анны",
