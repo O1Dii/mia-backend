@@ -12,7 +12,7 @@ Integration session обновляет этот индекс после merge.
 | --- | --- | --- | --- | --- | --- |
 | OI-ARCH-001 | OPEN | Android identity | Какой финальный application ID? | временный ID для PoC, не release OAuth | before S21-R1/release OAuth |
 | OI-ARCH-002 | RESOLVED | Android platform | Какой minSdk? | API 26 для PoC | resolved in S20 |
-| OI-ARCH-003 | SUPERSEDED | Wake word | Какая финальная активационная фраза? | activation отложена (ADR-009) | если activation вернётся в scope |
+| OI-ARCH-003 | DECIDED | Wake word | Какая финальная активационная фраза? | пользователь 2026-10-11: «Привет, Мия»; activation вернулась в scope (MW6b, M80/M81) | — |
 | OI-ARCH-004 | RESOLVED | Tools | Какой внешний read-only tool идёт первым? | system.get_current_datetime реализован | resolved in W4 |
 | OI-ARCH-005 | OPEN | Voice history | Насколько output transcript считается точным текстом ответа? | показывать как transcript с delivery metadata | S31 |
 | OI-ARCH-006 | DECIDED | Cost controls | Каковы точные daily/session Gemini limits? | request-count admission defaults в config, см. S18 inbox | S31 измеряет реальный расход |
@@ -316,7 +316,7 @@ Integration session обновляет этот индекс после merge.
 
 ### OI-ARCH-003 — Final wake phrase
 
-- Status: SUPERSEDED
+- Status: DECIDED (пользователь 2026-10-11: «Привет, Мия»; activation снова в scope — MW6b, M80/M81)
 - Source session: architecture
 - Component: wake word
 - Question: какая phrase является продуктовой и собирается для KWS evaluation?
@@ -4303,5 +4303,37 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Нет записей.
 
 ## M62 inbox
+
+- Нет записей.
+
+## M80 inbox
+
+- Нет записей.
+
+## M81 inbox
+
+- Нет записей.
+
+## M85 inbox
+
+- Нет записей.
+
+## M86 inbox
+
+- Нет записей.
+
+## M87 inbox
+
+- Нет записей.
+
+## M88 inbox
+
+- Нет записей.
+
+## M89 inbox
+
+- Нет записей.
+
+## M90 inbox
 
 - Нет записей.

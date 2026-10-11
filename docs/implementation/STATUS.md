@@ -436,6 +436,7 @@ MindWeaver, тот сам прочитал свой `backend/.env` и сдела
 видел, дальше — герметичная копия (OI-M60-005). Слияние `f05dd08`; gate на main: ruff, format, mypy (519), контракты (130
 operations, 102 error codes) PASS; pytest **1570 passed, 6 skipped, 4 xfailed (strict, находки M60), 0 failed**; Playwright = проверенная ветка (дерево идентично) **105 passed,
 2 skipped**; Android не менялся (`08fe646`). Следующие: M41-R2, M17-R1 (READY), M12-R1 (после решения OI-M60-001), M22-R2 (опц.).
+**Решения пользователя 2026-10-11 (после M60):** OI-M60-001 → (b), M12-R1; внешний вид не блокирует MVP (UC-M30-1, UC-M31-1, UC-M50-1 → «Необязательные»); новая волна **MW6b** до MW7: wake word «Привет, Мия» (сначала сравнение движков M80, затем M81 в фоне) и Personal Node со всеми четырьмя возможностями первой версии (M85 ADR → M86–M90). Карточки — MVP_SESSION_PLAN «MW6b».
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -489,8 +490,16 @@ operations, 102 error codes) PASS; pytest **1570 passed, 6 skipped, 4 xfailed (s
 | M17-R1 | MW6 | READY | M60 | Opus 5.5 high | — | — | удаление аккаунта и инкогнито в web/Android (OI-M60-003, OI-M17-004) |
 | M12-R1 | MW6 | READY | M60, OI-M60-001 (DECIDED: b) | Sonnet 5.5 high | — | — | бюджет голосового хода: параллельные чтения шага = один вызов |
 | M22-R2 | MW6 | READY | M60 | Sonnet 5.5 high | — | — | необязательно: экспорт голосовых замеров |
-| M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
-| M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
+| M80 | MW6b | READY | M22 | Opus 5.5 high | — | — | wake word: сравнение движков, фраза «Привет, Мия» |
+| M81 | MW6b | PENDING | M80, решение ADR-0018 | Opus 5.5 high | — | — | wake word в фоне (opt-in) |
+| M85 | MW6b | READY | M60, M70 | Opus 5.5 high | — | — | Personal Node: ADR-0019 и протокол |
+| M86 | MW6b | PENDING | M85, решение ADR-0019 | Opus 5.5 high | — | — | Node: runtime, pairing, relay |
+| M87 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: файлы и действия на ПК |
+| M88 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: Ollama |
+| M89 | MW6b | PENDING | M86 | Opus 5.5 high | — | — | Node: память и история дома |
+| M90 | MW6b | PENDING | M89 | Opus 5.5 high | — | — | Node: узел вместо сервера |
+| M61 | MW7 | PENDING | M60, MW6b | Sonnet 5.5 high | — | — | вторая модель |
+| M62 | MW7 | PENDING | M60, MW6b | Sonnet 5.5 high | — | — | пилотный деплой |
 
 ## New web platform direction — 2026-10-05
 
