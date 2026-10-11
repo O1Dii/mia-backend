@@ -16,11 +16,14 @@ MAX_ARGUMENT_BYTES = 16 * 1024
 MAX_SCHEMA_BYTES = 64 * 1024
 MAX_DESCRIPTION_CHARS = 1024
 SUMMARY_MAX_CHARS = 500
+REF_MAX_CHARS = 64
+NAME_MAX_CHARS = 120
 
 _RESULT_OPEN = "<tool_result"
 _RESULT_CLOSE = "</tool_result>"
 _TAG = re.compile(r"<\s*/?\s*tool_result", re.IGNORECASE)
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_REF_HINT = re.compile(r"\b(person|contact):")
 
 
 def encoded_arguments(arguments: object) -> bytes | None:
@@ -93,10 +96,52 @@ def structured_object(value: object, *, limit_bytes: int) -> JsonObject | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def approval_summary(plugin_name: str, local_tool: str, arguments: JsonObject) -> str:
-    """Core-rendered approval text: «Linear: delete_issue — id="ABC-1"» (≤ 500 chars)."""
-    parts = []
+def ref_arguments(schema: object, arguments: JsonObject) -> dict[str, str]:
+    """Top-level string arguments a tool documents as people refs, stripped (M41-R2).
+
+    An argument counts when its property schema mentions ``person:`` or ``contact:`` in the
+    ``description`` or ``pattern`` (``builtin.telegram.send_message.to``: "the ref
+    (person:<id>, contact:<n>) or name"). Other arguments (a message ``text`` that happens to
+    look like a ref) are never replaced on the approval card.
+    """
+    properties = schema.get("properties") if isinstance(schema, Mapping) else None
+    if not isinstance(properties, Mapping):
+        return {}
+    found: dict[str, str] = {}
+    for key, value in arguments.items():
+        prop = properties.get(key)
+        if not isinstance(value, str) or not isinstance(prop, Mapping):
+            continue
+        hint = " ".join(str(prop.get(field) or "") for field in ("description", "pattern"))
+        ref = value.strip()
+        if _REF_HINT.search(hint) and 0 < len(ref) <= REF_MAX_CHARS:
+            found[key] = ref
+    return found
+
+
+def _name_label(label: str) -> str:
+    cleaned = " ".join(_CONTROL.sub(" ", label).replace("«", '"').replace("»", '"').split())
+    return cleaned if len(cleaned) <= NAME_MAX_CHARS else cleaned[: NAME_MAX_CHARS - 1] + "…"
+
+
+def approval_summary(
+    plugin_name: str,
+    local_tool: str,
+    arguments: JsonObject,
+    names: Mapping[str, str] | None = None,
+) -> str:
+    """Core-rendered approval text: «Linear: delete_issue — id="ABC-1"» (≤ 500 chars).
+
+    ``names`` (argument → display name, from the owner's memory, M41-R2) replaces a people ref
+    with the name the user knows: «Telegram: send_message — to=«Яна Петрова (жена)»,
+    text="…"». Named arguments come first so a clipped voice prompt still says who; the
+    approval itself stays bound to the raw arguments (``args_hash``).
+    """
+    labels = {key: _name_label((names or {}).get(key) or "") for key in sorted(arguments)}
+    parts = [f"{key}=«{label}»" for key, label in labels.items() if label]
     for key in sorted(arguments):
+        if labels[key]:
+            continue
         try:
             value = json.dumps(arguments[key], ensure_ascii=False)
         except (TypeError, ValueError):

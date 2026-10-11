@@ -25,6 +25,11 @@ user's phone marked "remote": every call goes through
 an approval only the phone can decide (``device_consent``), waiting up to two minutes.
 Device results lose phone numbers. One model request carries at most
 ``RouterConfig.max_model_tools`` tools (OI-M15-R1-001).
+
+Approval text (M41-R2): for a trusted tool (core or in-process plugin) an argument documented
+as a people ref (``person:<id>``/``contact:<n>``) is shown by the name the run's owner knows
+(:class:`RefNameResolver`, bound late from the Memory Ledger). The approval stays bound to the
+raw arguments; a remote server receives the opaque ref, so its card keeps the ref.
 """
 
 from __future__ import annotations
@@ -36,10 +41,10 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
@@ -87,6 +92,7 @@ from app.modules.tools.policy import (
     clip_description,
     compile_schema,
     encoded_arguments,
+    ref_arguments,
     structured_object,
     untrusted,
 )
@@ -101,6 +107,14 @@ _STATUS_CODES = {
     "needs_connection": "connection_required",
     "needs_consent": "tool_consent_required",
 }
+
+
+class RefNameResolver(Protocol):
+    async def ref_names(
+        self, *, user_id: str, run_id: str, refs: Collection[str]
+    ) -> Mapping[str, str]:
+        """``ref → display name`` for the refs the owner can resolve in this run; others absent."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,9 +211,14 @@ class McpToolRouter:
         self._tool_cache: dict[tuple[str, str], tuple[float, list[ServerTool]]] = {}
         self._consumed: set[str] = set()
         self._device_access = device_access
+        self._ref_names: RefNameResolver | None = None
 
     def bind_device_access(self, access: DeviceAccess) -> None:
         self._device_access = access
+
+    def bind_ref_names(self, resolver: RefNameResolver | None) -> None:
+        """Late binding: the Memory Ledger is built after the tool stack (M41-R2)."""
+        self._ref_names = resolver
 
     # -- discovery --------------------------------------------------------------
 
@@ -689,6 +708,7 @@ class McpToolRouter:
             plugin.manifest.name if plugin else request.tool.split(".", 1)[0],
             entry.local_name or request.tool,
             request.arguments,
+            await self._ref_labels(context, entry, request.arguments),
         )
         approval = await self._approvals.request(
             ApprovalRequest(
@@ -707,6 +727,35 @@ class McpToolRouter:
             dataclasses.replace(audit, approval_id=approval.id), "approval_required", None
         )
         return ToolOutcome(call_id=request.call_id, status="approval_required", approval=approval)
+
+    async def _ref_labels(
+        self, context: ToolContext, entry: _Entry, arguments: JsonObject
+    ) -> dict[str, str]:
+        """Argument → owner's name for the ref, for the approval text only (M41-R2).
+
+        Only tools that resolve refs through Mia themselves (core tools, in-process plugins)
+        are named; the lookup is scoped to the run's owner and run. Any failure keeps the raw
+        ref on the card; the approval is unaffected.
+        """
+        resolver = self._ref_names
+        trusted = entry.kind == "core" or (
+            entry.kind == "plugin"
+            and entry.plugin is not None
+            and entry.plugin.manifest.server.in_process
+        )
+        if resolver is None or not trusted:
+            return {}
+        wanted = ref_arguments(entry.descriptor.spec.input_schema, arguments)
+        if not wanted:
+            return {}
+        try:
+            names = await resolver.ref_names(
+                user_id=context.user_id, run_id=context.run_id, refs=set(wanted.values())
+            )
+        except Exception:
+            logger.warning("approval_ref_names_failed", extra={"tool": entry.descriptor.spec.name})
+            return {}
+        return {key: names[ref] for key, ref in wanted.items() if names.get(ref)}
 
     async def _consume_approval(
         self, context: ToolContext, request: ToolCallRequest, audit: AuditEntry

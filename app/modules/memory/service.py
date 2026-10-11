@@ -643,6 +643,31 @@ class MemoryService:
             keys = await self._cipher.keys(session, user)
             return dict(self._person(keys, row).identifiers)
 
+    async def people_by_ids(self, *, user_id: str, person_ids: Collection[str]) -> list[Person]:
+        """The owner's *active* people with these ids (others' and unknown ids are skipped).
+
+        Read for the owner's own screen (the approval card names the recipient, M41-R2), so it
+        is not a model read and is not written to the access log.
+        """
+        user = _uuid(user_id)
+        ids = list(dict.fromkeys(i for i in (_uuid(p) for p in person_ids) if i is not None))
+        if user is None or not ids:
+            return []
+        async with self._sessions() as session, session.begin():
+            keys = await self._cipher.existing_keys(session, user)
+            if keys is None:
+                return []
+            rows = (
+                await session.scalars(
+                    select(MemoryPerson).where(
+                        MemoryPerson.user_id == user,
+                        MemoryPerson.status == "active",
+                        MemoryPerson.id.in_(ids[:PEOPLE_SCAN_MAX]),
+                    )
+                )
+            ).all()
+            return [self._person(keys, row) for row in rows]
+
     async def mark_used(self, *, user_id: str, record_ids: Sequence[str]) -> None:
         user = _uuid(user_id)
         ids = [i for i in (_uuid(r) for r in record_ids) if i is not None]

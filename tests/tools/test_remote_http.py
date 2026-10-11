@@ -34,7 +34,14 @@ from app.modules.tools.router import McpToolRouter, RouterConfig
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from tests.tools.helpers import Recorder, build_server, digest_of, manifest
+from tests.tools.helpers import (
+    RECIPIENT_POLICY,
+    TOOL_POLICIES,
+    Recorder,
+    build_server,
+    digest_of,
+    manifest,
+)
 
 HOST = "mcp.test.example"
 PUBLIC_IP = "93.184.216.34"
@@ -98,9 +105,10 @@ async def remote_world(
     url: str = f"https://{HOST}/mcp",
     call_timeout_s: float = 0.5,
     user_id: str | None = None,
+    recipient_tool: bool = False,
 ) -> AsyncIterator[Remote]:
     recorder = Recorder()
-    server = build_server(recorder)
+    server = build_server(recorder, recipient_tool=recipient_tool)
     spy = HeaderSpy(
         server.streamable_http_app(
             stateless_http=True,
@@ -112,6 +120,7 @@ async def remote_world(
         PLUGIN,
         server={"kind": "remote", "url": url, "auth": auth, "protocolVersion": "2026-07-28"},
         network=[HOST],
+        tools={**TOOL_POLICIES, **RECIPIENT_POLICY} if recipient_tool else None,
     )
     user_id = user_id or str(uuid.uuid4())
     installation = InstallationRecord(

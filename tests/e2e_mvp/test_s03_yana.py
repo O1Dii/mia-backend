@@ -17,7 +17,6 @@ import json
 from typing import Any
 
 import httpx
-import pytest
 
 from tests.e2e_mvp.harness import (
     Mvp,
@@ -114,7 +113,7 @@ async def test_two_yanas_clarify_then_approve_on_the_phone_and_hand_off(mvp: Mvp
     approval = await phone.pending_approval(wait_s=10)
     assert approval["tool"] == SEND and approval["risk"] == "write_external"
     assert approval["arguments"] == {"to": f"person:{petrova}", "text": TEXT}
-    assert TEXT in approval["summary"]  # the recipient: see the xfail test below
+    assert TEXT in approval["summary"]  # the recipient: see the test at the end (M41-R2)
 
     # A decision for other arguments (tampered hash) is refused; the right one goes through.
     tampered = await phone.post(
@@ -189,11 +188,6 @@ async def test_another_account_cannot_decide_the_approval(mvp: Mvp) -> None:
     assert "device_tool.call" not in types(events)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason='M60 finding: the approval summary shows to="person:<uuid>" instead of the '
-    "recipient's name after people.resolve (repair M41-R2)",
-)
 async def test_confirmation_names_the_recipient_chosen_by_ref(mvp: Mvp) -> None:
     phone, petrova, _ = await prepare(mvp)
     mvp.model.then(
