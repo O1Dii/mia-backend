@@ -1,0 +1,652 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/mvp/v1/devices.schema.json",
+  "title": "MIA MVP v1 «Устройства» (M84)",
+  "description": "The account's devices in one list: phones (the Mia app), browsers (web sessions; the app's WebView counts as its phone) and, from M86, Personal Nodes. Presence is online (contact within online_window_seconds or an open connection), recent (contact within an hour), offline, or no_push (a phone that cannot be woken by push and is not in contact; requests of other clients would fail until the app is opened). Each phone lists its capabilities (on in Mia, OS permission, whether other clients may ask, which installed plugins use them), the persistent permissions it gave (revocable) and a link to its access log. A separate cloud row shows what runs without any device. Names, states and times only: never phone numbers or content. Clients must treat unknown enum values (a new device kind, presence status or via) as «other» and keep working. Root document is a DeviceDetail.",
+  "$ref": "#/$defs/DeviceDetail",
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deviceKind": {
+      "type": "string",
+      "enum": [
+        "phone",
+        "browser",
+        "node"
+      ],
+      "description": "phone = the Mia app on a phone (devices row, listed while it has an active sign-in); browser = a web session (not the app's WebView); node = a Personal Node (M86; presence by its connection)"
+    },
+    "osPermission": {
+      "type": "string",
+      "enum": [
+        "granted",
+        "denied",
+        "not_required",
+        "unknown"
+      ],
+      "description": "The OS permission the capability needs on the phone, as last reported by the app (unknown before the first report)"
+    },
+    "DevicePresence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "via"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "recent",
+            "offline",
+            "no_push"
+          ],
+          "description": "online: contact within online_window_seconds (requests or the heartbeat of an open app/tab) or an open connection; recent: contact within 60 minutes («был(а) N мин назад», from last_seen_at); offline: older; no_push: a phone without a usable push channel that is not online"
+        },
+        "via": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "connection",
+            "contact",
+            null
+          ],
+          "description": "Why it is online: an open connection (Personal Node, M86) or a recent contact; null when not online"
+        }
+      }
+    },
+    "DevicePlatform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "model",
+        "app_version",
+        "client"
+      ],
+      "properties": {
+        "os": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "description": "«Android 15» (phone report)"
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "app_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "client": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "description": "Browser and system from the User-Agent, e.g. «браузер Chrome на macOS» (never the raw header)"
+        }
+      }
+    },
+    "deviceFields": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "default_name",
+        "custom_name",
+        "current",
+        "platform",
+        "connected_at",
+        "last_seen_at",
+        "presence",
+        "push"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "kind": {
+          "$ref": "#/$defs/deviceKind"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "The user's name for it, else default_name"
+        },
+        "default_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "custom_name": {
+          "type": "boolean",
+          "description": "The user renamed it (PATCH /v1/devices/{id})"
+        },
+        "current": {
+          "type": "boolean",
+          "description": "The device making this request («Это устройство»)"
+        },
+        "platform": {
+          "$ref": "#/$defs/DevicePlatform"
+        },
+        "connected_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Sign-in that is still active"
+        },
+        "last_seen_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last contact with Mia (exact within a minute)"
+        },
+        "presence": {
+          "$ref": "#/$defs/DevicePresence"
+        },
+        "push": {
+          "type": "string",
+          "enum": [
+            "registered",
+            "missing",
+            "not_configured",
+            "not_applicable"
+          ],
+          "description": "Can Mia wake this phone: registered token; missing token; push not configured on the server; not_applicable for browsers and nodes"
+        },
+        "capabilities_ready": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Phones: capabilities that are on in Mia and have the OS permission they need"
+        },
+        "capabilities_total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Fields shared by DeviceSummary and DeviceDetail"
+    },
+    "DeviceSummary": {
+      "type": "object",
+      "description": "One row of GET /v1/devices",
+      "allOf": [
+        {
+          "$ref": "#/$defs/deviceFields"
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "DevicePluginUse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plugin_id",
+        "name",
+        "description",
+        "optional"
+      ],
+      "description": "An installed plugin that may use the capability on request («Где работает», M72)",
+      "properties": {
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "optional": {
+          "type": "boolean",
+          "description": "The plugin works without it"
+        }
+      }
+    },
+    "DeviceCapabilityState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "label",
+        "kind",
+        "model_sees",
+        "persistent_allowed",
+        "enabled",
+        "os_permission",
+        "remote",
+        "ready",
+        "plugins"
+      ],
+      "properties": {
+        "capability": {
+          "$ref": "device-access.schema.json#/$defs/deviceCapability"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "kind": {
+          "$ref": "device-access.schema.json#/$defs/capabilityKind"
+        },
+        "model_sees": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "persistent_allowed": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "The app on this phone offers it (declared device tools)"
+        },
+        "os_permission": {
+          "$ref": "#/$defs/osPermission"
+        },
+        "remote": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "deny"
+          ],
+          "description": "May other clients ask for it (changed only on the phone: PUT /v1/devices/{id}/capabilities/{capability})"
+        },
+        "ready": {
+          "type": "boolean",
+          "description": "enabled and the OS permission is granted or not required"
+        },
+        "plugins": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/DevicePluginUse"
+          }
+        }
+      }
+    },
+    "DeviceReceivedGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target_device_id",
+        "target_device_name",
+        "capability",
+        "capability_label",
+        "created_at",
+        "expires_at",
+        "last_used_at"
+      ],
+      "description": "A persistent permission another phone gave to this device or browser; revoked on the target: DELETE /v1/devices/{target_device_id}/grants/{id}",
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "target_device_id": {
+          "$ref": "common.schema.json#/$defs/id"
+        },
+        "target_device_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "capability": {
+          "$ref": "device-access.schema.json#/$defs/deviceCapability"
+        },
+        "capability_label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "last_used_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DeviceDetail": {
+      "description": "GET /v1/devices/{id}: the summary plus what can run on the device and the permissions around it",
+      "allOf": [
+        {
+          "$ref": "#/$defs/deviceFields"
+        }
+      ],
+      "type": "object",
+      "unevaluatedProperties": false,
+      "required": [
+        "capabilities",
+        "grants",
+        "received_grants",
+        "links",
+        "actions"
+      ],
+      "properties": {
+        "notifications": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "Phones: may the app show notifications (needed for consent requests)"
+        },
+        "reported_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Phones: when the app last reported its state"
+        },
+        "capabilities": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/DeviceCapabilityState"
+          },
+          "description": "Phones: every known capability; empty for browsers"
+        },
+        "grants": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "device-access.schema.json#/$defs/DeviceGrant"
+          },
+          "description": "Phones: persistent permissions this phone gave to other clients; revoke with DELETE /v1/devices/{id}/grants/{grant_id}"
+        },
+        "received_grants": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/DeviceReceivedGrant"
+          }
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "access_log"
+          ],
+          "properties": {
+            "access_log": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 256,
+              "description": "Phones: GET path of the access log (what other clients asked, when, the decision)"
+            }
+          }
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rename",
+            "disconnect"
+          ],
+          "properties": {
+            "rename": {
+              "type": "boolean"
+            },
+            "disconnect": {
+              "type": "boolean",
+              "description": "false for the current device (sign out instead)"
+            }
+          }
+        }
+      }
+    },
+    "CloudPlugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plugin_id",
+        "name",
+        "cloud",
+        "device"
+      ],
+      "properties": {
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "cloud": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "«Где работает»: the cloud part"
+        },
+        "device": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000,
+          "description": "What it may do on a phone on request, if anything"
+        }
+      }
+    },
+    "CloudRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "status",
+        "summary",
+        "plugins"
+      ],
+      "description": "«Облако Mia»: what works without any device",
+      "properties": {
+        "label": {
+          "const": "Облако Mia"
+        },
+        "status": {
+          "const": "online"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "plugins": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/CloudPlugin"
+          }
+        }
+      }
+    },
+    "DeviceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "cloud",
+        "server_time",
+        "online_window_seconds"
+      ],
+      "description": "GET /v1/devices: the current device first, then phones, nodes, browsers; online and recently seen first",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/DeviceSummary"
+          }
+        },
+        "cloud": {
+          "$ref": "#/$defs/CloudRow"
+        },
+        "server_time": {
+          "$ref": "#/$defs/timestamp",
+          "description": "For «N мин назад» without trusting the client clock"
+        },
+        "online_window_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "DeviceRenameRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "description": "New name (one line); null or empty returns the default name"
+        }
+      }
+    },
+    "DeviceStatusReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Sent by the app on a phone with its heartbeat; names and states only. Ignored from other clients",
+      "properties": {
+        "os": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "app_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "notifications": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "capability",
+              "os_permission"
+            ],
+            "properties": {
+              "capability": {
+                "$ref": "device-access.schema.json#/$defs/deviceCapability"
+              },
+              "os_permission": {
+                "$ref": "#/$defs/osPermission"
+              }
+            }
+          }
+        }
+      }
+    },
+    "DeviceHeartbeatRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "POST /v1/devices/heartbeat body (may be omitted): an open app or tab sends it every next_heartbeat_seconds",
+      "properties": {
+        "report": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DeviceStatusReport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DeviceHeartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_id",
+        "kind",
+        "next_heartbeat_seconds"
+      ],
+      "properties": {
+        "device_id": {
+          "$ref": "common.schema.json#/$defs/id",
+          "description": "The caller's device (a browser: its web session)"
+        },
+        "kind": {
+          "$ref": "#/$defs/deviceKind"
+        },
+        "next_heartbeat_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Protocol, cast
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -489,7 +489,10 @@ class SqlDeviceAccessStore:
         async with self._session_factory() as session:
             rows = (
                 await session.execute(
-                    select(DeviceToolDeclarationSet, Device.device_name)
+                    select(
+                        DeviceToolDeclarationSet,
+                        func.coalesce(Device.display_name, Device.device_name),
+                    )
                     .join(Device, Device.id == DeviceToolDeclarationSet.device_id)
                     .where(DeviceToolDeclarationSet.user_id == user, Device.user_id == user)
                     .order_by(DeviceToolDeclarationSet.updated_at.desc())
@@ -510,8 +513,11 @@ class SqlDeviceAccessStore:
         if user is None or device is None:
             return None
         async with self._session_factory() as session:
+            # The name chosen on the «Устройства» screen (M84) wins over the model name.
             name = await session.scalar(
-                select(Device.device_name).where(Device.id == device, Device.user_id == user)
+                select(func.coalesce(Device.display_name, Device.device_name)).where(
+                    Device.id == device, Device.user_id == user
+                )
             )
         return name
 

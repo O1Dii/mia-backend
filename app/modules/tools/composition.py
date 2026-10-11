@@ -143,9 +143,20 @@ def install_tools(
     )
     if access is not None:
         access.bind_notifier(build_device_push(runtime.database.session_factory))
+
+        async def account_access(user_id: str, device_id: str) -> bool:
+            """M84: another session of the phone's owner may list/revoke grants, read the log."""
+            directory = getattr(app.state, "devices", None)
+            return directory is not None and bool(
+                await directory.owns_phone(user_id=user_id, device_id=device_id)
+            )
+
         app.include_router(
             build_device_access_router(
-                access=access, calls=stack.device_channel, authenticator=authenticator
+                access=access,
+                calls=stack.device_channel,
+                authenticator=authenticator,
+                account_access=account_access,
             )
         )
         app.state.run_origins = RunOriginResolver(access, authenticator)

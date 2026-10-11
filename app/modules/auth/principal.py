@@ -7,6 +7,8 @@ both sign-ins upsert the user by the verified Google ``sub``.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Literal
 from urllib.parse import urlsplit
@@ -19,6 +21,7 @@ from app.modules.auth.tokens import ExpiredAccessTokenError, InvalidAccessTokenE
 from app.modules.users.models import User
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+logger = logging.getLogger(__name__)
 
 
 class AuthenticationFailure(Exception):
@@ -68,12 +71,28 @@ class RequestPrincipal:
     user: User
 
 
+PrincipalObserver = Callable[[Request, RequestPrincipal], Awaitable[None]]
+"""Told about every authenticated request (M84: device presence); must not raise."""
+
+
 class RequestAuthenticator:
     """Resolve bearer first (explicit), then the web session cookie."""
 
     def __init__(self, service: AuthService, policy: WebCookiePolicy | None = None) -> None:
         self._service = service
         self._policy = policy or WebCookiePolicy()
+        self._observers: list[PrincipalObserver] = []
+
+    def add_observer(self, observer: PrincipalObserver) -> None:
+        self._observers.append(observer)
+
+    async def _observed(self, request: Request, principal: RequestPrincipal) -> RequestPrincipal:
+        for observer in self._observers:
+            try:
+                await observer(request, principal)
+            except Exception:
+                logger.warning("principal_observer_failed")
+        return principal
 
     @property
     def policy(self) -> WebCookiePolicy:
@@ -82,11 +101,11 @@ class RequestAuthenticator:
     async def authenticate(self, request: Request) -> RequestPrincipal:
         authorization = request.headers.get("authorization")
         if authorization is not None:
-            return await self._bearer(authorization)
+            return await self._observed(request, await self._bearer(authorization))
         cookie = request.cookies.get(self._policy.session_cookie)
         if cookie:
             self.enforce_same_origin(request)
-            return await self._cookie(cookie)
+            return await self._observed(request, await self._cookie(cookie))
         raise AuthenticationFailure(401, "authentication_required", "Authentication is required.")
 
     def enforce_same_origin(self, request: Request) -> None:

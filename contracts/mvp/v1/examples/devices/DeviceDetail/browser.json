@@ -1,0 +1,29 @@
+{
+  "id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "kind": "browser",
+  "name": "браузер Chrome на macOS",
+  "default_name": "браузер Chrome на macOS",
+  "custom_name": false,
+  "current": true,
+  "platform": { "os": null, "model": null, "app_version": null, "client": "браузер Chrome на macOS" },
+  "connected_at": "2026-10-09T18:00:00Z",
+  "last_seen_at": "2026-10-11T10:00:00Z",
+  "presence": { "status": "online", "via": "contact" },
+  "push": "not_applicable",
+  "capabilities": [],
+  "grants": [],
+  "received_grants": [
+    {
+      "id": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+      "target_device_id": "6f1d2c3b-4a5e-4f60-8b7a-9c0d1e2f3a4b",
+      "target_device_name": "Мой Galaxy",
+      "capability": "alarm.clock",
+      "capability_label": "будильник в «Часах» телефона",
+      "created_at": "2026-10-10T09:00:30Z",
+      "expires_at": "2026-11-09T09:00:30Z",
+      "last_used_at": "2026-10-10T19:12:00Z"
+    }
+  ],
+  "links": { "access_log": null },
+  "actions": { "rename": true, "disconnect": false }
+}

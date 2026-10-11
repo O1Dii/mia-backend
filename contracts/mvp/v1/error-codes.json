@@ -719,5 +719,12 @@
     "retryable": true,
     "public_message": "The account was not fully deleted. Try again.",
     "owner": "M17"
+  },
+  {
+    "code": "device_is_current",
+    "http_status": 409,
+    "retryable": false,
+    "public_message": "This is the device you are using; sign out instead.",
+    "owner": "M84"
   }
 ]

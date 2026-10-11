@@ -1,0 +1,68 @@
+{
+  "items": [
+    {
+      "id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "kind": "browser",
+      "name": "браузер Chrome на macOS",
+      "default_name": "браузер Chrome на macOS",
+      "custom_name": false,
+      "current": true,
+      "platform": { "os": null, "model": null, "app_version": null, "client": "браузер Chrome на macOS" },
+      "connected_at": "2026-10-09T18:00:00Z",
+      "last_seen_at": "2026-10-11T10:00:00Z",
+      "presence": { "status": "online", "via": "contact" },
+      "push": "not_applicable"
+    },
+    {
+      "id": "6f1d2c3b-4a5e-4f60-8b7a-9c0d1e2f3a4b",
+      "kind": "phone",
+      "name": "Мой Galaxy",
+      "default_name": "Galaxy S25",
+      "custom_name": true,
+      "current": false,
+      "platform": { "os": "Android 15", "model": "Samsung SM-S938B", "app_version": "0.9.0", "client": null },
+      "connected_at": "2026-10-01T08:00:00Z",
+      "last_seen_at": "2026-10-11T09:59:30Z",
+      "presence": { "status": "online", "via": "contact" },
+      "push": "registered",
+      "capabilities_ready": 3,
+      "capabilities_total": 4
+    },
+    {
+      "id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f7a8b9c0d",
+      "kind": "phone",
+      "name": "Pixel 8",
+      "default_name": "Pixel 8",
+      "custom_name": false,
+      "current": false,
+      "platform": { "os": "Android 14", "model": "Google Pixel 8", "app_version": "0.9.0", "client": null },
+      "connected_at": "2026-10-05T12:00:00Z",
+      "last_seen_at": "2026-10-11T09:35:00Z",
+      "presence": { "status": "recent", "via": null },
+      "push": "registered",
+      "capabilities_ready": 4,
+      "capabilities_total": 4
+    }
+  ],
+  "cloud": {
+    "label": "Облако Mia",
+    "status": "online",
+    "summary": "Чат, голос, память, расписания, будильники и уведомления работают на сервере Mia — даже когда все устройства выключены.",
+    "plugins": [
+      {
+        "plugin_id": "builtin.alarm",
+        "name": "Будильник",
+        "cloud": "Будильники хранятся и срабатывают на сервере Mia: уведомление придёт, даже если приложение закрыто.",
+        "device": "Только по вашей просьбе будильник можно поставить ещё и в «Часах» телефона; без вашего разрешения это не происходит."
+      },
+      {
+        "plugin_id": "builtin.notes",
+        "name": "Заметки",
+        "cloud": "Работает на сервере Mia.",
+        "device": null
+      }
+    ]
+  },
+  "server_time": "2026-10-11T10:00:05Z",
+  "online_window_seconds": 120
+}
