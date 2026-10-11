@@ -4305,3 +4305,32 @@ from the old voice/session dependency graph. These issues do not change its gate
 ## M62 inbox
 
 - Нет записей.
+
+## M22-R2 inbox
+
+### OI-M22-R2-001 — Экспорт замеров: что считается p50/p95 и что попадает в таблицу
+
+- Status: DECIDED
+- Source session: M22-R2
+- Component: Android голосовой экран, `VoiceMetricsExport`
+- Question: как считать p50/p95 и как поступать с ходами без звука.
+- Decision: как в UC-M60-8: p50 — медиана (при чётном числе — среднее двух средних, округлённое), p95 — значение с рангом `ceil(0,95·n)` (19-е из 20). Считаются только ходы, где был первый звук; ходы без звука (ошибка, не распознано) перечислены в таблице и в строке «Без звука: N», в p50/p95 не входят. В таблице: номер, итог, первый звук, откуда звук (подготовка/ответ/подтверждение/ошибка), STT, старт run (`POST /v1/runs`), TTS. Текст фраз, run id и другие личные данные в экспорт не попадают.
+- Why non-blocking: только формат экспорта; числа в самом приложении не менялись.
+
+### OI-M22-R2-002 — Строка «Первый звук» теперь видна и после хода без звука
+
+- Status: DECIDED
+- Source session: M22-R2
+- Component: Android голосовой экран
+- Question: действие живёт на строке «Первый звук через N мс», а она показывалась только когда звук был.
+- Decision: после любого хода строка есть; без звука она читается «Нет звука», долгое нажатие по ней работает так же. Под строкой подсказка «Удерживайте строку, чтобы скопировать замеры». Долгое нажатие кладёт текст в буфер обмена и открывает системное «Поделиться». Скрытия за `BuildConfig.DEBUG` нет, действие есть в `assembleLiveDebug`.
+- Why non-blocking: косметика экрана замеров.
+
+### OI-M22-R2-003 — Тесты `core:network`/`core:push` в worktree ищут контракты в `../mia-helper`
+
+- Status: OPEN
+- Source session: M22-R2
+- Component: Android сборка (`core/network/build.gradle.kts`, `core/push/build.gradle.kts`)
+- Question: в worktree `mia-helper-android-wt/<сессия>` путь по умолчанию `../mia-helper/contracts` не существует, `test` падает на FileNotFoundException. Гейт запускался с `-PmiaContractsDir=<backend-wt>/contracts/realtime/v1/fixtures -PmiaMvpContractsDir=<backend-wt>/contracts/mvp/v1/fixtures`.
+- Why non-blocking: окружение worktree, код приложения не затронут; та же схема, что в handoff M76-R1.
+- Recommendation: передавать свойства в команде гейта сессий (или завести их в `~/.gradle/gradle.properties`).
