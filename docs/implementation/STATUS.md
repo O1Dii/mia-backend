@@ -487,7 +487,7 @@ operations, 102 error codes) PASS; pytest **1570 passed, 6 skipped, 4 xfailed (s
 | M60 | MW6 | COMPLETED | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | [M60](handoffs/M60.md) | `f05dd08` | MVP NOT READY: 3→M41-R2, 7→M17-R1, 2 ждёт OI-M60-001; живые UC-M60-1…12 |
 | M41-R2 | MW6 | READY | M60 | Opus 5.5 high | — | — | подтверждение называет получателя по имени (OI-M60-002) |
 | M17-R1 | MW6 | READY | M60 | Opus 5.5 high | — | — | удаление аккаунта и инкогнито в web/Android (OI-M60-003, OI-M17-004) |
-| M12-R1 | MW6 | PENDING | M60, решение OI-M60-001 | Sonnet 5.5 high | — | — | бюджет голосового хода (условно) |
+| M12-R1 | MW6 | READY | M60, OI-M60-001 (DECIDED: b) | Sonnet 5.5 high | — | — | бюджет голосового хода: параллельные чтения шага = один вызов |
 | M22-R2 | MW6 | READY | M60 | Sonnet 5.5 high | — | — | необязательно: экспорт голосовых замеров |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
