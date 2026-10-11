@@ -425,6 +425,17 @@ PASS; pytest **1547 passed, 6 skipped, 0 failed**; Playwright с реальны�
 M76-R1 (`lint test assembleDebug`, 710 тестов, 0 failed). Повтор пользователя — UC-MW5b-R1. M60 — READY.
 Выкладка 2026-10-11: образ из `92667d7` (`sha256:9172bba2…`), APK `0.1.0 (08fe646)` 42 385 410 байт — PASS без отката; миграция `m74r1_job_notes` применена; `/mia/health/ready`, `/mia/` 200, анонимные `/v1/feed`, `/v1/inbox` 401, соседние приложения 200; логи API/worker за 5 мин — 0 ошибок; свободно 678 МБ.
 Проверки пользователя MW5b: UC-M73-1, UC-M74-1, UC-M75-1, UC-M76-1, UC-M71-1, UC-M71-F1, UC-M72-1, UC-M77-1, повтор UC-M41-2.
+**M60 — сквозная приёмка MVP, 2026-10-11** (исполнитель Opus 5.5 high; integrator — Opus 5.5 high): **MVP — NOT READY**.
+[MVP_ACCEPTANCE.md](MVP_ACCEPTANCE.md): сценарии 1, 4, 5, 6 (офлайн), 8 и web-часть 10 — PASS на настоящей композиции приложения с
+моделью-заглушкой; 2 — PARTIAL (голосом 2 источника из 3, лимит ADR-0011 → решение пользователя OI-M60-001); 3 — FAIL (подтверждение
+показывает `person:<id>` → M41-R2); 7 — FAIL (нет удаления аккаунта и переключателя инкогнито → M17-R1); 9 и телефонная часть 10 —
+только на устройстве (UC-M60-8…11). Safe fixes: гонка «Секунду.» после запроса подтверждения (`app/modules/runs/engine.py`), бот
+Telegram получает полный результат (`app/modules/notifications/telegram.py`), 2 теста, зависевшие от времени. OI-MW5b-001 —
+RESOLVED (утечки соединений нет; остаток OI-M60-004). Инцидент: тест MindWeaver один раз запустился из основного checkout
+MindWeaver, тот сам прочитал свой `backend/.env` и сделал ~4 живых вызова Gemini (~$0,02 каждый); значение ключа никто не
+видел, дальше — герметичная копия (OI-M60-005). Слияние `f05dd08`; gate на main: ruff, format, mypy (519), контракты (130
+operations, 102 error codes) PASS; pytest **1570 passed, 6 skipped, 4 xfailed (strict, находки M60), 0 failed**; Playwright = проверенная ветка (дерево идентично) **105 passed,
+2 skipped**; Android не менялся (`08fe646`). Следующие: M41-R2, M17-R1 (READY), M12-R1 (после решения OI-M60-001), M22-R2 (опц.).
 
 | ID | Wave | Status | Dependencies | Preferred executor | Handoff | Integrated commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -473,7 +484,11 @@ M76-R1 (`lint test assembleDebug`, 710 тестов, 0 failed). Повтор п�
 | M72-R1 | MW5b | COMPLETED | M72, UC-MW5b-live | Sonnet 5.5 high | [M72-R1](handoffs/M72-R1.md) | `52007cf` | риск из аннотаций для установок до M72 (Linear) |
 | M75-R1 | MW5b | COMPLETED | M75, контракт `FeedItem.steps` | Sonnet 5.5 high | [M75-R1](handoffs/M75-R1.md) | `9d5850c` | web: свёрнутые шаги/подтверждения, история шагов, озвучка целиком, отчёт во «Входящих» |
 | M76-R1 | MW5b | COMPLETED | M76, контракт `FeedItem.steps` | Sonnet 5.5 high | [M76-R1](handoffs/M76-R1.md) | `401b003` / Android `08fe646` | Android: переключение чатов, свёрнутые шаги, история шагов, озвучка целиком |
-| M60 | MW6 | READY | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | — | — | сквозная приёмка MVP; ждёт MW5b и живые UC-M40-1, UC-M41-1/2 |
+| M60 | MW6 | COMPLETED | M24,M25,M31,M40,M41,M51, MW5b | Opus 5.5 high | [M60](handoffs/M60.md) | `f05dd08` | MVP NOT READY: 3→M41-R2, 7→M17-R1, 2 ждёт OI-M60-001; живые UC-M60-1…12 |
+| M41-R2 | MW6 | READY | M60 | Opus 5.5 high | — | — | подтверждение называет получателя по имени (OI-M60-002) |
+| M17-R1 | MW6 | READY | M60 | Opus 5.5 high | — | — | удаление аккаунта и инкогнито в web/Android (OI-M60-003, OI-M17-004) |
+| M12-R1 | MW6 | PENDING | M60, решение OI-M60-001 | Sonnet 5.5 high | — | — | бюджет голосового хода (условно) |
+| M22-R2 | MW6 | READY | M60 | Sonnet 5.5 high | — | — | необязательно: экспорт голосовых замеров |
 | M61 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60 | Sonnet 5.5 high | — | — | пилотный деплой |
 

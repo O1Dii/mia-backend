@@ -1494,6 +1494,52 @@ Work: переключение чата всегда показывает лен
 DoD: JVM/Compose-тесты: быстрое переключение A→B→C показывает ленту C; свёрнутые шаги; шаги из ленты; текст автоозвучки;
 `lint test assembleDebug`.
 
+#### Repair по приёмке M60 (добавлено 2026-10-11)
+
+Источник — [MVP_ACCEPTANCE.md](MVP_ACCEPTANCE.md). M41-R2 и M17-R1 готовы и не пересекаются (кроме одной строки `app/composition.py` у каждой — сливает integrator), их можно выполнять параллельно (`Выполни все готовые сессии wave MW6 параллельно`). M12-R1 ждёт решения пользователя по OI-M60-001; M22-R2 необязательна. После них — повтор M60 (перезапуск `tests/e2e_mvp`, strict xfail должны пройти) и живые UC-M60-*.
+
+#### M41-R2 — Подтверждение называет получателя
+
+- **Executor:** Opus 5.5 high (путь подтверждений — безопасность).
+- **Objective:** текст подтверждения и голосовая фраза показывают имя человека (`Яна Петрова`), а не ссылку
+  `person:<id>` / `contact:<n>`; аргументы и `args_hash` не меняются.
+- **Write scope:** `app/modules/tools/{policy,router}.py` (резолвер имён для summary, привязка поздняя),
+  `app/modules/memory/**` (имя по ссылке, только владельцу), одна строка в `app/composition.py`, `tests/tools/**`.
+- **DoD:** strict xfail `tests/e2e_mvp/test_s03_yana.py::test_confirmation_names_the_recipient_chosen_by_ref` проходит
+  (в summary «Яна Петрова», нет `person:`); тесты router и Telegram зелёные; web и Android показывают `summary` без правок.
+
+#### M17-R1 — Удаление аккаунта и инкогнито для пользователя
+
+- **Executor:** Opus 5.5 high (идентичность, удаление данных).
+- **Objective:** пользователь может удалить аккаунт и начать инкогнито-разговор из web и Android.
+- **Write scope:** backend `app/api/v1/account.py` (новый), `app/modules/users/**` или `app/modules/auth/**` (служба
+  удаления), регистрация в `app/composition.py`, `contracts/mvp/v1/**` (путь и код ошибки), `tests/account/**`;
+  web — «Ещё» («Удалить аккаунт» с подтверждением) и переключатель инкогнито в чате (`web/src/components/Chat.tsx`,
+  `web/src/lib/chat.tsx`); Android — настройки «Удалить аккаунт», переключатель инкогнито в чате и голосе.
+- **DoD:** `DELETE /v1/account` (bearer или cookie, Idempotency-Key, same-origin) выполняет `shred_account`, отзывает
+  токены провайдеров (OI-M15-006), гранты и токены «Войти через Mia», сессии web и Android, push-токены, связь с
+  Telegram, удаляет строку `users` (каскад); после этого старые bearer и cookie получают 401, новый вход Google создаёт
+  пустой аккаунт; журнал доступа фиксирует удаление без содержимого; оба strict xfail в `tests/e2e_mvp/test_s07_memory.py`
+  проходят; инкогнито-run из web и Android несёт `incognito: true` и показывает признак; Playwright и Android unit-тесты
+  на новые элементы.
+
+#### M12-R1 — Бюджет голосового хода (условно, после решения OI-M60-001)
+
+- **Executor:** Sonnet 5.5 high.
+- **Objective:** голосовой «Что у меня сегодня» читает 3–4 источника за один ход, не выходя из ~6 с до первого звука.
+- **Write scope:** `app/core/config.py` (значение по умолчанию) и/или `app/modules/runs/engine.py` (параллельные
+  read-вызовы одного шага считаются одним), `docs/adr/0011-*.md` (поправка), `tests/runs/**`.
+- **DoD:** strict xfail `tests/e2e_mvp/test_s02_today.py::test_today_by_voice_reads_all_three_sources` проходит;
+  существующие тесты лимитов голоса обновлены; запись (`write_*`) по-прежнему считается отдельно.
+
+#### M22-R2 — Экспорт голосовых замеров (необязательно, не блокирует)
+
+- **Executor:** Sonnet 5.5 high.
+- **Objective:** экран голоса умеет скопировать/поделиться последними 20 `TurnMetrics` (первый звук, STT, старт run,
+  TTS), чтобы UC-M60-8 не зависела от ручного переписывания.
+- **Write scope:** Android `feature/voice/**`.
+- **DoD:** unit-тест форматирования экспорта; кнопка в debug-сборке или по долгому нажатию.
+
 ## 7. Wave gates
 
 | Gate | Условия |

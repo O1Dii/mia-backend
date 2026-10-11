@@ -106,7 +106,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M17-001 | OPEN | Memory | Слепой индекс вместо открытого FTS | стеммер RU/EN, без синонимов | M60 |
 | OI-M17-002 | OPEN | Memory / privacy | Retention «none» удаляет на следующем проходе | проход раз в 15 мин | M31 |
 | OI-M17-003 | RESOLVED | Memory / device tools | Формат результата `device.contacts.search` | `matches` с именами, без номеров | resolved in MW3 integration |
-| OI-M17-004 | OPEN | Accounts | Нет публичного удаления аккаунта | `shred_account` готов, endpoint нет | M62 |
+| OI-M17-004 | OPEN | Accounts | Нет публичного удаления аккаунта | `shred_account` готов, endpoint нет | M17-R1 (OI-M60-003) |
 | OI-M17-005 | OPEN | Memory / jobs | `scope: automation` не учитывается в job-runs | job видит ту же память (M50 не трогал) | M60 |
 | OI-M18-001 | RESOLVED | Feed | Deadlock `open_turn` при параллельных runs | блокировка строки ленты первой | resolved in M18 |
 | OI-M18-002 | RESOLVED | Contracts | `cookieAuth` в openapi | добавлен M15, глобальный security | resolved in MW3 integration |
@@ -235,9 +235,9 @@ Integration session обновляет этот индекс после merge.
 | OI-M77-002 | OPEN | M77 | Событие «подтверждения» покрывает только фоновые задачи | оставить так. Явные `delivery.channels` задачи относятся к её результату и к уведомлению… | живая проверка ADR-0016 на телефоне. |
 | OI-M77-003 | OPEN | M77 | Канал плагина: только точка расширения в манифесте | первый канал плагина добавит сессия, которой он понадобится (регистрация через `app.state… | первый плагин с каналом. |
 | OI-M77-004 | OPEN | M77 | `delivery.channels` задачи без явных каналов показывает заглушку `[inbox, push]` | оставить; миграция пометила `auto` существующие задачи и расписания с каналами ровно `[in… | экран задач с каналами. |
-| OI-MW5b-001 | OPEN | Runs / DB pool | Под нагрузкой: таймаут 20 параллельных runs и одно зависание полного pytest | нагрузка машины; на свободной — PASS | M60 |
+| OI-MW5b-001 | RESOLVED | Runs / DB pool | Под нагрузкой: таймаут 20 параллельных runs и одно зависание полного pytest | M60: утечки соединений нет, гонка `speech.ack` и 2 теста по времени исправлены; зависание не воспроизвелось → OI-M60-004 | — |
 | OI-M74-R1-001 | DECIDED | промпт профиля | `notify` внутри фоновой задачи: черновик единственного результата | результат задачи — один: финальный ответ run, в который вложены тексты `notify` этой зада… | жалоба «в результате задачи пропала фраза» или по… |
-| OI-M74-R1-002 | OPEN | M74-R1 | Имя core-инструмента `notify` без пространства имён | имя не менялось (смена меняет `tools_digest` core и подсказки модели). | M60. |
+| OI-M74-R1-002 | OPEN | M74-R1 | Имя core-инструмента `notify` без пространства имён | имя не менялось (смена меняет `tools_digest` core и подсказки модели). | после MVP (OI-M60-009). |
 | OI-M74-R1-003 | DECIDED | M74-R1 | Шаги у карточки результата и ссылка на запись «Входящих» | у карточки `steps` берутся из run задачи (подтверждение, решённое на телефоне во время фо… | интеграция repair MW5b. |
 | OI-M72-R1-001 | DECIDED | в  сервера по URL | Риск без пометки источника считается производным, а не выбором пользователя | у каждого инструмента сервера по URL хранится `riskSource`: `user` (выбрал пользователь,… | M60. |
 | OI-M72-R1-002 | DECIDED | M72-R1 | После пересчёта риск следует аннотациям только вверх | аннотации не входят в digest, поэтому их смена не блокирует плагин. Инструмент с пометкой… | — |
@@ -251,6 +251,17 @@ Integration session обновляет этот индекс после merge.
 | OI-M76R1-003 | DECIDED | M76-R1 | Автоозвучка читает тот же текст, что «Озвучить» | причина — автоозвучка брала поле `speech` ответа (короткий голосовой вариант, у ответов с… | — |
 | OI-M76R1-004 | OPEN | M76-R1 | Значения `channel` и поля `FeedItem.steps` нужно сверить при интеграции с M74-R1 | значения выше. | проверка M74-R1 + M76-R1 вместе. |
 | OI-M76R1-005 | DECIDED | M76-R1 | Шаги выбранного run берутся из ленты, если она их отдаёт, иначе из журнала этой сессии | у сообщения с `steps` из ленты используются они (источник истины, с решениями на других у… | — |
+| OI-M60-001 | OPEN | runs / voice | Голосовой «Что у меня сегодня» читает 2 источника из 3 (лимит ADR-0011: 2 tool calls) | лимит сохраняется; strict xfail; рекомендация (b) — параллельные чтения шага = один вызов | решение пользователя → M12-R1 |
+| OI-M60-002 | OPEN | tools / approvals | Подтверждение показывает `person:<id>` вместо имени получателя | strict xfail `test_s03_yana` | M41-R2 |
+| OI-M60-003 | OPEN | accounts / memory | Нет удаления аккаунта и переключателя инкогнито в web и Android | 2 strict xfail `test_s07_memory`; вбирает OI-M17-004, OI-M15-006 | M17-R1 |
+| OI-M60-004 | OPEN | tests | Зависание полного pytest превратить в падение с трассой | `pytest-timeout` в dev и `lock_timeout` на `TRUNCATE` фикстур (общие файлы) | следующая правка зависимостей |
+| OI-M60-005 | OPEN | MM E2E | Сквозной тест MindWeaver отстал (`registry=`) и не герметичен (MindWeaver сам читает `backend/.env`) | запуск только из `git archive` без `.env` | правка теста MindWeaver |
+| OI-M60-006 | OPEN | apps / connections | После отзыва приложения подключение `mia_token` выглядит «подключено» до проверки здоровья | безопасность не нарушена | M17-R1 / M62 |
+| OI-M60-007 | OPEN | plugins / add-by-URL | Add-by-URL сохраняет установку с буквальным частным IP (запросов наружу нет) | отказ при discovery | следующая правка add-by-URL |
+| OI-M60-008 | OPEN | contracts | Тег `Apps` у first-party `/v1/memory/context` | формулировка | следующее изменение контрактов |
+| OI-M60-009 | OPEN | jobs | `notify` без пространства имён — перенос после MVP | `notify.send` с алиасом позже | M61 / post-MVP |
+| OI-M60-010 | OPEN | voice | Голос с живой моделью и батарея ни разу не измерялись | пороги-предложения p95 ≤ 4 с, батарея ≤ 10 %/ч | UC-M60-8…10 |
+| OI-M60-011 | OPEN | web | Прямоугольная рамка фокуса внутри скруглённого поля ввода | косметика | ревью дизайна UC-M30-1/UC-M31-1 |
 
 ## Record template
 
@@ -2186,7 +2197,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M17-004 — Нет публичного удаления аккаунта
 
-- Status: OPEN
+- Status: OPEN → repair M17-R1 (OI-M60-003)
 - Source session: M17
 - Component: Accounts / privacy
 - Question: кто и когда открывает «Удалить аккаунт» (`DELETE /v1/me` или аналог)?
@@ -3976,7 +3987,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-MW5b-001 — Параллельные runs на Postgres под нагрузкой машины
 
-- Status: OPEN
+- Status: RESOLVED (M60: диагностика, гонка `speech.ack` и тесты исправлены; остаток — OI-M60-004)
 - Source session: MW5b integrator
 - Component: run engine / пул соединений (тест `tests/runs/test_stream.py::test_twenty_parallel_runs_do_not_mix_events[postgres]`)
 - Question: при параллельной сборке Gradle и Playwright тест 20 параллельных runs однажды не уложился в 10 с, а один полный прогон pytest завис на ~40 мин: в Postgres висели сессии `idle in transaction` с `SELECT … FROM runs`. Это только нагрузка или исчерпание пула (сессия держит транзакцию и ждёт вторую из того же пула — новые обёртки ленты M74/M70)?
