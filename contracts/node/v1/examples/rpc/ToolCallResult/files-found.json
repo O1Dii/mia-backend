@@ -1,0 +1,23 @@
+{
+  "call_id": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d",
+  "status": "succeeded",
+  "content": [
+    {
+      "type": "text",
+      "text": "Найдено 1 файл: «Договор аренды 2026.pdf» в папке «Документы/Квартира»."
+    }
+  ],
+  "structured_content": {
+    "matches": [
+      {
+        "file_ref": "file:Qm9va2luZ0RvY3VtZW50MDE",
+        "name": "Договор аренды 2026.pdf",
+        "folder": "Документы",
+        "relative_dir": "Квартира",
+        "size_bytes": 482113,
+        "modified_at": "2026-03-02T09:14:00Z"
+      }
+    ],
+    "truncated": false
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "call_id": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d",
+  "status": "failed",
+  "error": {
+    "code": "path_not_allowed",
+    "message": "Эта папка не разрешена на компьютере.",
+    "retryable": false
+  }
+}

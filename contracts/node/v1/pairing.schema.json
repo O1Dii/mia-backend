@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/node/v1/pairing.schema.json",
+  "title": "MIA Personal Node v1 pairing (DRAFT, ADR-0019 §3)",
+  "description": "QR pairing of a node with an account. 1) The node creates its Ed25519 device key and calls POST /v1/nodes/pairings (no auth, rate limited) with PairingStartRequest; 2) it shows the QR (qr_uri) and the user_code; 3) a signed-in client (Android scans the QR, or web «Устройства → Добавить компьютер» takes the code) calls POST /v1/nodes/pairings/claim with PairingClaimRequest; the client compares the fingerprint from the QR (or shows it for the user to compare) with the key the server returns; 4) the node polls POST /v1/nodes/pairings/{pairing_id}/poll with PairingPollRequest until PairingPollResponse.status is claimed, then opens the control channel (envelope.schema.json). Root document is a PairingStartRequest.",
+  "$ref": "#/$defs/PairingStartRequest",
+  "$defs": {
+    "userCode": {
+      "type": "string",
+      "pattern": "^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$",
+      "description": "Short code typed in web (no I, O, 0, 1); valid 10 minutes, 5 wrong claims per account per hour"
+    },
+    "PairingStartRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "public_key", "node", "signed_at", "signature"],
+      "properties": {
+        "protocol": { "const": "mia-node/1" },
+        "public_key": { "$ref": "common.schema.json#/$defs/publicKey" },
+        "node": { "$ref": "common.schema.json#/$defs/nodeInfo" },
+        "signed_at": {
+          "$ref": "common.schema.json#/$defs/timestamp",
+          "description": "Node clock; the server rejects |signed_at - now| > 5 min"
+        },
+        "signature": {
+          "$ref": "common.schema.json#/$defs/signature",
+          "description": "Proof of possession: Ed25519 over \"mia-node/1\\npairing.start\\n<public_key>\\n<signed_at>\""
+        }
+      }
+    },
+    "PairingStartResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pairing_id", "user_code", "qr_uri", "fingerprint", "poll_token", "poll_interval_s", "expires_at"],
+      "properties": {
+        "pairing_id": { "$ref": "common.schema.json#/$defs/id" },
+        "user_code": { "$ref": "#/$defs/userCode" },
+        "qr_uri": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^mia://node/pair\\?v=1&p=[0-9a-f-]{36}&c=[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}&f=[A-Z2-7-]{29}&h=[a-z0-9.-]+(/[A-Za-z0-9._~-]+)*$",
+          "description": "QR payload: pairing id, user code, key fingerprint and the API host (+ base path) the scanning app must belong to; the app refuses a QR for another host"
+        },
+        "fingerprint": { "$ref": "common.schema.json#/$defs/fingerprint" },
+        "poll_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "description": "Opaque secret only the node knows; required (with a signature) to poll"
+        },
+        "poll_interval_s": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "PairingClaimRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "name", "data_mode"],
+      "description": "Sent by a signed-in client (bearer or cookie, Idempotency-Key). Exactly one of pairing_id (from QR) or user_code (typed).",
+      "oneOf": [
+        { "required": ["pairing_id"], "not": { "required": ["user_code"] } },
+        { "required": ["user_code"], "not": { "required": ["pairing_id"] } }
+      ],
+      "properties": {
+        "pairing_id": { "$ref": "common.schema.json#/$defs/id" },
+        "user_code": { "$ref": "#/$defs/userCode" },
+        "fingerprint": {
+          "$ref": "common.schema.json#/$defs/fingerprint",
+          "description": "From the QR, or confirmed by the user against the node's screen when the code was typed. The server refuses a mismatch (pairing_fingerprint_mismatch)"
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "data_mode": {
+          "$ref": "common.schema.json#/$defs/dataMode",
+          "description": "v1 pairing always starts in cloud; home/standalone are switched later (M89/M90) with a migration"
+        }
+      }
+    },
+    "NodeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "name", "host", "fingerprint", "os", "data_mode", "status", "paired_at"],
+      "properties": {
+        "node_id": { "$ref": "common.schema.json#/$defs/nodeId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "host": { "$ref": "common.schema.json#/$defs/nodeHost" },
+        "fingerprint": { "$ref": "common.schema.json#/$defs/fingerprint" },
+        "os": { "type": "string", "enum": ["macos", "windows", "linux"] },
+        "data_mode": { "$ref": "common.schema.json#/$defs/dataMode" },
+        "status": { "type": "string", "enum": ["online", "offline", "revoked"] },
+        "paired_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "last_seen_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "PairingClaimResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node"],
+      "properties": {
+        "node": { "$ref": "#/$defs/NodeSummary" }
+      }
+    },
+    "PairingPollRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["poll_token", "signed_at", "signature"],
+      "properties": {
+        "poll_token": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+        "signed_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "signature": {
+          "$ref": "common.schema.json#/$defs/signature",
+          "description": "Ed25519 over \"mia-node/1\\npairing.poll\\n<pairing_id>\\n<signed_at>\""
+        }
+      }
+    },
+    "PairingPollResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pending", "claimed", "expired", "cancelled"] },
+        "node_id": { "$ref": "common.schema.json#/$defs/nodeId" },
+        "host": { "$ref": "common.schema.json#/$defs/nodeHost" },
+        "account_label": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Masked account e-mail for the node's screen, e.g. «a***@gmail.com»"
+        },
+        "connect_url": {
+          "type": "string",
+          "pattern": "^wss://[^\\s]+$",
+          "maxLength": 512,
+          "description": "Control channel endpoint, e.g. wss://<api host>/<base>/v1/nodes/connect"
+        }
+      },
+      "if": { "properties": { "status": { "const": "claimed" } } },
+      "then": { "required": ["node_id", "host", "account_label", "connect_url"] }
+    }
+  }
+}

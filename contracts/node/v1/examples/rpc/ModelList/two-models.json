@@ -1,0 +1,36 @@
+{
+  "runtime": {
+    "kind": "ollama",
+    "version": "0.13.3",
+    "reachable": true
+  },
+  "models": [
+    {
+      "name": "qwen3:8b",
+      "family": "qwen3",
+      "parameter_size": "8.2B",
+      "quantization": "Q4_K_M",
+      "size_bytes": 5225000000,
+      "context_length": 40960,
+      "capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+      ],
+      "loaded": true
+    },
+    {
+      "name": "gemma3:4b",
+      "family": "gemma3",
+      "parameter_size": "4.3B",
+      "quantization": "Q4_K_M",
+      "size_bytes": 3338000000,
+      "context_length": 131072,
+      "capabilities": [
+        "completion",
+        "vision"
+      ],
+      "loaded": false
+    }
+  ]
+}

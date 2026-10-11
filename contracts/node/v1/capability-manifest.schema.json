@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/node/v1/capability-manifest.schema.json",
+  "title": "MIA Personal Node v1 capability manifest (DRAFT, ADR-0019 §5, §8)",
+  "description": "What a node can do, sent in the manifest frame on connect and on every change. The cloud stores the latest version per node and derives from it: the node tools offered to the model (node.*), the «Устройства» card of the node (M84, NodeDeviceView) and the «Модели» entries (models.ollama). Labels only: never absolute paths, file names or other content. The local envelope (which folders, which apps) is configured on the node itself and cannot be changed from the cloud. Root document is a CapabilityManifest.",
+  "$ref": "#/$defs/CapabilityManifest",
+  "$defs": {
+    "capabilityStatus": {
+      "type": "string",
+      "enum": ["enabled", "disabled", "unavailable"],
+      "description": "enabled = on and working; disabled = switched off on the node; unavailable = on but not working now (Ollama not running, no OS permission)"
+    },
+    "ToolDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "input_schema", "risk", "voice", "timeout_ms"],
+      "description": "Same shape as mvp/v1 DeviceToolDeclaration minus requires_unlocked",
+      "properties": {
+        "name": { "$ref": "common.schema.json#/$defs/nodeToolName" },
+        "description": { "type": "string", "minLength": 5, "maxLength": 1000 },
+        "input_schema": {
+          "type": "object",
+          "required": ["type"],
+          "properties": { "type": { "const": "object" } }
+        },
+        "risk": { "$ref": "common.schema.json#/$defs/risk" },
+        "voice": { "type": "boolean" },
+        "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 120000 }
+      }
+    },
+    "Capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "status"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/capabilityId" },
+        "kind": {
+          "type": "string",
+          "enum": ["read", "action", "model", "storage", "runtime"],
+          "description": "read/action as in mvp/v1 capabilityKind (ADR-0016 §5); model = local LLM; storage = data at home; runtime = the node runs the core"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Russian, for «Устройства» and consent texts, e.g. «поиск файлов в разрешённых папках»"
+        },
+        "status": { "$ref": "#/$defs/capabilityStatus" },
+        "unavailable_reason": {
+          "type": "string",
+          "enum": ["runtime_not_running", "os_permission_missing", "not_configured", "unsupported_os"]
+        },
+        "tools": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/ToolDeclaration" } },
+        "folders": {
+          "type": "array",
+          "maxItems": 32,
+          "description": "files.*: labels of the folders allowed on the node (paths stay on the node)",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
+        "apps": {
+          "type": "array",
+          "maxItems": 64,
+          "description": "apps.open: labels of the allowed applications",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 200,
+          "description": "models.ollama: installed model names (details via model.list)",
+          "items": { "type": "string", "maxLength": 128 }
+        }
+      }
+    },
+    "CapabilityManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "manifest_version", "software", "data_mode", "capabilities", "limits"],
+      "properties": {
+        "node_id": { "$ref": "common.schema.json#/$defs/nodeId" },
+        "manifest_version": { "type": "integer", "minimum": 1, "description": "Grows by 1 on every change" },
+        "software": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "protocol", "os", "arch"],
+          "properties": {
+            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([.-][0-9A-Za-z.-]+)?$" },
+            "protocol": { "const": 1 },
+            "os": { "type": "string", "enum": ["macos", "windows", "linux"] },
+            "os_version": { "type": "string", "maxLength": 64 },
+            "arch": { "type": "string", "enum": ["x86_64", "arm64"] }
+          }
+        },
+        "data_mode": { "$ref": "common.schema.json#/$defs/dataMode" },
+        "approver": {
+          "type": "string",
+          "enum": ["phone", "node", "phone_or_node"],
+          "description": "Where consent for node actions is given (ADR-0019 §5, user decision). Default phone"
+        },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["public_name", "spki_pin", "not_after"],
+          "description": "M91+: end-to-end TLS identity of the node; spki_pin is what the paired phone pins",
+          "properties": {
+            "public_name": { "type": "string", "pattern": "^n[a-z2-7]{16}\\.[a-z0-9.-]+$", "maxLength": 253 },
+            "spki_pin": { "$ref": "common.schema.json#/$defs/spkiPin" },
+            "not_after": { "$ref": "common.schema.json#/$defs/timestamp" }
+          }
+        },
+        "capabilities": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Capability" } },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_file_read_chars", "max_search_results", "max_concurrent_generations"],
+          "properties": {
+            "max_file_read_chars": { "type": "integer", "minimum": 100, "maximum": 20000 },
+            "max_search_results": { "type": "integer", "minimum": 1, "maximum": 20 },
+            "max_concurrent_generations": { "type": "integer", "minimum": 1, "maximum": 8 }
+          }
+        },
+        "signature": {
+          "$ref": "common.schema.json#/$defs/signature",
+          "description": "Ed25519 by the node key over the canonical JSON of the manifest without this field; lets the paired phone trust tls.spki_pin without trusting the cloud"
+        }
+      }
+    },
+    "NodeDeviceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "name", "os", "status", "data_mode", "capabilities"],
+      "description": "Proposed projection of a node into the M84 device list (GET /v1/devices, kind node). Presence: online while the control channel is open and heartbeats arrive; otherwise last_seen_at = the moment the channel closed. M86 maps this onto M84's own device schema",
+      "properties": {
+        "kind": { "const": "node" },
+        "id": { "$ref": "common.schema.json#/$defs/nodeId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "os": { "type": "string", "enum": ["macos", "windows", "linux"] },
+        "version": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["online", "offline", "revoked"] },
+        "connected_since": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "last_seen_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "data_mode": { "$ref": "common.schema.json#/$defs/dataMode" },
+        "fingerprint": { "$ref": "common.schema.json#/$defs/fingerprint" },
+        "capabilities": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "status", "remote"],
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/capabilityId" },
+              "label": { "type": "string", "maxLength": 80 },
+              "status": { "$ref": "#/$defs/capabilityStatus" },
+              "remote": {
+                "type": "string",
+                "enum": ["ask", "deny", "n/a"],
+                "description": "ADR-0016 remote setting for read/action capabilities (persistent grants are listed by the existing /v1/devices/{id}/grants); n/a for model/storage/runtime"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

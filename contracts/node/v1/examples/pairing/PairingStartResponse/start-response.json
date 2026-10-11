@@ -1,0 +1,9 @@
+{
+  "pairing_id": "3f2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d",
+  "user_code": "K7QM-3XRP",
+  "qr_uri": "mia://node/pair?v=1&p=3f2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d&c=K7QM-3XRP&f=EV22-WDIM-UAMN-QYEP-R2Y5-7DFL&h=mindmapgen.xyz/mia",
+  "fingerprint": "EV22-WDIM-UAMN-QYEP-R2Y5-7DFL",
+  "poll_token": "cHFl6ZhLUdzfHKfMm2_npeyYq29xRX6bolz20pJLio4",
+  "poll_interval_s": 2,
+  "expires_at": "2026-10-11T18:10:00Z"
+}

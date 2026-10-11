@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate all contract artifacts (S00 v1 and M00 mvp/v1) without reading secrets."""
+"""Validate all contract artifacts (S00 v1, M00 mvp/v1, M85 node/v1) without reading secrets."""
 
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts"
 MVP = CONTRACTS / "mvp/v1"
 MVP_ID_PREFIX = "https://contracts.mia.local/mvp/v1/"
+NODE = CONTRACTS / "node/v1"
+NODE_ID_PREFIX = "https://contracts.mia.local/node/v1/"
 MVP_REQUIRED_PLUGIN_EXAMPLES = ("timer", "linear", "mindweaver")
 MVP_REQUIRED_PATHS = (
     "/v1/runs",
@@ -396,6 +398,111 @@ def validate_mvp() -> tuple[int, int, int]:
     return examples, events, operations
 
 
+# --- node/v1 (M85 draft, ADR-0019) ---------------------------------------------
+
+
+def node_schemas() -> dict[str, dict[str, Any]]:
+    schemas: dict[str, dict[str, Any]] = {}
+    for path in sorted(NODE.glob("*.schema.json")):
+        schema = load_json(path)
+        if schema.get("$id") != NODE_ID_PREFIX + path.name:
+            raise AssertionError(f"{path}: $id must be {NODE_ID_PREFIX + path.name}")
+        schemas[path.name.removesuffix(".schema.json")] = schema
+    return schemas
+
+
+def node_validator(
+    registry: Registry, stem: str, definition: str | None = None
+) -> Draft202012Validator:
+    target = NODE_ID_PREFIX + f"{stem}.schema.json"
+    if definition is not None:
+        target += f"#/$defs/{definition}"
+    return Draft202012Validator({"$ref": target}, registry=registry, format_checker=FormatChecker())
+
+
+def check_node_session(frames: list[dict[str, Any]], prior: dict[str, int], source: str) -> None:
+    """Per-direction seq rules of the control channel (contracts/node/v1/README.md)."""
+    sent = {"node": prior.get("node_sent", 0), "cloud": prior.get("cloud_sent", 0)}
+    received = {"node": prior.get("node_received", 0), "cloud": prior.get("cloud_received", 0)}
+    expected = {side: sent[side] + 1 for side in sent}
+    peer = {"node": "cloud", "cloud": "node"}
+    streams: dict[str, int] = {}
+    for index, item in enumerate(frames):
+        side, frame = item["from"], item["frame"]
+        where = f"{source}[{index}]"
+        if frame["type"] in ("challenge", "hello", "welcome"):
+            if frame["seq"] != 0:
+                raise AssertionError(f"{where}: handshake frames carry seq 0")
+            payload = frame["payload"]
+            if frame["type"] == "hello" and "resume" in payload:
+                received["node"] = payload["resume"]["last_received_seq"]
+                expected["cloud"] = received["node"] + 1
+            if frame["type"] == "welcome":
+                if payload["resumed"]:
+                    received["cloud"] = payload["last_received_seq"]
+                    expected["node"] = received["cloud"] + 1
+                else:
+                    sent = {"node": 0, "cloud": 0}
+                    expected = {"node": 1, "cloud": 1}
+            continue
+        if frame["seq"] != expected[side]:
+            raise AssertionError(f"{where}: {side} seq {frame['seq']} != expected {expected[side]}")
+        expected[side] += 1
+        sent[side] = max(sent[side], frame["seq"])
+        if frame["ack"] > sent[peer[side]]:
+            raise AssertionError(f"{where}: ack {frame['ack']} beyond what {peer[side]} sent")
+        if frame["type"] == "rpc.stream":
+            rpc_id = frame["payload"]["id"]
+            if frame["payload"]["index"] != streams.get(rpc_id, 0):
+                raise AssertionError(f"{where}: stream index must grow by 1 from 0")
+            streams[rpc_id] = frame["payload"]["index"] + 1
+        if frame["type"] == "rpc.response" and frame["payload"]["ok"]:
+            chunks = frame["payload"]["result"].get("chunks")
+            if chunks is not None and chunks != streams.get(frame["payload"]["id"], 0):
+                raise AssertionError(f"{where}: result.chunks does not match the streamed chunks")
+
+
+def validate_node() -> tuple[int, int]:
+    """node/v1: $ids, examples (mvp/v1 layout), tool-call args_hash, session fixtures."""
+    schemas = node_schemas()
+    registry = Registry().with_resources(
+        (schema["$id"], Resource.from_contents(schema, default_specification=DRAFT202012))
+        for schema in schemas.values()
+    )
+    count = 0
+    covered: set[str] = set()
+    for path in sorted((NODE / "examples").rglob("*.json")):
+        parts = path.relative_to(NODE / "examples").parts
+        if len(parts) not in (2, 3) or parts[0] not in schemas:
+            raise AssertionError(f"{path}: unexpected example location")
+        definition = parts[1] if len(parts) == 3 else None
+        document = load_json(path)
+        assert_valid(node_validator(registry, parts[0], definition), document, str(path))
+        if parts[0] == "rpc" and definition is None and document["method"] == "tool.call":
+            params = document["params"]
+            if params["args_hash"] != canonical_args_hash(params["arguments"]):
+                raise AssertionError(f"{path}: args_hash does not match arguments")
+        covered.add(parts[0])
+        count += 1
+    missing = set(schemas) - covered - {"common"}
+    if missing:
+        raise AssertionError(f"node/v1 schemas without examples: {sorted(missing)}")
+
+    frames = 0
+    frame_validator = node_validator(registry, "envelope")
+    for path in sorted((NODE / "fixtures").glob("session-*.json")):
+        fixture = load_json(path)
+        items = fixture if isinstance(fixture, list) else fixture["frames"]
+        prior = {} if isinstance(fixture, list) else fixture["prior"]
+        for index, item in enumerate(items):
+            assert_valid(frame_validator, item["frame"], f"{path}[{index}]")
+        check_node_session(items, prior, str(path))
+        frames += len(items)
+    if frames == 0:
+        raise AssertionError("node/v1: no session fixtures")
+    return count, frames
+
+
 def main() -> None:
     schema_count = validate_schema_documents()
     openapi = load_json(CONTRACTS / "openapi/v1/openapi.json")
@@ -419,13 +526,15 @@ def main() -> None:
 
     mvp_examples, mvp_events, mvp_operations = validate_mvp()
     mvp_error_codes = validate_mvp_error_codes()
+    node_examples, node_frames = validate_node()
 
     print(
         "PASS: "
         f"{schema_count} JSON Schemas, {operation_count} OpenAPI operations, "
         f"{event_count} event fixtures, {error_count} public error codes; "
         f"mvp/v1: {mvp_examples} examples, {mvp_events} run events, "
-        f"{mvp_operations} OpenAPI operations, {mvp_error_codes} error codes"
+        f"{mvp_operations} OpenAPI operations, {mvp_error_codes} error codes; "
+        f"node/v1 (draft): {node_examples} examples, {node_frames} session frames"
     )
 
 

@@ -1,0 +1,11 @@
+{
+  "id": "3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a7b",
+  "method": "push.send",
+  "deadline_at": "2026-10-11T18:20:35Z",
+  "params": {
+    "device_id": "5b0c2a91-7e3d-4f1a-9c4b-2d8e6f0a1b3c",
+    "kind": "inbox",
+    "priority": "normal",
+    "collapse_key": "inbox"
+  }
+}

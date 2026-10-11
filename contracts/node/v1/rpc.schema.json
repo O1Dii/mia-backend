@@ -1,0 +1,503 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/node/v1/rpc.schema.json",
+  "title": "MIA Personal Node v1 RPC (DRAFT, ADR-0019 §4–§7)",
+  "description": "Payloads of rpc.request / rpc.stream / rpc.response frames on the control channel. cloud → node: node.status, tool.call (M87), model.list, model.warmup, model.generate (M88, streaming), oauth.callback (M89). node → cloud: relay.grant and cert.issue (M91), push.send (M89/M90), node.rotate_key, node.unpair (M86). Every request has an id (idempotency key) and a deadline_at; the callee rejects expired requests (expired) and answers a repeated id from its cache without re-executing. Root document is an RpcRequest.",
+  "$ref": "#/$defs/RpcRequest",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": ["id", "method", "params", "deadline_at"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "method": { "type": "string" },
+        "params": { "type": "object" },
+        "deadline_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "RpcRequest": {
+      "oneOf": [
+        { "$ref": "#/$defs/NodeStatusRequest" },
+        { "$ref": "#/$defs/ToolCallRequest" },
+        { "$ref": "#/$defs/ModelListRequest" },
+        { "$ref": "#/$defs/ModelWarmupRequest" },
+        { "$ref": "#/$defs/ModelGenerateRequest" },
+        { "$ref": "#/$defs/OauthCallbackRequest" },
+        { "$ref": "#/$defs/RelayGrantRequest" },
+        { "$ref": "#/$defs/CertIssueRequest" },
+        { "$ref": "#/$defs/PushSendRequest" },
+        { "$ref": "#/$defs/RotateKeyRequest" },
+        { "$ref": "#/$defs/UnpairRequest" }
+      ]
+    },
+    "emptyParams": { "type": "object", "additionalProperties": false, "properties": {} },
+    "NodeStatusRequest": {
+      "description": "cloud → node",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": { "method": { "const": "node.status" }, "params": { "$ref": "#/$defs/emptyParams" } }
+    },
+    "NodeStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_mode", "manifest_version", "uptime_s", "active_generations"],
+      "properties": {
+        "data_mode": { "$ref": "common.schema.json#/$defs/dataMode" },
+        "manifest_version": { "type": "integer", "minimum": 1 },
+        "uptime_s": { "type": "integer", "minimum": 0 },
+        "active_generations": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ToolCallRequest": {
+      "description": "cloud → node (M87). Sent only after the cloud policy (ADR-0016, node = target device) allowed the call; the node re-checks its own local envelope (allowed folders/apps, capability switch) and args_hash. Never retried automatically for risk != read",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": { "method": { "const": "tool.call" }, "params": { "$ref": "#/$defs/ToolCallParams" } }
+    },
+    "ToolCallParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["call_id", "run_id", "tool", "capability", "risk", "arguments", "args_hash", "requester", "authorization"],
+      "properties": {
+        "call_id": { "$ref": "common.schema.json#/$defs/id" },
+        "run_id": { "$ref": "common.schema.json#/$defs/id" },
+        "tool": { "$ref": "common.schema.json#/$defs/nodeToolName" },
+        "capability": { "$ref": "common.schema.json#/$defs/capabilityId" },
+        "risk": { "$ref": "common.schema.json#/$defs/risk" },
+        "arguments": { "type": "object" },
+        "args_hash": { "$ref": "common.schema.json#/$defs/argsHash" },
+        "requester": { "$ref": "common.schema.json#/$defs/requester" },
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basis"],
+          "description": "Why the cloud lets this call through; written to the node's local journal",
+          "properties": {
+            "basis": {
+              "type": "string",
+              "enum": ["same_device", "run_grant", "persistent_grant", "approval"],
+              "description": "same_device only for requester kind node_local (the node's own UI); every other requester needs a grant or an approval"
+            },
+            "approval_id": { "$ref": "common.schema.json#/$defs/id" },
+            "grant_id": { "$ref": "common.schema.json#/$defs/id" }
+          }
+        }
+      }
+    },
+    "ToolCallResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["call_id", "status"],
+      "description": "Mirrors mvp/v1 DeviceToolResult so the router treats a node like a phone",
+      "properties": {
+        "call_id": { "$ref": "common.schema.json#/$defs/id" },
+        "status": { "type": "string", "enum": ["succeeded", "failed", "uncertain"] },
+        "content": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "text"],
+            "properties": {
+              "type": { "const": "text" },
+              "text": { "type": "string", "maxLength": 40000 }
+            }
+          }
+        },
+        "structured_content": { "type": "object" },
+        "error": { "$ref": "common.schema.json#/$defs/nodeError" }
+      },
+      "if": { "properties": { "status": { "const": "succeeded" } } },
+      "then": { "not": { "required": ["error"] } },
+      "else": { "required": ["error"] }
+    },
+    "FilesSearchArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query"],
+      "description": "node.files.search (read): names and metadata only, inside folders the user allowed on the node itself",
+      "properties": {
+        "query": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "folder": { "type": "string", "maxLength": 64, "description": "Folder label from the manifest, e.g. «Документы»; absent = all allowed folders" },
+        "kind": { "type": "string", "enum": ["any", "document", "spreadsheet", "presentation", "pdf", "image", "text"] },
+        "modified_after": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 20 }
+      }
+    },
+    "FilesSearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matches", "truncated"],
+      "properties": {
+        "matches": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file_ref", "name", "folder", "relative_dir", "size_bytes", "modified_at"],
+            "properties": {
+              "file_ref": {
+                "type": "string",
+                "pattern": "^file:[A-Za-z0-9_-]{16,64}$",
+                "description": "Opaque, node-issued, valid 24 h; the model passes it to node.files.read. Never an absolute path"
+              },
+              "name": { "type": "string", "maxLength": 255 },
+              "folder": { "type": "string", "maxLength": 64 },
+              "relative_dir": { "type": "string", "maxLength": 512, "description": "Path inside the allowed folder, «/» separated, «» for its root" },
+              "size_bytes": { "type": "integer", "minimum": 0 },
+              "modified_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+            }
+          }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "FilesReadArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_ref"],
+      "description": "node.files.read (read): extracted text of one file found by node.files.search",
+      "properties": {
+        "file_ref": { "type": "string", "pattern": "^file:[A-Za-z0-9_-]{16,64}$" },
+        "offset_chars": { "type": "integer", "minimum": 0 },
+        "max_chars": { "type": "integer", "minimum": 100, "maximum": 20000 }
+      }
+    },
+    "FilesReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "text", "total_chars", "truncated"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 255 },
+        "text": { "type": "string", "maxLength": 20000 },
+        "total_chars": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "AppsOpenArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app"],
+      "description": "node.apps.open (write_reversible, capability apps.open): only apps from the node's local allow-list, by label",
+      "properties": { "app": { "type": "string", "minLength": 1, "maxLength": 64 } }
+    },
+    "LinksOpenArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url"],
+      "description": "node.links.open (write_reversible, capability links.open): opens an https link in the default browser of the computer",
+      "properties": { "url": { "type": "string", "maxLength": 2048, "pattern": "^https://[^\\s@/?#]+([/?#][^\\s]*)?$" } }
+    },
+    "ModelListRequest": {
+      "description": "cloud → node (M88): models installed in the local Ollama",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": { "method": { "const": "model.list" }, "params": { "$ref": "#/$defs/emptyParams" } }
+    },
+    "ModelList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime", "models"],
+      "properties": {
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "reachable"],
+          "properties": {
+            "kind": { "const": "ollama" },
+            "version": { "type": "string", "maxLength": 32 },
+            "reachable": { "type": "boolean" }
+          }
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "capabilities", "loaded"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9._-]+)?$", "maxLength": 128 },
+              "family": { "type": "string", "maxLength": 64 },
+              "parameter_size": { "type": "string", "maxLength": 16 },
+              "quantization": { "type": "string", "maxLength": 16 },
+              "size_bytes": { "type": "integer", "minimum": 0 },
+              "context_length": { "type": "integer", "minimum": 0 },
+              "capabilities": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string", "enum": ["completion", "tools", "vision", "thinking", "embedding"] }
+              },
+              "loaded": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "ModelWarmupRequest": {
+      "description": "cloud → node (M88): load the model before the first voice turn so the first sound stays near the ADR-0011 target",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "method": { "const": "model.warmup" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model"],
+          "properties": {
+            "model": { "type": "string", "maxLength": 128 },
+            "keep_alive_s": { "type": "integer", "minimum": 0, "maximum": 86400 }
+          }
+        }
+      }
+    },
+    "ModelGenerateRequest": {
+      "description": "cloud → node (M88), streaming: rpc.stream chunks (StreamChunk) then one rpc.response with ModelGenerateResult. The node forwards an OpenAI chat-completions request to the local Ollama (/v1/chat/completions, stream=true) and normalises deltas. Limits come from the run profile (ADR-0011); the node also enforces max_output_tokens, first_token_timeout_ms and deadline_at, and stops on rpc.cancel",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": { "method": { "const": "model.generate" }, "params": { "$ref": "#/$defs/ModelGenerateParams" } }
+    },
+    "ModelGenerateParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "profile", "messages", "max_output_tokens"],
+      "properties": {
+        "model": { "type": "string", "maxLength": 128 },
+        "profile": { "type": "string", "enum": ["voice", "chat", "job", "app"] },
+        "messages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 400,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role"],
+            "properties": {
+              "role": { "type": "string", "enum": ["system", "user", "assistant", "tool"] },
+              "content": { "type": ["string", "null"], "maxLength": 200000 },
+              "tool_calls": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "name", "arguments"],
+                  "properties": {
+                    "id": { "type": "string", "maxLength": 128 },
+                    "name": { "type": "string", "maxLength": 128 },
+                    "arguments": { "type": "string", "maxLength": 100000, "description": "JSON text" }
+                  }
+                }
+              },
+              "tool_call_id": { "type": "string", "maxLength": 128 }
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "description", "parameters"],
+            "properties": {
+              "name": { "type": "string", "maxLength": 128 },
+              "description": { "type": "string", "maxLength": 4000 },
+              "parameters": { "type": "object" }
+            }
+          }
+        },
+        "max_output_tokens": { "type": "integer", "minimum": 1, "maximum": 32768 },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "first_token_timeout_ms": { "type": "integer", "minimum": 500, "maximum": 120000 },
+        "keep_alive_s": { "type": "integer", "minimum": 0, "maximum": 86400 }
+      }
+    },
+    "StreamChunk": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": { "kind": { "const": "text" }, "text": { "type": "string", "maxLength": 8192 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "index", "arguments_delta"],
+          "description": "Partial tool call; id and name arrive in the first chunk of an index",
+          "properties": {
+            "kind": { "const": "tool_call" },
+            "index": { "type": "integer", "minimum": 0 },
+            "id": { "type": "string", "maxLength": 128 },
+            "name": { "type": "string", "maxLength": 128 },
+            "arguments_delta": { "type": "string", "maxLength": 100000 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "input_tokens", "output_tokens"],
+          "properties": {
+            "kind": { "const": "usage" },
+            "input_tokens": { "type": "integer", "minimum": 0 },
+            "output_tokens": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "ModelGenerateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finish_reason", "chunks"],
+      "properties": {
+        "finish_reason": { "type": "string", "enum": ["stop", "tool_calls", "length", "cancelled"] },
+        "chunks": { "type": "integer", "minimum": 0, "description": "Number of rpc.stream chunks sent; the caller checks it has them all" },
+        "load_ms": { "type": "integer", "minimum": 0 },
+        "first_token_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "OauthCallbackRequest": {
+      "description": "cloud → node (M89, only for plugin OAuth clients whose redirect URI is fixed to the cloud): the cloud forwards code+state; the PKCE verifier never leaves the node, so the cloud cannot redeem the code",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "method": { "const": "oauth.callback" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "code"],
+          "properties": {
+            "state": { "type": "string", "minLength": 16, "maxLength": 512 },
+            "code": { "type": "string", "minLength": 1, "maxLength": 2048 },
+            "iss": { "type": "string", "maxLength": 512 }
+          }
+        }
+      }
+    },
+    "RelayGrantRequest": {
+      "description": "node → cloud (M91): short-lived credential for the tunnel connection to the SNI relay",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": { "method": { "const": "relay.grant" }, "params": { "$ref": "#/$defs/emptyParams" } }
+    },
+    "RelayGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tunnel_url", "token", "public_name", "expires_at"],
+      "properties": {
+        "tunnel_url": { "type": "string", "pattern": "^wss://[^\\s]+$", "maxLength": 512 },
+        "token": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{32,2048}$" },
+        "public_name": {
+          "type": "string",
+          "pattern": "^n[a-z2-7]{16}\\.[a-z0-9.-]+$",
+          "maxLength": 253,
+          "description": "Full DNS name clients use: <host>.<node zone>"
+        },
+        "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "CertIssueRequest": {
+      "description": "node → cloud (M91): the node sends a CSR for <host>.<node zone>; the cloud completes the ACME DNS-01 order with its DNS credentials and returns the chain. The TLS private key never leaves the node",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "method": { "const": "cert.issue" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["csr_der_b64"],
+          "properties": { "csr_der_b64": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$", "maxLength": 8192 } }
+        }
+      }
+    },
+    "CertIssueResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["certificate_chain_pem", "not_after", "spki_pin"],
+      "properties": {
+        "certificate_chain_pem": { "type": "string", "maxLength": 16384 },
+        "not_after": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "spki_pin": { "$ref": "common.schema.json#/$defs/spkiPin" }
+      }
+    },
+    "PushSendRequest": {
+      "description": "node → cloud (M89/M90): content-free wake push to one of the account's devices through Mia's FCM project; the app then fetches from the node over the end-to-end TLS tunnel",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "method": { "const": "push.send" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["device_id", "kind", "priority"],
+          "properties": {
+            "device_id": { "$ref": "common.schema.json#/$defs/id" },
+            "kind": { "type": "string", "enum": ["wake", "inbox", "consent", "alarm"] },
+            "priority": { "type": "string", "enum": ["normal", "high"] },
+            "collapse_key": { "type": "string", "pattern": "^[a-z0-9_-]{1,64}$" }
+          }
+        }
+      }
+    },
+    "RotateKeyRequest": {
+      "description": "node → cloud (M86): replace the device key; both signatures over \"mia-node/1\\nrotate\\n<node_id>\\n<new_public_key>\\n<signed_at>\"",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "method": { "const": "node.rotate_key" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["new_public_key", "signed_at", "signature_old", "signature_new"],
+          "properties": {
+            "new_public_key": { "$ref": "common.schema.json#/$defs/publicKey" },
+            "signed_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+            "signature_old": { "$ref": "common.schema.json#/$defs/signature" },
+            "signature_new": { "$ref": "common.schema.json#/$defs/signature" }
+          }
+        }
+      }
+    },
+    "UnpairRequest": {
+      "description": "node → cloud (M86): «mia-node unpair» on the computer; same effect as «Отключить» in «Устройства»",
+      "allOf": [{ "$ref": "#/$defs/request" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "method": { "const": "node.unpair" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reason"],
+          "properties": { "reason": { "type": "string", "enum": ["user", "reinstall"] } }
+        }
+      }
+    },
+    "RpcResponse": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "ok", "result"],
+          "properties": {
+            "id": { "$ref": "common.schema.json#/$defs/id" },
+            "ok": { "const": true },
+            "result": { "type": "object", "description": "Method result: NodeStatus, ToolCallResult, ModelList, ModelGenerateResult, RelayGrant, CertIssueResult, or {} for push.send / node.unpair" },
+            "cached": { "type": "boolean", "description": "true when answered from the idempotency cache" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "ok", "error"],
+          "properties": {
+            "id": { "$ref": "common.schema.json#/$defs/id" },
+            "ok": { "const": false },
+            "error": { "$ref": "common.schema.json#/$defs/nodeError" }
+          }
+        }
+      ]
+    }
+  }
+}
