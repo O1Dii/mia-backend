@@ -132,3 +132,12 @@ Web — Playwright `web/tests/mvp-acceptance.spec.ts` на `web/tests/support/e2
 - MindWeaver E2E (копия с `registry=registry`, исходники `git archive`): 7 passed.
 
 Подробно — handoff M60, раздел «Verification».
+
+## Повтор после repair MW6 (2026-10-11, integrator)
+
+M12-R1, M41-R2, M17-R1, M22-R2 влиты (`ef6e978`, Android `f96d681`). `tests/e2e_mvp`: все strict xfail сняты и проходят —
+сценарий 2 (голосом три источника), 3 (подтверждение называет «Яна Петрова (жена)»), 7 (удаление аккаунта, инкогнито из web)
+теперь PASS автоматически. Полный pytest 1598 passed, 6 skipped, 0 failed; Playwright 108 passed, 2 skipped; Android 734
+теста, 0 failed. **Автоматическая часть MVP — READY.** Статус MVP целиком — по-прежнему NOT READY до живых проверок
+(UC-M60-1…12, UC-M17R1-1, UC-M24-1) и волн MW6b (wake word, «Устройства», Personal Node) и MW7 (вторая модель, пилотный деплой)
+— по решению пользователя они входят в MVP.

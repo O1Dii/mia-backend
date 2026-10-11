@@ -93,7 +93,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M15-003 | RESOLVED | Connections / security | OAuth `state` не привязан к браузеру (login-CSRF) | web: Lax-cookie `mia_oauth_binding` (M30); Android — OI-M30-002 | resolved in MW4 integration (web) |
 | OI-M15-004 | OPEN | Connections | Нет преднастроенных OAuth-клиентов; публикация из checkout | DCR/CIMD или 422; блокирует живой smoke Google (OI-M42-001) | M51 / до smoke M42 |
 | OI-M15-005 | OPEN | Tools | Роутер показывает модели app-only `get_state` | не скрывается | M31 |
-| OI-M15-006 | OPEN | Accounts | Токены провайдеров не отзываются при удалении аккаунта | только при удалении установки | before beta |
+| OI-M15-006 | RESOLVED | Accounts | Токены провайдеров не отзываются при удалении аккаунта | только при удалении установки | before beta |
 | OI-M15-007 | OPEN | Store | Нет rate limit на probe/connect | без лимитов | M62 |
 | OI-M15-008 | OPEN | Store | Отзывы без модерации | любой вошедший | открытая публикация |
 | OI-M15-009 | RESOLVED | Connections | `server.auth: mia_token` без источника токена | токен ≤5 мин из гранта клиента плагина | resolved in M51-R1 integration |
@@ -106,7 +106,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M17-001 | OPEN | Memory | Слепой индекс вместо открытого FTS | стеммер RU/EN, без синонимов | M60 |
 | OI-M17-002 | OPEN | Memory / privacy | Retention «none» удаляет на следующем проходе | проход раз в 15 мин | M31 |
 | OI-M17-003 | RESOLVED | Memory / device tools | Формат результата `device.contacts.search` | `matches` с именами, без номеров | resolved in MW3 integration |
-| OI-M17-004 | OPEN | Accounts | Нет публичного удаления аккаунта | `shred_account` готов, endpoint нет | M17-R1 (OI-M60-003) |
+| OI-M17-004 | RESOLVED | Accounts | Нет публичного удаления аккаунта | `shred_account` готов, endpoint нет | M17-R1 (OI-M60-003) |
 | OI-M17-005 | OPEN | Memory / jobs | `scope: automation` не учитывается в job-runs | job видит ту же память (M50 не трогал) | M60 |
 | OI-M18-001 | RESOLVED | Feed | Deadlock `open_turn` при параллельных runs | блокировка строки ленты первой | resolved in M18 |
 | OI-M18-002 | RESOLVED | Contracts | `cookieAuth` в openapi | добавлен M15, глобальный security | resolved in MW3 integration |
@@ -129,7 +129,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M30-005 | RESOLVED | Web | Нет экрана SDK-приложений и входа ChatGPT по подписке | вход ChatGPT в «Модели» (M62-T1), приложения на `/data` (M31) | resolved in integration 2026-10-10 |
 | OI-M40-001 | OPEN | Plugins / Linear | Набор tools официального сервера Linear не проверен вживую | 14 имён по памяти; расхождение = `tools_mismatch` | UC-M40-1 |
 | OI-M40-002 | OPEN | MCP Apps | Отдаёт ли реальный Linear `structuredContent` для `list_issues` | плитка читает только `structuredContent` | UC-M40-1 |
-| OI-M41-001 | OPEN | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
+| OI-M41-001 | RESOLVED | Approvals / Telegram | Карточка подтверждения показывает `contact:1` вместо имени | ref | M60 |
 | OI-M41-002 | RESOLVED | Notifications | Telegram не входит в каналы доставки по умолчанию | пользователь сам настраивает каналы и типы событий; новый канал спрашивает при подключении | resolved in M77 (каналы × типы, вопрос при подключении) |
 | OI-M41-003 | OPEN | Android device tools | `telegram.handoff` успешен на заблокированном телефоне | M23-R: `device_locked` при keyguard (опц.) | M60 |
 | OI-M41-004 | OPEN | Telegram bot | Webhook вне `/v1`, регистрация вручную | `python -m app.modules.notifications.telegram_webhook set` | M62 |
@@ -251,9 +251,9 @@ Integration session обновляет этот индекс после merge.
 | OI-M76R1-003 | DECIDED | M76-R1 | Автоозвучка читает тот же текст, что «Озвучить» | причина — автоозвучка брала поле `speech` ответа (короткий голосовой вариант, у ответов с… | — |
 | OI-M76R1-004 | OPEN | M76-R1 | Значения `channel` и поля `FeedItem.steps` нужно сверить при интеграции с M74-R1 | значения выше. | проверка M74-R1 + M76-R1 вместе. |
 | OI-M76R1-005 | DECIDED | M76-R1 | Шаги выбранного run берутся из ленты, если она их отдаёт, иначе из журнала этой сессии | у сообщения с `steps` из ленты используются они (источник истины, с решениями на других у… | — |
-| OI-M60-001 | DECIDED | runs / voice | Голосовой «Что у меня сегодня» читает 2 источника из 3 (лимит ADR-0011: 2 tool calls) | пользователь 2026-10-11: (b) — параллельные чтения одного шага считаются одним вызовом, запись — отдельно | M12-R1 |
-| OI-M60-002 | OPEN | tools / approvals | Подтверждение показывает `person:<id>` вместо имени получателя | strict xfail `test_s03_yana` | M41-R2 |
-| OI-M60-003 | OPEN | accounts / memory | Нет удаления аккаунта и переключателя инкогнито в web и Android | 2 strict xfail `test_s07_memory`; вбирает OI-M17-004, OI-M15-006 | M17-R1 |
+| OI-M60-001 | RESOLVED | runs / voice | Голосовой «Что у меня сегодня» читает 2 источника из 3 (лимит ADR-0011: 2 tool calls) | пользователь 2026-10-11: (b) — параллельные чтения одного шага считаются одним вызовом, запись — отдельно | M12-R1 |
+| OI-M60-002 | RESOLVED | tools / approvals | Подтверждение показывает `person:<id>` вместо имени получателя | strict xfail `test_s03_yana` | M41-R2 |
+| OI-M60-003 | RESOLVED | accounts / memory | Нет удаления аккаунта и переключателя инкогнито в web и Android | 2 strict xfail `test_s07_memory`; вбирает OI-M17-004, OI-M15-006 | M17-R1 |
 | OI-M60-004 | OPEN | tests | Зависание полного pytest превратить в падение с трассой | `pytest-timeout` в dev и `lock_timeout` на `TRUNCATE` фикстур (общие файлы) | следующая правка зависимостей |
 | OI-M60-005 | OPEN | MM E2E | Сквозной тест MindWeaver отстал (`registry=`) и не герметичен (MindWeaver сам читает `backend/.env`) | запуск только из `git archive` без `.env` | правка теста MindWeaver |
 | OI-M60-006 | OPEN | apps / connections | После отзыва приложения подключение `mia_token` выглядит «подключено» до проверки здоровья | безопасность не нарушена | M17-R1 / M62 |
@@ -262,6 +262,19 @@ Integration session обновляет этот индекс после merge.
 | OI-M60-009 | OPEN | jobs | `notify` без пространства имён — перенос после MVP | `notify.send` с алиасом позже | M61 / post-MVP |
 | OI-M60-010 | OPEN | voice | Голос с живой моделью и батарея ни разу не измерялись | пороги-предложения p95 ≤ 4 с, батарея ≤ 10 %/ч | UC-M60-8…10 |
 | OI-M60-011 | OPEN | web | Прямоугольная рамка фокуса внутри скруглённого поля ввода | косметика | ревью дизайна UC-M30-1/UC-M31-1 |
+| OI-M12-R1-001 | OPEN | runs / voice | Параллельные чтения шага выполняются последовательно | порядок событий детерминирован | UC-M60-8 p95 > 4 с |
+| OI-M12-R1-002 | OPEN | runs / voice | Чтения на устройстве делят единицу бюджета с серверными | буквально по решению пользователя | UC-M60-8 |
+| OI-M41-R2-001 | OPEN | approvals | Имя на карточке фиксируется при запросе подтверждения | переименование за 2 мин — старое имя | — |
+| OI-M41-R2-002 | OPEN | approvals / manifest | Аргумент-ссылка распознаётся по тексту схемы | явное поле в `mia.json` при следующей правке манифеста | правка контракта манифеста |
+| OI-M41-R2-003 | OPEN | approvals / privacy | Имя получателя в `summary` подтверждения открытым текстом | как текст сообщения; решать вместе с хранением истории | ревизия хранения |
+| OI-M41-R2-004 | RESOLVED | tests | Нестабильный `test_s08_security`: «4711» в случайном `request_id` | integrator MW6: «сейфа 4711» | — |
+| OI-M22-R2-001 | DECIDED | Android voice | Экспорт замеров: p50 — медиана, p95 — ранг ceil(0.95·n) | как в UC-M60-8 | — |
+| OI-M22-R2-002 | DECIDED | Android voice | Строка «Первый звук» видна и после хода без звука («Нет звука») | для экспорта после любого хода | — |
+| OI-M22-R2-003 | OPEN | Android tests | Тесты `core:network`/`core:push` в worktree ищут контракты в `../mia-helper` | передавать `-PmiaContractsDir`, `-PmiaMvpContractsDir`, `-PmiaTokensJson` | шаблон команды gate |
+| OI-M17-R1-001 | DECIDED | accounts | Повтор `DELETE /v1/account` после успеха — 401, не 204 | клиенты считают 401 успехом | — |
+| OI-M17-R1-002 | OPEN | accounts / models | Токены ChatGPT (подписка) удаляются локально, но не отзываются у OpenAI | нет публичного revoke | M61 |
+| OI-M17-R1-003 | OPEN | accounts / ops | Сколько хранить журнал удалений и бэкапы | решить с бэкапами | M62 |
+| OI-M17-R1-004 | OPEN | chat | Инкогнито отвечает без контекста предыдущих инкогнито-вопросов | контекст только на экране | жалоба пользователя |
 
 ## Record template
 
@@ -1985,7 +1998,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M15-006 — Provider tokens are not revoked when an account is deleted
 
-- Status: OPEN
+- Status: RESOLVED (M17-R1: `revoke_all_for_user`)
 - Source session: M15
 - Component: Connections / privacy
 - Question: должно ли удаление аккаунта отзывать токены провайдеров?
@@ -2197,7 +2210,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M17-004 — Нет публичного удаления аккаунта
 
-- Status: OPEN → repair M17-R1 (OI-M60-003)
+- Status: RESOLVED (M17-R1: `DELETE /v1/account`)
 - Source session: M17
 - Component: Accounts / privacy
 - Question: кто и когда открывает «Удалить аккаунт» (`DELETE /v1/me` или аналог)?
@@ -2538,7 +2551,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M41-001 — Карточка подтверждения показывает ref вместо имени
 
-- Status: OPEN
+- Status: RESOLVED (M41-R2: имя в карточке)
 - Source session: M41
 - Component: Tool Router approvals (`approval_summary`) / `builtin.telegram`
 - Question: summary подтверждения строится из аргументов, поэтому при `to="contact:1"` или `person:<id>` пользователь видит ref, а не имя («Telegram: send_message — text=…, to="contact:1"»).
@@ -4169,7 +4182,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M60-001 — Голосовой «Что у меня сегодня» читает только два источника из трёх
 
-- Status: DECIDED (пользователь 2026-10-11: вариант (b) → M12-R1)
+- Status: RESOLVED (M12-R1, `52e7e53`)
 - Source session: M60
 - Component: профиль `voice` (ADR-0011: ≤ 3 шага, ≤ 2 tool calls; `RUN_VOICE_MAX_TOOL_CALLS=2`), `app/modules/runs/engine.py:508`
 - Question: в чате Mia за один шаг параллельно читает Linear, заметки и таймер; голосом третий вызов получает `tool_budget_exceeded`, и ответ строится из двух источников. Менять ли лимит голоса?
@@ -4182,7 +4195,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M60-002 — Подтверждение показывает `person:<id>` вместо имени получателя
 
-- Status: OPEN → repair M41-R2
+- Status: RESOLVED (M41-R2, `6d2a39e`)
 - Source session: M60
 - Component: `approval_summary` (`app/modules/tools/policy.py:96`), вызов `app/modules/tools/router.py:688`; web `ChatParts.tsx:428`, Android `ChatParts.kt` показывают `approval.summary`
 - Question: после уточнения «Петровой» модель передаёт `to="person:<uuid>"`, как велит `people.resolve`; карточка подтверждения показывает `to="person:3e6c…"` — пользователь не может проверить, кому уходит сообщение. Тесты M41 этого не ловят: в них модель передаёт имя.
@@ -4195,7 +4208,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M60-003 — Нет удаления аккаунта и переключателя инкогнито
 
-- Status: OPEN → repair M17-R1 (вбирает OI-M17-004, OI-M15-006)
+- Status: RESOLVED (M17-R1, `00ddc20`/`b9f431a`, Android `c2641a8`)
 - Source session: M60
 - Component: `MemoryService.shred_account` без endpoint; `incognito` только в `POST /v1/runs` и кодеке Android (`RunModels.kt:18`), в web и Android UI нет
 - Question: сценарий 7 требует удаления аккаунта и инкогнито для пользователя.
@@ -4314,6 +4327,10 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 - Нет записей.
 
+## M84 inbox
+
+- Нет записей.
+
 ## M85 inbox
 
 - Нет записей.
@@ -4411,7 +4428,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M41-R2-004 — Нестабильный `test_s08_security`: «секрет» 4711 бывает в случайном `request_id`
 
-- Status: OPEN
+- Status: RESOLVED (integrator MW6: секрет «сейфа 4711», `3f56604`)
 - Source session: M41-R2
 - Component: `tests/e2e_mvp/test_s08_security.py::test_another_tenant_reaches_nothing_of_anns_over_http`
 - Question: тест ищет строки Анны (в том числе «4711») в любом ответе Боба, включая конверт ошибки 404 со случайным `request_id`. В полном прогоне M41-R2 он упал на `/v1/inbox/{id}` (код M41-R2 его не трогает); отдельно проходит 4/4. Вероятная причина — «4711» внутри случайного шестнадцатеричного id.
