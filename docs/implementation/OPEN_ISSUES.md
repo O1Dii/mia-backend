@@ -4333,7 +4333,147 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M85 inbox
 
-- Нет записей.
+### OI-M85-001 — Решения пользователя по ADR-0019 (Р1–Р12)
+
+- Status: OPEN
+- Source session: M85
+- Component: Personal Node (ADR-0019 «Решения для пользователя»)
+- Question: двенадцать продуктовых и инфраструктурных решений:
+  - Р1 — хранилище узла;
+  - Р2 — сквозное шифрование и relay;
+  - Р3 — домен узлов;
+  - Р4 — где подтверждать действия на ПК;
+  - Р5 — ожидание выключенного ПК для задач;
+  - Р6 — напоминания при выключенном ПК;
+  - Р7 — вход в standalone;
+  - Р8 — push в standalone;
+  - Р9 — бот Telegram;
+  - Р10 — бэкап;
+  - Р11 — установка;
+  - Р12 — число узлов на аккаунт.
+- Why non-blocking: M85 закончена; это блокер M86 (Р1–Р4, Р11), M87 (Р5, Р12), M91 (Р2, Р3), M89 (Р6, Р9) и M90 (Р7, Р8, Р10) — перенести в STATUS как условие старта.
+- Current assumption: рекомендации ADR-0019.
+- Options: в ADR-0019, у каждого пункта.
+- Recommendation: Р1 а, Р2 а, Р3 б, Р4 а, Р5 а, Р6 б, Р7 а, Р8 а, Р9 а, Р10 а, Р11 а, Р12 а.
+- Affected future sessions: M86, M87, M88, M89, M90, M91.
+- Revisit trigger/deadline: до запуска M86.
+
+### OI-M85-002 — Relay со сквозным TLS за TLS-шлюзом провайдера
+
+- Status: OPEN
+- Source session: M85
+- Component: инфраструктура (`docs/DEPLOY_TEST.md` «Topology»), будущий `mia-relay` (M91)
+- Question: тестовый сервер стоит за TLS-шлюзом провайдера (10.0.18.240), который сам расшифровывает TLS для `mindmapgen.xyz`. SNI-relay нужен «сырой» TCP 443 на имени `*.n.<домен>`. Умеет ли провайдер пропускать TCP без расшифровки для другого домена или порта, или нужен отдельный маленький сервер?
+- Why non-blocking: M86–M88 relay не используют; в тестах M91 relay работает в процессе с тестовым CA.
+- Current assumption: отдельный VM с публичным IP (Architecture §18: «постоянный device relay можно выделить на VM»).
+- Options: (a) отдельный VM (~4–6 €/мес); (b) TCP-passthrough у провайдера; (c) отказ от T1 в пользу Noise поверх WSS (Р2 б).
+- Recommendation: проверить (b) при подготовке M62; иначе (a).
+- Affected future sessions: M91, M62.
+- Revisit trigger/deadline: до M91.
+
+### OI-M85-003 — WebSocket управляющего канала через шлюз провайдера
+
+- Status: OPEN
+- Source session: M85
+- Component: `wss://…/v1/nodes/connect` (M86), nginx `deploy/mia.nginx.conf`
+- Question: пропускает ли TLS-шлюз провайдера долгие WebSocket-соединения и какой у него idle timeout? Realtime `/v1/realtime` в MVP скрыт, поэтому вживую это не проверено.
+- Why non-blocking: heartbeat 25 с и resume выдерживают обрывы; есть запасной транспорт.
+- Current assumption: работает при ping каждые 25 с; в nginx нужны `proxy_read_timeout ≥ 75s` и заголовки Upgrade.
+- Options: (a) WSS; (b) запасной long-poll для управляющего канала.
+- Recommendation: (a), проверить на стенде в M86 (проверка пользователя или деплой integrator-ом); (b) — только если не работает.
+- Affected future sessions: M86, M62.
+- Revisit trigger/deadline: первый деплой M86 на стенд.
+
+### OI-M85-004 — Управляющий канал и run engine в одном процессе
+
+- Status: OPEN
+- Source session: M85
+- Component: `app/modules/tools/device.py` (`InMemoryDeviceToolChannel._pending`), `device_access.py` (`_seen`), `runs/service.py` (asyncio-задачи), будущий `app/modules/nodes` (M86)
+- Question: вызов инструмента или модели узла должен уйти по WSS, который держит тот же процесс API, где идёт run. Сейчас API один процесс (`deploy/mia.compose.yml`). При нескольких процессах или репликах нужна межпроцессная маршрутизация.
+- Why non-blocking: пилот — один процесс API.
+- Current assumption: один процесс API; воркер (jobs) вызывает узел через API — внутренний вызов или очередь в БД с ожиданием.
+- Options: (a) задачи, которым нужен узел, исполняет процесс API, держащий канал (очередь в Postgres + `LISTEN/NOTIFY`); (b) Redis pub/sub; (c) отдельный процесс «шлюз узлов».
+- Recommendation: (a) в M86 для пути job → узел; (b)/(c) — когда появятся реплики.
+- Affected future sessions: M86, M87, M88, M62.
+- Revisit trigger/deadline: при добавлении второго процесса API.
+
+### OI-M85-005 — Run engine не задаёт `max_output_tokens`
+
+- Status: OPEN
+- Source session: M85
+- Component: `app/modules/runs/engine.py`, `app/core/ports/model_gateway.py` (`ModelRequest.max_output_tokens`)
+- Question: лимит выходных токенов есть в порте, но run engine его не передаёт. Для локальной модели это важно: длинный ответ занимает ПК на минуты.
+- Why non-blocking: облачные модели ограничены провайдером; узел введёт свой потолок.
+- Current assumption: M88 добавляет лимит по профилю (`RUN_<PROFILE>_MAX_OUTPUT_TOKENS`: voice 300, chat 2048, job 4096, app по гранту).
+- Options: (a) лимит для всех моделей; (b) только для узла.
+- Recommendation: (a) — согласуется с ADR-0011 (лимиты — конфигурация run engine).
+- Affected future sessions: M88.
+- Revisit trigger/deadline: M88.
+
+### OI-M85-006 — Мультиплексор relay: свой или SniTun (GPL-3.0)
+
+- Status: OPEN
+- Source session: M85
+- Component: `mia-relay`, туннель узла (M91)
+- Question: готовая реализация SNI-прокси с мультиплексором (NabuCasa/snitun) — под GPL-3.0, а у репозитория Mia нет объявленной лицензии. В её мультиплексоре ещё и свой слой шифрования заголовков (AES-CBC/GCM).
+- Why non-blocking: решение внутри M91, без продуктового выбора.
+- Current assumption: свой мультиплексор поверх WSS (~400 строк, без криптографии: внутри TLS клиента, снаружи TLS туннеля).
+- Options: (a) свой; (b) SniTun отдельным сервисом под GPL.
+- Recommendation: (a).
+- Affected future sessions: M91.
+- Revisit trigger/deadline: M91.
+
+### OI-M85-007 — Лимиты Let's Encrypt и Public Suffix List при росте
+
+- Status: OPEN
+- Source session: M85
+- Component: выпуск сертификатов узлов (`cert.issue`, M91)
+- Question: 50 новых сертификатов в неделю на зарегистрированный домен. Для пилота (5–20 узлов) хватает, для открытого запуска — нет.
+- Why non-blocking: пилот.
+- Current assumption: продления через ARI (без лимитов); не больше 50 новых узлов в неделю.
+- Options: (a) внести зону узлов в Public Suffix List; (b) запросить у Let's Encrypt повышение лимита; (c) другой CA через ACME.
+- Recommendation: (a) перед публичным запуском.
+- Affected future sessions: M91, после MVP.
+- Revisit trigger/deadline: больше 30 новых узлов в неделю.
+
+### OI-M85-008 — Какая локальная модель годится для русского и инструментов
+
+- Status: OPEN
+- Source session: M85
+- Component: Ollama через узел (M88)
+- Question: небольшие модели (7–8B) могут ошибаться в вызовах инструментов и в русском. Как Ollama стримит частичные вызовы инструментов на `/v1/chat/completions`, нужно проверить на реальной модели.
+- Why non-blocking: M88 тестирует на сценарном Ollama; выбор модели делает пользователь.
+- Current assumption: рекомендовать модель с возможностью `tools` из `/api/show` (например, семейство qwen3); модели без tools — режим `chat_only`.
+- Options: (a) прогнать сценарии M60 №1, 2, 4 на 2–3 моделях на ПК пользователя (проверка пользователя); (b) только документация.
+- Recommendation: (a), предложенная проверка пользователя в M88.
+- Affected future sessions: M88.
+- Revisit trigger/deadline: M88.
+
+### OI-M85-009 — Общие индексы: ADR README и contracts README
+
+- Status: OPEN
+- Source session: M85
+- Component: `docs/adr/README.md`, `contracts/README.md`
+- Question: M85 не правила общие индексы: параллельная M80 добавляет ADR-0018, а M84 — свои контракты.
+- Why non-blocking: документация.
+- Current assumption: integrator MW6b добавит строки.
+- Options: —
+- Recommendation: `docs/adr/README.md`: `| 0019 | [Personal Node: same core at home, QR pairing, end-to-end TLS relay](0019-personal-node.md) | Proposed |`; `contracts/README.md`: `- \`node/v1\`: Personal Node protocol draft (pairing, control-channel frames, RPC, capability manifest), ADR-0019.`
+- Affected future sessions: integrator MW6b.
+- Revisit trigger/deadline: интеграция MW6b.
+
+### OI-M85-010 — Цепочка поставки `mia-node`
+
+- Status: OPEN
+- Source session: M85
+- Component: распространение узла (M86, M90), Backlog §3 (подписанные релизы)
+- Question: `mia-node` работает с правами пользователя и видит его файлы. Обновление, подменённое на сервере или в индексе пакетов, обходит любые согласия.
+- Why non-blocking: пилот на своих машинах.
+- Current assumption: колесо собирается из этого репозитория и ставится по ссылке с SHA-256; бинарники Postgres сверяются по SHA-256; автообновления нет.
+- Options: (a) подписи релизов (Sigstore) после пилота; (b) публикация в PyPI с Trusted Publishing.
+- Recommendation: (a) перед открытым запуском.
+- Affected future sessions: M86, M90, после MVP.
+- Revisit trigger/deadline: перед открытым запуском.
 
 ## M86 inbox
 
