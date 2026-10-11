@@ -14,7 +14,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import pytest
 from app.core.ports.model_gateway import ModelDone, ModelEvent, ModelToolCall, ToolCallRequested
 from app.modules.plugins.catalog.package import load_package
 
@@ -122,34 +121,29 @@ async def test_today_in_chat_reads_linear_notes_and_timer(mvp: Mvp, tmp_path: Pa
     assert [i["id"] for i in phone_now] == [i["id"] for i in now.json()["items"]]
 
 
-async def test_today_by_voice_reads_two_sources_within_the_voice_budget(
+async def test_today_by_voice_budget_is_two_calls_with_parallel_reads_counted_once(
     mvp: Mvp, tmp_path: Path
 ) -> None:
-    """Current behaviour: the voice profile allows 2 tool calls (``RUN_VOICE_MAX_TOOL_CALLS``),
-    so the third source of the same question is skipped (``tool_budget_exceeded``)."""
+    """ADR-0011 amendment (OI-M60-001): 2 budget units and 3 steps, but read calls of one step
+    share one unit (up to 4), so the three sources of the question fit in one step."""
     phone, _, _ = await prepare(mvp, tmp_path)
     assert mvp.settings.run_voice_max_tool_calls == 2 and mvp.settings.run_voice_max_steps == 3
+    assert mvp.settings.run_voice_max_parallel_reads == 4
 
     mvp.model.then(three_at_once, say(BRIEF))
     events = await phone.run(QUESTION, profile="voice")
 
     assert types(events)[-1] == "run.completed", types(events)
     started = [p["tool"] for p in payloads(events, "tool.call.started")]
-    assert started == [LINEAR, NOTES]
-    assert [c["status"] for c in payloads(events, "tool.call.completed")] == ["succeeded"] * 2
-    skipped = mvp.model.tool_messages(1)[-1]
-    assert "tool_budget_exceeded" in skipped
+    assert started == list(TODAY)
+    assert [c["status"] for c in payloads(events, "tool.call.completed")] == ["succeeded"] * 3
+    assert "tool_budget_exceeded" not in "\n".join(mvp.model.tool_messages(1))
     # The voice tool set: only manifest ``voice: true`` tools of the three plugins.
     offered = mvp.model.offered(0)
     assert set(TODAY) <= offered and "builtin.notes.delete" not in offered
     assert final(events)["speech"] == BRIEF
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="M60 finding: voice budget of 2 tool calls cannot cover Linear + notes + timer "
-    "in one «Что у меня сегодня?» (repair M12-R1 / decision)",
-)
 async def test_today_by_voice_reads_all_three_sources(mvp: Mvp, tmp_path: Path) -> None:
     phone, _, _ = await prepare(mvp, tmp_path)
     mvp.model.then(three_at_once, say(BRIEF))

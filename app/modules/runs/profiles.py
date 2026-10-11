@@ -16,6 +16,8 @@ class ProfileLimits:
     max_steps: int
     """Model calls per run; the last allowed step is offered no tools."""
     max_tool_calls: int
+    """Tool-call budget; read calls issued together in one step may share one unit
+    (``max_parallel_reads``), every other call costs one."""
     timeout_s: float
     """Wall-clock budget excluding time spent waiting for a human approval."""
     speech_max_chars: int = SPEECH_HARD_LIMIT
@@ -23,9 +25,18 @@ class ProfileLimits:
     """Emit ``speech.ack`` when ``response.final`` is not ready after this delay."""
     stream_deltas: bool = False
     """Emit ``message.delta`` drafts (plain-text model mode only)."""
+    max_parallel_reads: int = 1
+    """Read-risk calls of one model step that together cost ONE unit of ``max_tool_calls``
+    (ADR-0011 amendment, OI-M60-001); further reads of that step are refused. 1 = every call
+    counts on its own."""
 
     def __post_init__(self) -> None:
-        if self.max_steps < 1 or self.max_tool_calls < 0 or self.timeout_s <= 0:
+        if (
+            self.max_steps < 1
+            or self.max_tool_calls < 0
+            or self.timeout_s <= 0
+            or self.max_parallel_reads < 1
+        ):
             raise ValueError("run limits must be positive")
         if not 1 <= self.speech_max_chars <= SPEECH_HARD_LIMIT:
             raise ValueError("speech limit must be within the contract hard limit")
@@ -49,6 +60,7 @@ class RunLimits:
             voice=ProfileLimits(
                 max_steps=settings.run_voice_max_steps,
                 max_tool_calls=settings.run_voice_max_tool_calls,
+                max_parallel_reads=settings.run_voice_max_parallel_reads,
                 timeout_s=settings.run_voice_timeout_seconds,
                 speech_max_chars=settings.run_voice_speech_max_chars,
                 ack_delay_ms=ack if ack > 0 else None,

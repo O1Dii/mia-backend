@@ -27,16 +27,19 @@ def test_profile_limits_come_from_settings() -> None:
         app_env="test",
         run_voice_max_steps=2,
         run_voice_max_tool_calls=1,
+        run_voice_max_parallel_reads=2,
         run_voice_ack_delay_ms=0,
         run_chat_timeout_seconds=90,
     )
     limits = RunLimits.from_settings(settings)
 
     assert (limits.voice.max_steps, limits.voice.max_tool_calls) == (2, 1)
+    assert limits.voice.max_parallel_reads == 2 and limits.chat.max_parallel_reads == 1
     assert limits.voice.ack_delay_ms is None and limits.voice.speech_max_chars == 250
     assert limits.chat.timeout_s == 90 and limits.chat.stream_deltas
     defaults = RunLimits.from_settings(Settings(app_env="test"))
     assert (defaults.voice.max_steps, defaults.voice.max_tool_calls) == (3, 2)
+    assert defaults.voice.max_parallel_reads == 4  # ADR-0011 amendment 2026-10-11
     assert defaults.voice.ack_delay_ms == 1500 and defaults.chat.max_steps == 12
     assert defaults.job.timeout_s == 1800
     with pytest.raises(ValueError):

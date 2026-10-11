@@ -115,6 +115,140 @@ async def test_voice_tool_budget_skips_extra_calls_in_one_step(world: RunWorld) 
     assert payload_of(events, "run.completed")["tool_calls"] == 2
 
 
+def parallel_voice_limits(reads: int = 4) -> RunLimits:
+    """Production voice shape (3 steps, 2 budget units) with parallel reads sharing one unit."""
+    return RunLimits(
+        voice=ProfileLimits(max_steps=3, max_tool_calls=2, timeout_s=5, max_parallel_reads=reads),
+        chat=TEST_LIMITS.chat,
+        job=TEST_LIMITS.job,
+        app=TEST_LIMITS.app,
+    )
+
+
+def requested(call_id: str, name: str) -> ToolCallRequested:
+    return ToolCallRequested(ModelToolCall(call_id=call_id, name=name, arguments={"q": call_id}))
+
+
+def tool_result(gateway: Any, request_index: int, call_id: str) -> dict[str, Any]:
+    message = next(m for m in gateway.requests[request_index].messages if m.tool_call_id == call_id)
+    parsed: dict[str, Any] = json.loads(message.content)
+    return parsed
+
+
+async def test_voice_parallel_reads_of_one_step_count_as_one_call(world: RunWorld) -> None:
+    """OI-M60-001 (b): three reads in one step cost one budget unit; the next step still has
+    a unit left, and ``run.completed`` reports the calls actually made."""
+    router, _ = router_with(descriptor("test.a"), descriptor("test.b"), descriptor("test.c"))
+    gateway = scripted(
+        [
+            requested("c0", "test.a"),
+            requested("c1", "test.b"),
+            requested("c2", "test.c"),
+            *text_step("")[-1:],
+        ],
+        tool_step("c3", "test.a", {"q": "again"}),
+        text_step(answer("Готово.")),
+    )
+    service = world.service(gateway, router=router, limits=parallel_voice_limits())
+
+    _, events = await run_to_end(service, world.user, profile="voice")
+
+    assert [call.call_id for call in router.executed] == ["c0", "c1", "c2", "c3"]
+    assert [bool(request.tools) for request in gateway.requests] == [True, True, False]
+    assert all(tool_result(gateway, 1, f"c{i}")["status"] == "succeeded" for i in range(3))
+    assert payload_of(events, "run.completed") == {"steps": 3, "tool_calls": 4}
+
+
+async def test_voice_fifth_parallel_read_is_refused(world: RunWorld) -> None:
+    router, _ = router_with(descriptor("test.a"))
+    gateway = scripted(
+        [*(requested(f"c{i}", "test.a") for i in range(5)), *text_step("")[-1:]],
+        text_step(answer("Готово.")),
+    )
+    service = world.service(gateway, router=router, limits=parallel_voice_limits())
+
+    _, events = await run_to_end(service, world.user, profile="voice")
+
+    assert [call.call_id for call in router.executed] == ["c0", "c1", "c2", "c3"]
+    assert tool_result(gateway, 1, "c4") == {"status": "skipped", "error": "parallel_read_limit"}
+    assert payload_of(events, "run.completed")["tool_calls"] == 4
+    # Only one unit was spent, so the model is still offered tools on the next step.
+    assert gateway.requests[1].tools
+
+
+async def test_voice_writes_count_separately_from_parallel_reads(world: RunWorld) -> None:
+    router, approvals = router_with(
+        descriptor("test.a"),
+        descriptor("test.b"),
+        descriptor("test.note", risk="write_reversible"),
+    )
+    gateway = scripted(
+        [
+            requested("r0", "test.a"),
+            requested("w0", "test.note"),
+            requested("r1", "test.b"),
+            requested("w1", "test.note"),
+            *text_step("")[-1:],
+        ],
+        text_step(answer("Готово.")),
+    )
+    service = world.service(
+        gateway, router=router, approvals=approvals, limits=parallel_voice_limits()
+    )
+
+    _, events = await run_to_end(service, world.user, profile="voice")
+
+    # reads r0+r1 share unit 1, w0 takes unit 2, w1 finds the budget (2) used up.
+    assert [call.call_id for call in router.executed] == ["r0", "w0", "r1"]
+    assert tool_result(gateway, 1, "w1") == {"status": "skipped", "error": "tool_budget_exceeded"}
+    assert not gateway.requests[1].tools
+    assert payload_of(events, "run.completed")["tool_calls"] == 3
+
+
+async def test_voice_reads_after_the_budget_is_spent_are_skipped(world: RunWorld) -> None:
+    router, approvals = router_with(
+        descriptor("test.a"), descriptor("test.note", risk="write_reversible")
+    )
+    gateway = scripted(
+        [
+            requested("w0", "test.note"),
+            requested("w1", "test.note"),
+            requested("r0", "test.a"),
+            *text_step("")[-1:],
+        ],
+        text_step(answer("Готово.")),
+    )
+    service = world.service(
+        gateway, router=router, approvals=approvals, limits=parallel_voice_limits()
+    )
+
+    await run_to_end(service, world.user, profile="voice")
+
+    assert [call.call_id for call in router.executed] == ["w0", "w1"]
+    assert tool_result(gateway, 1, "r0") == {"status": "skipped", "error": "tool_budget_exceeded"}
+
+
+async def test_chat_reads_are_not_grouped(world: RunWorld) -> None:
+    """The chat profile is unchanged: every call counts on its own (limit 24)."""
+    limits = RunLimits(
+        voice=TEST_LIMITS.voice,
+        chat=ProfileLimits(max_steps=3, max_tool_calls=2, timeout_s=5),
+        job=TEST_LIMITS.job,
+        app=TEST_LIMITS.app,
+    )
+    router, _ = router_with(descriptor("test.a", voice=False))
+    gateway = scripted(
+        [*(requested(f"c{i}", "test.a") for i in range(3)), *text_step("")[-1:]],
+        text_step(answer("Готово.")),
+    )
+    service = world.service(gateway, router=router, limits=limits)
+
+    await run_to_end(service, world.user, profile="chat")
+
+    assert [call.call_id for call in router.executed] == ["c0", "c1"]
+    assert tool_result(gateway, 1, "c2")["error"] == "tool_budget_exceeded"
+
+
 async def test_chat_profile_allows_longer_tool_loops(world: RunWorld) -> None:
     router, _ = router_with(descriptor("test.search", voice=False))
     steps = [tool_step(f"c{i}", "test.search", {"q": str(i)}) for i in range(5)]
