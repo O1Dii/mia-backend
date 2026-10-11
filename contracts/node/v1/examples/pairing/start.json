@@ -1,0 +1,13 @@
+{
+  "protocol": "mia-node/1",
+  "public_key": "BmOPGHcqERofbmLS7jwVpuIDsaOqIxXiHOxOsNMsafE",
+  "node": {
+    "name": "Домашний ПК",
+    "os": "windows",
+    "os_version": "11 24H2",
+    "arch": "x86_64",
+    "version": "0.1.0"
+  },
+  "signed_at": "2026-10-11T18:00:00Z",
+  "signature": "1-odfNmXahuvtjJCXKyznghj6eWPmWLF73OLI9uGF41jC_xW_xL0huyP1HPhFtYuqCaFOPgJMdIJqZqWCtOIBA"
+}

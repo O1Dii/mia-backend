@@ -1,0 +1,145 @@
+{
+  "node_id": "7c1d3e5f-2a4b-4c6d-8e9f-0a1b2c3d4e5f",
+  "manifest_version": 3,
+  "software": {
+    "version": "0.1.0",
+    "protocol": 1,
+    "os": "windows",
+    "os_version": "11 24H2",
+    "arch": "x86_64"
+  },
+  "data_mode": "cloud",
+  "approver": "phone",
+  "capabilities": [
+    {
+      "id": "files.search",
+      "kind": "read",
+      "label": "поиск файлов в разрешённых папках",
+      "status": "enabled",
+      "tools": [
+        {
+          "name": "node.files.search",
+          "description": "Найти файлы по имени в папках, которые пользователь разрешил на компьютере. Возвращает имена и папки, не содержимое.",
+          "input_schema": {
+            "type": "object",
+            "required": [
+              "query"
+            ],
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "folder": {
+                "type": "string"
+              },
+              "limit": {
+                "type": "integer"
+              }
+            }
+          },
+          "risk": "read",
+          "voice": true,
+          "timeout_ms": 15000
+        }
+      ],
+      "folders": [
+        "Документы",
+        "Рабочий стол"
+      ]
+    },
+    {
+      "id": "files.read",
+      "kind": "read",
+      "label": "чтение текста файлов из разрешённых папок",
+      "status": "enabled",
+      "tools": [
+        {
+          "name": "node.files.read",
+          "description": "Прочитать текст файла, найденного node.files.search, по его file_ref.",
+          "input_schema": {
+            "type": "object",
+            "required": [
+              "file_ref"
+            ],
+            "properties": {
+              "file_ref": {
+                "type": "string"
+              },
+              "max_chars": {
+                "type": "integer"
+              }
+            }
+          },
+          "risk": "read",
+          "voice": false,
+          "timeout_ms": 30000
+        }
+      ],
+      "folders": [
+        "Документы",
+        "Рабочий стол"
+      ]
+    },
+    {
+      "id": "apps.open",
+      "kind": "action",
+      "label": "открыть программу на компьютере",
+      "status": "disabled",
+      "apps": []
+    },
+    {
+      "id": "links.open",
+      "kind": "action",
+      "label": "открыть ссылку в браузере компьютера",
+      "status": "enabled",
+      "tools": [
+        {
+          "name": "node.links.open",
+          "description": "Открыть https-ссылку в браузере компьютера пользователя.",
+          "input_schema": {
+            "type": "object",
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          "risk": "write_reversible",
+          "voice": true,
+          "timeout_ms": 10000
+        }
+      ]
+    },
+    {
+      "id": "models.ollama",
+      "kind": "model",
+      "label": "локальные модели (Ollama)",
+      "status": "enabled",
+      "models": [
+        "qwen3:8b",
+        "gemma3:4b"
+      ]
+    },
+    {
+      "id": "storage.home",
+      "kind": "storage",
+      "label": "память и история дома",
+      "status": "disabled"
+    },
+    {
+      "id": "runtime.full",
+      "kind": "runtime",
+      "label": "узел вместо сервера",
+      "status": "disabled"
+    }
+  ],
+  "limits": {
+    "max_file_read_chars": 20000,
+    "max_search_results": 20,
+    "max_concurrent_generations": 1
+  },
+  "signature": "k49eP3RMGxUEsCZXfxWrafsP7cYIDYcz5VJFfmLeoNtPWlwq1iJeWmv7gMXPIViok4oDBPEirmCD6EmLz4pCCw"
+}

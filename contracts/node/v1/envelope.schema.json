@@ -1,0 +1,558 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/node/v1/envelope.schema.json",
+  "title": "MIA Personal Node v1 control channel frames (DRAFT, ADR-0019 §4)",
+  "description": "JSON text frames of the control channel: one outbound WSS connection from the node to the Mia API (wss://<api>/v1/nodes/connect). Handshake frames (challenge, hello, welcome) carry seq 0; every other frame carries a per-direction session seq that starts at 1 and grows by exactly 1 and continues across a resumed connection; ack is the highest contiguous seq received from the peer. A receiver drops seq <= last received (duplicate after resume, re-acks) and treats a gap as a protocol error (close 4400, reconnect, resume). Root document is a Frame.",
+  "$ref": "#/$defs/Frame",
+  "$defs": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "rpcId": {
+      "$ref": "common.schema.json#/$defs/id",
+      "description": "Request id chosen by the caller; unique per session; also the idempotency key of the call"
+    },
+    "base": {
+      "type": "object",
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "ack",
+        "sent_at",
+        "payload"
+      ],
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "ack": {
+          "$ref": "#/$defs/seq"
+        },
+        "sent_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "Frame": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ChallengeFrame"
+        },
+        {
+          "$ref": "#/$defs/HelloFrame"
+        },
+        {
+          "$ref": "#/$defs/WelcomeFrame"
+        },
+        {
+          "$ref": "#/$defs/PingFrame"
+        },
+        {
+          "$ref": "#/$defs/PongFrame"
+        },
+        {
+          "$ref": "#/$defs/AckFrame"
+        },
+        {
+          "$ref": "#/$defs/ManifestFrame"
+        },
+        {
+          "$ref": "#/$defs/RpcRequestFrame"
+        },
+        {
+          "$ref": "#/$defs/RpcStreamFrame"
+        },
+        {
+          "$ref": "#/$defs/RpcResponseFrame"
+        },
+        {
+          "$ref": "#/$defs/RpcCancelFrame"
+        },
+        {
+          "$ref": "#/$defs/RevokedFrame"
+        },
+        {
+          "$ref": "#/$defs/CloseFrame"
+        }
+      ]
+    },
+    "ChallengeFrame": {
+      "description": "cloud → node, first frame after the WebSocket upgrade",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "challenge"
+        },
+        "seq": {
+          "const": 0
+        },
+        "ack": {
+          "const": 0
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "connection_id",
+            "nonce",
+            "server_time",
+            "protocol_versions"
+          ],
+          "properties": {
+            "connection_id": {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            "nonce": {
+              "$ref": "common.schema.json#/$defs/nonce"
+            },
+            "server_time": {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            },
+            "protocol_versions": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    "HelloFrame": {
+      "description": "node → cloud. Signature over \"mia-node/1\\nhello\\n<node_id>\\n<connection_id>\\n<nonce>\\n<resume.session_id or ->\\n<resume.last_received_seq or 0>\". The nonce is single use and valid 30 s; a revoked or unknown key gets close 4403",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "hello"
+        },
+        "seq": {
+          "const": 0
+        },
+        "ack": {
+          "const": 0
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol",
+            "node_id",
+            "connection_id",
+            "nonce",
+            "signature",
+            "manifest_version"
+          ],
+          "properties": {
+            "protocol": {
+              "const": 1
+            },
+            "node_id": {
+              "$ref": "common.schema.json#/$defs/nodeId"
+            },
+            "connection_id": {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            "nonce": {
+              "$ref": "common.schema.json#/$defs/nonce"
+            },
+            "signature": {
+              "$ref": "common.schema.json#/$defs/signature"
+            },
+            "manifest_version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "resume": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "session_id",
+                "last_received_seq"
+              ],
+              "properties": {
+                "session_id": {
+                  "$ref": "common.schema.json#/$defs/id"
+                },
+                "last_received_seq": {
+                  "$ref": "#/$defs/seq"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "WelcomeFrame": {
+      "description": "cloud → node. resumed=false starts a fresh session (seq restarts at 1, every in-flight call of the old session is failed: reads → failed, actions → uncertain). resumed=true: both sides retransmit unacked frames after last_received_seq",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "welcome"
+        },
+        "seq": {
+          "const": 0
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "session_id",
+            "resumed",
+            "last_received_seq",
+            "heartbeat_s",
+            "server_time"
+          ],
+          "properties": {
+            "session_id": {
+              "$ref": "common.schema.json#/$defs/id"
+            },
+            "resumed": {
+              "type": "boolean"
+            },
+            "last_received_seq": {
+              "$ref": "#/$defs/seq"
+            },
+            "heartbeat_s": {
+              "type": "integer",
+              "minimum": 5,
+              "maximum": 60
+            },
+            "server_time": {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            },
+            "manifest_needed": {
+              "type": "boolean",
+              "description": "true when the cloud has an older manifest_version"
+            }
+          }
+        }
+      }
+    },
+    "PingFrame": {
+      "description": "Either side every heartbeat_s; three missed heartbeats close the connection (presence → offline)",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "ping"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    "PongFrame": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "pong"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    "AckFrame": {
+      "description": "Explicit ack when there is nothing else to send within 1 s",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "ack"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    "ManifestFrame": {
+      "description": "node → cloud after welcome (when manifest_needed) and on every change",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "manifest"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "manifest"
+          ],
+          "properties": {
+            "manifest": {
+              "$ref": "capability-manifest.schema.json#/$defs/CapabilityManifest"
+            }
+          }
+        }
+      }
+    },
+    "RpcRequestFrame": {
+      "description": "Either direction. Methods and params: rpc.schema.json. The callee answers exactly once with rpc.response; streaming methods send rpc.stream chunks first. A repeated id (after resume) returns the cached response and never re-executes",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "rpc.request"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "$ref": "rpc.schema.json#/$defs/RpcRequest"
+        }
+      }
+    },
+    "RpcStreamFrame": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "rpc.stream"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "index",
+            "chunk"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/rpcId"
+            },
+            "index": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "0, 1, 2 … per request"
+            },
+            "chunk": {
+              "$ref": "rpc.schema.json#/$defs/StreamChunk"
+            }
+          }
+        }
+      }
+    },
+    "RpcResponseFrame": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "rpc.response"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "$ref": "rpc.schema.json#/$defs/RpcResponse"
+        }
+      }
+    },
+    "RpcCancelFrame": {
+      "description": "Caller gives up (run cancelled, deadline); the callee stops and still answers with rpc.response error cancelled",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "rpc.cancel"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reason"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/rpcId"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "run_cancelled",
+                "deadline",
+                "client_gone",
+                "shutdown"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "RevokedFrame": {
+      "description": "cloud → node, then close 4403. The node deletes its key and relay credentials and stops; data at home stays where it is (the node's own screen says so)",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "revoked"
+        },
+        "seq": {
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "revoked_at"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "user",
+                "account_deleted",
+                "key_compromised",
+                "admin"
+              ]
+            },
+            "revoked_at": {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            }
+          }
+        }
+      }
+    },
+    "CloseFrame": {
+      "description": "Graceful close by either side (shutdown, update, protocol error) before the WebSocket close",
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        }
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "const": "close"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "reason"
+          ],
+          "properties": {
+            "code": {
+              "type": "integer",
+              "enum": [
+                1000,
+                1001,
+                4400,
+                4401,
+                4403,
+                4409,
+                4426,
+                4429
+              ],
+              "description": "1000 normal, 1001 going away (shutdown/update), 4400 protocol error (gap, bad frame), 4401 handshake failed, 4403 revoked/unknown key, 4409 replaced by a newer connection of the same node, 4426 protocol version unsupported, 4429 reconnecting too often"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "retry_after_s": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600
+            }
+          }
+        }
+      }
+    }
+  }
+}

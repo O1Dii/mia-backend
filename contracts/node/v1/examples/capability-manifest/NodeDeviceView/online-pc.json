@@ -1,0 +1,44 @@
+{
+  "kind": "node",
+  "id": "7c1d3e5f-2a4b-4c6d-8e9f-0a1b2c3d4e5f",
+  "name": "Домашний ПК",
+  "os": "windows",
+  "version": "0.1.0",
+  "status": "online",
+  "connected_since": "2026-10-11T18:01:20Z",
+  "last_seen_at": "2026-10-11T18:20:00Z",
+  "data_mode": "cloud",
+  "fingerprint": "EV22-WDIM-UAMN-QYEP-R2Y5-7DFL",
+  "capabilities": [
+    {
+      "id": "files.search",
+      "label": "поиск файлов в разрешённых папках",
+      "status": "enabled",
+      "remote": "ask"
+    },
+    {
+      "id": "files.read",
+      "label": "чтение текста файлов из разрешённых папок",
+      "status": "enabled",
+      "remote": "ask"
+    },
+    {
+      "id": "apps.open",
+      "label": "открыть программу на компьютере",
+      "status": "disabled",
+      "remote": "deny"
+    },
+    {
+      "id": "links.open",
+      "label": "открыть ссылку в браузере компьютера",
+      "status": "enabled",
+      "remote": "ask"
+    },
+    {
+      "id": "models.ollama",
+      "label": "локальные модели (Ollama)",
+      "status": "enabled",
+      "remote": "n/a"
+    }
+  ]
+}

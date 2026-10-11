@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.mia.local/node/v1/common.schema.json",
+  "title": "MIA Personal Node v1 shared definitions (DRAFT, ADR-0019)",
+  "description": "Reusable primitives of the Personal Node protocol. Not a document type of its own. Draft by M85; implemented from M86 on.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "description": "RFC 3339 timestamp with an explicit offset"
+    },
+    "nodeId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The node's id. A node is a device of the account (kind node), so this is also its device id in GET /v1/devices (M84)"
+    },
+    "nodeHost": {
+      "type": "string",
+      "pattern": "^n[a-z2-7]{16}$",
+      "description": "Random DNS label of the node, unrelated to the account or the computer name (it is published in Certificate Transparency logs). Full name: <host>.<node zone>, e.g. nq4m7x2kd5rbt6wya.n.example"
+    },
+    "publicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "description": "Raw 32-byte Ed25519 public key, base64url without padding"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "Raw 64-byte Ed25519 signature, base64url without padding, over the exact signing string defined in contracts/node/v1/README.md"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "description": "32 random bytes, base64url without padding; single use"
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^[A-Z2-7]{4}(-[A-Z2-7]{4}){5}$",
+      "description": "Human-comparable key fingerprint: RFC 4648 base32 of the first 15 bytes of SHA-256(raw public key), six groups of four"
+    },
+    "spkiPin": {
+      "type": "string",
+      "pattern": "^sha256/[A-Za-z0-9+/]{43}=$",
+      "description": "SHA-256 of the DER SubjectPublicKeyInfo of the node's TLS key, base64 (OkHttp CertificatePinner format)"
+    },
+    "argsHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Same canonical-JSON SHA-256 as mvp/v1 common argsHash (ADR-0011)"
+    },
+    "dataMode": {
+      "type": "string",
+      "enum": ["cloud", "home", "standalone"],
+      "description": "cloud = runtime and data in Mia cloud, the node only lends capabilities (files, local models); home = chats, memory, jobs live on the node, the cloud keeps identity, device registry, push and relay; standalone = the node is the server, the cloud is optional (relay/push only)"
+    },
+    "capabilityId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "maxLength": 64,
+      "description": "Known v1: files.search, files.read, apps.open, links.open, models.ollama, storage.home, runtime.full, notifications.desktop. Same vocabulary style as mvp/v1 device-access deviceCapability"
+    },
+    "nodeToolName": {
+      "type": "string",
+      "pattern": "^node\\.[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "description": "Namespaced node tool as the model sees it, e.g. node.files.search, node.files.read, node.apps.open, node.links.open"
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["read", "write_reversible", "write_external"],
+      "description": "Tool risk class, same as mvp/v1 common risk"
+    },
+    "requester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label"],
+      "description": "Who asked for the node action (ADR-0016 requester), shown in the node's local journal",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["device_app", "device_webview", "web", "telegram", "job", "node_local"]
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "nodeErrorCode": {
+      "type": "string",
+      "enum": [
+        "invalid_params",
+        "unknown_method",
+        "unsupported_version",
+        "unsupported_tool",
+        "capability_disabled",
+        "path_not_allowed",
+        "not_found",
+        "file_too_large",
+        "unsupported_file_type",
+        "authorization_missing",
+        "args_hash_mismatch",
+        "expired",
+        "cancelled",
+        "timeout",
+        "busy",
+        "model_not_found",
+        "model_unavailable",
+        "context_too_long",
+        "os_permission_denied",
+        "execution_failed",
+        "internal"
+      ],
+      "description": "Errors returned by the node inside the protocol. Cloud-facing public codes (node_offline, node_revoked, …) are listed in README and are added to mvp/v1/error-codes.json by M86+"
+    },
+    "nodeError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "$ref": "#/$defs/nodeErrorCode" },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Safe, content-free text (no paths, no file content, no prompt text)"
+        },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "nodeInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "os", "arch", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Name the user sees in «Устройства», e.g. «Домашний ПК»; editable later"
+        },
+        "os": { "type": "string", "enum": ["macos", "windows", "linux"] },
+        "os_version": { "type": "string", "maxLength": 64 },
+        "arch": { "type": "string", "enum": ["x86_64", "arm64"] },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([.-][0-9A-Za-z.-]+)?$",
+          "description": "mia-node version"
+        }
+      }
+    }
+  }
+}

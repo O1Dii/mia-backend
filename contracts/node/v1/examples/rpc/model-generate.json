@@ -1,0 +1,39 @@
+{
+  "id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+  "method": "model.generate",
+  "deadline_at": "2026-10-11T18:22:30Z",
+  "params": {
+    "model": "qwen3:8b",
+    "profile": "chat",
+    "max_output_tokens": 2048,
+    "first_token_timeout_ms": 20000,
+    "keep_alive_s": 1800,
+    "messages": [
+      {
+        "role": "system",
+        "content": "Ты — Мия, личный ассистент."
+      },
+      {
+        "role": "user",
+        "content": "Сколько будет двенадцать на семь?"
+      }
+    ],
+    "tools": [
+      {
+        "name": "background.start",
+        "description": "Запустить долгую задачу в фоне.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "task"
+          ]
+        }
+      }
+    ]
+  }
+}

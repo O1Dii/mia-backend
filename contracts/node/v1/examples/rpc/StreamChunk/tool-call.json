@@ -1,0 +1,7 @@
+{
+  "kind": "tool_call",
+  "index": 0,
+  "id": "call_0",
+  "name": "background.start",
+  "arguments_delta": "{\"task\":\"отчёт"
+}

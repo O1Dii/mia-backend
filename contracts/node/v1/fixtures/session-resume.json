@@ -1,0 +1,100 @@
+{
+  "prior": {
+    "node_sent": 7,
+    "cloud_received": 6,
+    "cloud_sent": 3,
+    "node_received": 3
+  },
+  "frames": [
+    {
+      "from": "cloud",
+      "frame": {
+        "v": 1,
+        "type": "challenge",
+        "seq": 0,
+        "ack": 0,
+        "sent_at": "2026-10-11T18:30:02Z",
+        "payload": {
+          "connection_id": "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a",
+          "nonce": "Ym4eO2k1xmosirnIT8PdVSJTCQxukfWUmbzLx7j_xcI",
+          "server_time": "2026-10-11T18:30:02Z",
+          "protocol_versions": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "from": "node",
+      "frame": {
+        "v": 1,
+        "type": "hello",
+        "seq": 0,
+        "ack": 0,
+        "sent_at": "2026-10-11T18:30:02Z",
+        "payload": {
+          "protocol": 1,
+          "node_id": "7c1d3e5f-2a4b-4c6d-8e9f-0a1b2c3d4e5f",
+          "connection_id": "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a",
+          "nonce": "Ym4eO2k1xmosirnIT8PdVSJTCQxukfWUmbzLx7j_xcI",
+          "signature": "exZGmgyfHvEJFyW_8J6l6ZamrMVD6p-6jUStaUISOBiewvG9l63k2ZpKTulc0jMjoSvqb1FkAMloJmCvRHlkDA",
+          "manifest_version": 3,
+          "resume": {
+            "session_id": "8c9d0e1f-2a3b-4c4d-9e5f-6a7b8c9d0e1f",
+            "last_received_seq": 3
+          }
+        }
+      }
+    },
+    {
+      "from": "cloud",
+      "frame": {
+        "v": 1,
+        "type": "welcome",
+        "seq": 0,
+        "ack": 6,
+        "sent_at": "2026-10-11T18:30:02Z",
+        "payload": {
+          "session_id": "8c9d0e1f-2a3b-4c4d-9e5f-6a7b8c9d0e1f",
+          "resumed": true,
+          "last_received_seq": 6,
+          "heartbeat_s": 25,
+          "server_time": "2026-10-11T18:30:02Z"
+        }
+      }
+    },
+    {
+      "from": "node",
+      "frame": {
+        "v": 1,
+        "type": "pong",
+        "seq": 7,
+        "ack": 3,
+        "sent_at": "2026-10-11T18:30:02Z",
+        "payload": {}
+      }
+    },
+    {
+      "from": "cloud",
+      "frame": {
+        "v": 1,
+        "type": "ping",
+        "seq": 4,
+        "ack": 7,
+        "sent_at": "2026-10-11T18:30:27Z",
+        "payload": {}
+      }
+    },
+    {
+      "from": "node",
+      "frame": {
+        "v": 1,
+        "type": "pong",
+        "seq": 8,
+        "ack": 4,
+        "sent_at": "2026-10-11T18:30:27Z",
+        "payload": {}
+      }
+    }
+  ]
+}

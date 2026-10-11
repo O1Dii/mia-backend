@@ -1,0 +1,12 @@
+{
+  "node": {
+    "node_id": "7c1d3e5f-2a4b-4c6d-8e9f-0a1b2c3d4e5f",
+    "name": "Домашний ПК",
+    "host": "nq4m7x2kd5rbt6wya",
+    "fingerprint": "EV22-WDIM-UAMN-QYEP-R2Y5-7DFL",
+    "os": "windows",
+    "data_mode": "cloud",
+    "status": "offline",
+    "paired_at": "2026-10-11T18:01:12Z"
+  }
+}
