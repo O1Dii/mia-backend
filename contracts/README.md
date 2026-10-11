@@ -8,6 +8,8 @@ clients.
   exhaustive fixtures.
 - `ai/v1`: normalized provider event schema and exhaustive fixtures.
 - `errors/v1`: stable public error envelope and code registry.
+- `node/v1`: Personal Node protocol draft (pairing, control-channel frames, RPC,
+  capability manifest), ADR-0019.
 
 Run validation from the repository root:
 

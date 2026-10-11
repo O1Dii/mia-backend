@@ -276,6 +276,16 @@ Integration session обновляет этот индекс после merge.
 | OI-M17-R1-003 | OPEN | accounts / ops | Сколько хранить журнал удалений и бэкапы | решить с бэкапами | M62 |
 | OI-M17-R1-004 | OPEN | chat | Инкогнито отвечает без контекста предыдущих инкогнито-вопросов | контекст только на экране | жалоба пользователя |
 | OI-MW6-001 | OPEN | accounts | Анонимный `DELETE /v1/account` отвечает 422, а не 401 | ничего не удаляет | следующая правка аккаунта / M62 |
+| OI-M85-001 | OPEN | Personal Node | Решения пользователя Р1–Р12 по ADR-0019 | рекомендации в ADR; Р1–Р4, Р11 блокируют M86 | решение пользователя |
+| OI-M85-002 | OPEN | Personal Node / relay | Relay требует сырой TCP 443, шлюз провайдера сам терминирует TLS | отдельный маленький сервер (Р2) | M91 |
+| OI-M85-003 | OPEN | Personal Node | Долгий WebSocket через шлюз провайдера не проверен | проверка в M86 | M86 |
+| OI-M85-004 | OPEN | runtime | Состояние устройств и run живёт в одном процессе API | один процесс; при нескольких — межпроцессная маршрутизация | multi-instance |
+| OI-M85-005 | OPEN | runs | Движок run не задаёт `max_output_tokens` | исправит M88 | M88 |
+| OI-M85-006 | OPEN | relay | Мультиплексор relay: свой или SniTun (GPL-3.0) | решение в M91 | M91 |
+| OI-M85-007 | OPEN | relay / TLS | Let's Encrypt: 50 сертификатов в неделю на домен | при росте — Public Suffix List | масштаб |
+| OI-M85-008 | OPEN | models | Какая локальная модель справляется с русским и tools | проверка пользователя в M88 | M88 |
+| OI-M85-009 | RESOLVED | docs | Строки индексов ADR и contracts README | integrator MW6b добавил | — |
+| OI-M85-010 | OPEN | supply chain | Подпись релизов и цепочка поставки `mia-node` | — | M90 / post-MVP |
 
 ## Record template
 
@@ -4464,7 +4474,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M85-009 — Общие индексы: ADR README и contracts README
 
-- Status: OPEN
+- Status: RESOLVED (integrator MW6b)
 - Source session: M85
 - Component: `docs/adr/README.md`, `contracts/README.md`
 - Question: M85 не правила общие индексы: параллельная M80 добавляет ADR-0018, а M84 — свои контракты.

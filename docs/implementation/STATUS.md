@@ -495,11 +495,12 @@ operations, 102 error codes) PASS; pytest **1570 passed, 6 skipped, 4 xfailed (s
 | M80 | MW6b | READY | M22 | Opus 5.5 high | — | — | wake word: сравнение движков, фраза «Привет, Мия» |
 | M81 | MW6b | PENDING | M80, решение ADR-0018 | Opus 5.5 high | — | — | wake word в фоне (opt-in) |
 | M84 | MW6b | READY | M70, M71, M72 | Opus 5.5 high | — | — | экран «Устройства»: список, статус онлайн/офлайн, возможности и плагины по устройству |
-| M85 | MW6b | READY | M60, M70 | Opus 5.5 high | — | — | Personal Node: ADR-0019 и протокол |
-| M86 | MW6b | PENDING | M85, M84, решение ADR-0019 | Opus 5.5 high | — | — | Node: runtime, pairing, relay |
+| M85 | MW6b | COMPLETED | M60, M70 | Opus 5.5 high | [M85](handoffs/M85.md) | `d2616c5` | ADR-0019 Proposed, `contracts/node/v1`; ждёт решений пользователя Р1–Р12 (OI-M85-001) |
+| M86 | MW6b | PENDING | M85, M84, решения Р1–Р4, Р11 | Opus 5.5 high | — | — | Node: runtime, pairing, канал, «Устройства» |
 | M87 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: файлы и действия на ПК |
 | M88 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: Ollama |
-| M89 | MW6b | PENDING | M86 | Opus 5.5 high | — | — | Node: память и история дома |
+| M91 | MW6b | PENDING | M86, Р1–Р3 | Opus 5.5 high | — | — | Node: ядро на узле (встроенный Postgres) и сквозной TLS-туннель |
+| M89 | MW6b | PENDING | M91 | Opus 5.5 high | — | — | Node: память и история дома |
 | M90 | MW6b | PENDING | M89 | Opus 5.5 high | — | — | Node: узел вместо сервера |
 | M61 | MW7 | PENDING | M60, MW6b | Sonnet 5.5 high | — | — | вторая модель |
 | M62 | MW7 | PENDING | M60, MW6b | Sonnet 5.5 high | — | — | пилотный деплой |

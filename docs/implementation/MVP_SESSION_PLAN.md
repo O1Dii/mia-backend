@@ -1556,8 +1556,8 @@ MW6b: M80 (wake: движки) ◄─ M22        M81 (wake в фоне) ◄─ M
       M84 (экран «Устройства») ◄─ M70, M71, M72
       M85 (Node: ADR, протокол) ◄─ M60, M70
       M86 (Node: runtime, pairing, relay) ◄─ M85 + решение пользователя по ADR-0019
-      M87 (файлы и действия на ПК) ◄─ M86     M88 (Ollama через узел) ◄─ M86     M89 (память и история дома) ◄─ M86
-      M90 (узел вместо сервера) ◄─ M89
+      M87 (файлы и действия на ПК) ◄─ M86     M88 (Ollama через узел) ◄─ M86     M91 (ядро на узле, TLS-туннель) ◄─ M86
+      M89 (память и история дома) ◄─ M91     M90 (узел вместо сервера) ◄─ M89
 MW7 ◄─ MW6b
 ~~~
 
@@ -1567,13 +1567,14 @@ MW7 ◄─ MW6b
 | M81 | Wake word в фоне | M80, решение по ADR-0018 | A | Opus 5.5 high | Sonnet 5.5 high |
 | M84 | Экран «Устройства» | M70, M71, M72 | B, A | Opus 5.5 high | Sonnet 5.5 high |
 | M85 | Personal Node: ADR и протокол | M60, M70 | B | Opus 5.5 high | Opus 5.5 xhigh |
-| M86 | Node: runtime, pairing, relay | M85, решение по ADR-0019 | B, A, N | Opus 5.5 high | — |
+| M86 | Node: runtime, pairing, канал, «Устройства» | M85, M84, решения Р1–Р4, Р11 | B, A, N | Opus 5.5 high | — |
 | M87 | Node: файлы и действия на ПК | M86 | B, N | Sonnet 5.5 high | Opus 5.5 high |
 | M88 | Node: локальные модели (Ollama) | M86 | B, N | Sonnet 5.5 high | Opus 5.5 high |
-| M89 | Node: память и история дома | M86 | B, N, A | Opus 5.5 high | — |
+| M91 | Node: ядро на узле и TLS-туннель | M86, Р1–Р3 | B, N | Opus 5.5 high | — |
+| M89 | Node: память и история дома | M91 | B, N, A | Opus 5.5 high | — |
 | M90 | Node: узел вместо сервера | M89 | B, N, A | Opus 5.5 high | — |
 
-`N` — код узла; где он живёт (пакет в этом репозитории или отдельный), решает M85.
+`N` — код узла в этом репозитории, `app/node/**` (решение M85).
 
 #### M80 — Wake word: сравнение движков
 
@@ -1659,20 +1660,208 @@ MW7 ◄─ MW6b
 **DoD:** ADR-0019 Proposed со списком решений для пользователя; черновик контрактов валиден; карточки M86–M90 в handoff
 (integrator переносит в план).
 
-#### M86–M90 — Personal Node, реализация (предварительно; уточняет M85)
+#### M86–M91 — Personal Node, реализация (уточнено M85, 2026-10-11)
 
-- **M86 — runtime, pairing, relay.** Пакет `mia-node` (запуск на macOS/Linux/Windows), QR-pairing в web и Android,
-  relay WSS на сервере, узел в экране «Устройства» M84 (статус по соединению, возможности узла), heartbeat, отзыв. DoD: узел подключается, виден, отзывается; E2E-тест
-  с relay.
-- **M87 — файлы и действия на ПК.** Инструменты узла (поиск и чтение файлов в разрешённых папках, открыть программу/
-  ссылку) с согласием по ADR-0016; журнал. DoD: запрос с телефона читает файл на ПК после согласия; без согласия — нет.
-- **M88 — локальные модели.** Адаптер `node-ollama` в Model Gateway, выбор модели в «Модели», поток через relay.
-  DoD: чат и голос отвечают моделью на ПК; при выключенном узле — понятная ошибка, без отката в облако.
-- **M89 — память и история дома.** Хранение памяти и истории чатов на узле, в облаке — метаданные; клиенты читают
-  через узел; задачи, которым нужны эти данные, выполняются на узле. DoD: сквозные тесты M60 №5 и №7 в режиме «дома».
-- **M90 — узел вместо сервера.** Весь runtime на узле, облако только relay (или совсем без него в LAN); перенос данных
-  облако ↔ узел; бэкап. DoD: сквозные тесты M60 на узле; инструкция установки.
+Источник — [handoff M85](handoffs/M85.md), [ADR-0019](../adr/0019-personal-node.md) (Proposed). M86 стартует после решений пользователя Р1–Р4, Р11 (OI-M85-001) и слияния M84.
 
+Граф:
+
+~~~text
+M85 → [Р1–Р4, Р11] → M86 (+M84)
+M86 → M87 ∥ M88 ∥ M91
+M91 → M89 → M90
+~~~
+
+Параллельно идут M87, M88 и M91: у них разные write scope. Общие места:
+
+- регистрация обработчиков RPC в `app/node/agent/handlers.py` — одна строка на сессию;
+- `pyproject.toml`/`uv.lock` — зависимости собирает integrator.
+
+`N` = этот репозиторий, `app/node/**`.
+
+#### M86 — Node: runtime, pairing, управляющий канал, «Устройства» (B, A, N; Opus 5.5 high; L)
+
+**Deps:** M85, M84 (слита), Р1–Р4, Р11.
+
+**Write scope:**
+
+- `app/node/{agent,keys,pairing,manifest,cli}/**` (новое: лёгкий режим `mia-node` без БД);
+- `app/modules/nodes/**` (реестр, pairing, WS `/v1/nodes/connect`, presence, отзыв);
+- `app/api/v1/nodes.py`;
+- миграция (`nodes`; `devices.platform` = `node`);
+- `contracts/node/v1/**`;
+- `contracts/mvp/v1/{openapi.yaml,error-codes.json,README.md}` (аддитивно);
+- модуль устройств M84: источник «узлы» (аддитивно);
+- `pyproject.toml`/`uv.lock`: `[project.scripts] mia-node`, `keyring`;
+- `tests/nodes/**`;
+- web: «Устройства → Добавить компьютер» (код + сверка отпечатка), карточка узла;
+- Android: сканирование QR (Google Code Scanner — без разрешения камеры), подтверждение отпечатка.
+
+**Work:**
+
+- ключ Ed25519 в хранилище ОС;
+- pairing start/claim/poll по `pairing.schema.json`;
+- handshake с одноразовым nonce;
+- seq/ack/resume (буфер 256/60 с);
+- кеш RPC-id;
+- `manifest`;
+- `node.status`, `node.unpair`, `node.rotate_key`;
+- presence: онлайн по каналу, `last_seen_at` = момент закрытия;
+- узел в `GET /v1/devices` (`NodeDeviceView`);
+- переименование;
+- «Отключить» = отзыв (кадр `revoked`, 4403, отказ в повторном входе, удаление грантов);
+- автозапуск (launchd / задача Windows / systemd);
+- путь job → узел через процесс API (OI-M85-004).
+
+**DoD:**
+
+- pytest (memory + Postgres):
+  - pairing по QR и по коду;
+  - несовпадение отпечатка;
+  - истёкший код;
+  - повтор `hello` отвергнут;
+  - дубликат seq отброшен;
+  - разрыв → 4400;
+  - resume досылает кадры;
+  - новая сессия переводит незавершённые вызовы в failed/uncertain;
+  - отзыв закрывает канал и запрещает вход;
+- e2e: настоящий WS-агент ↔ API в процессе;
+- узел появляется в «Устройствах» онлайн, а после остановки офлайн (≤ 75 с);
+- Playwright (добавить компьютер, отключить);
+- Android unit + `lint test assembleDebug`;
+- валидатор;
+- проверка пользователя: поставить `mia-node` на свой ПК, отсканировать QR телефоном, увидеть ПК в «Устройствах»,
+  отключить.
+
+#### M87 — Node: файлы и действия на ПК (B, N; Sonnet 5.5 high, fallback Opus 5.5 high; M)
+
+**Deps:** M86, Р5, Р12.
+
+**Write scope:**
+
+- `app/node/tools/**` (поиск и чтение: txt/md/csv/pdf/docx, `pypdf` и `python-docx` через integrator; `apps.open`,
+  `links.open`; локальная граница `mia-node folders|apps`; журнал на узле);
+- `app/modules/tools/{device_policy,device_access,device,router}.py` (доставка `node`, возможности, имена `node.*`,
+  выбор узла при нескольких);
+- `app/api/v1/approvals.py` (решает подтверждающий узла);
+- `contracts/mvp/v1/device-access|device-tools` (аддитивно);
+- Android: текст листа согласия для узла (`:feature:consent`, мелко);
+- `tests/nodes/tools/**`.
+
+**Work** — ADR-0019 §5:
+
+- `file:`-ссылки на 24 ч, без абсолютных путей;
+- запрет по умолчанию для `.env*`, `.ssh`, ключей, хранилищ паролей и профилей браузеров;
+- проверка realpath и symlink;
+- согласие на телефоне (`waiting_for: node`), гранты на run и на 30 дней;
+- выключенный узел: ожидание ≤ 30 с для интерактивного run и ≤ 12 ч для задачи; без отката.
+
+**DoD:**
+
+- с телефона «найди договор аренды на компьютере и прочитай первый абзац» → согласие → ответ;
+- «Отклонить» → ничего не прочитано;
+- папка вне границы → `path_not_allowed`;
+- тесты на traversal, symlink и denylist;
+- узел выключен → `node_offline`;
+- путей и содержимого нет в событиях и логах;
+- журнал на узле и в access log.
+
+#### M88 — Node: локальные модели (Ollama) (B, N; Sonnet 5.5 high, fallback Opus 5.5 high; M)
+
+**Deps:** M86.
+
+**Write scope:**
+
+- `app/node/models/**` (мост к Ollama: `model.list|warmup|generate`, отмена, одна генерация);
+- `app/modules/models/adapters/{node_ollama.py,__init__.py}`;
+- `catalog.py` (`ollama` → chat_completions с tools; провайдер `node-ollama` без URL);
+- `connections.py` (не в цепочке `mia:default`; явный флаг облачного резерва);
+- `app/modules/runs/{profiles,engine}.py` (`max_output_tokens` по профилю, OI-M85-005);
+- web «Модели» (модели ПК) и экран «Где ваши данные» (честный текст про режим `cloud`);
+- `tests/models/node/**` со сценарным Ollama.
+
+**DoD:**
+
+- чат и голос отвечают моделью ПК (e2e со сценарным Ollama);
+- дельты приходят в SSE до конца ответа;
+- вызов инструмента (таймер) через модель ПК;
+- отмена останавливает генерацию;
+- warmup при открытии голоса;
+- ПК выключен → понятная ошибка, без облака;
+- проверка пользователя (OI-M85-008): 2–3 модели на своём ПК, сценарии M60 №1, 2, 4 и задержка первого звука.
+
+#### M91 — Node: ядро на узле и сквозной TLS-туннель (B, N; Opus 5.5 high; L) — новая
+
+**Deps:** M86, Р1–Р3. Инфраструктура relay — OI-M85-002.
+
+**Write scope:**
+
+- `app/node/runtime/**` (встроенный Postgres 16: загрузка с SHA-256, `initdb`, запуск и остановка; `mia-node serve`
+  = API + циклы воркера в lifespan);
+- `app/core/{redis,config,runtime}.py` (in-process реализация 4 методов, `REDIS_URL` необязателен, `MIA_ROLE=node`
+  — минимально);
+- `app/node/tunnel/**` (мультиплексор, TLS на узле → ASGI);
+- `app/relay/**` + `deploy/relay/**` (сервис `mia-relay`: SNI, туннели, грант по токену);
+- `app/modules/nodes/{relay_grant,certs}.py` (ACME DNS-01);
+- `tests/nodes/runtime/**`, `tests/relay/**`.
+
+**DoD:**
+
+- `mia-node serve` на Linux и macOS (Windows — проверка пользователя) поднимает Postgres, миграции и полный API;
+- подмножество e2e M60 проходит на профиле узла;
+- Playwright через relay в процессе с тестовым CA (trustme): буферы relay не содержат маркер открытого текста;
+- тест pin в OkHttp;
+- выпуск сертификата против Pebble или мока;
+- переподключение туннеля.
+
+#### M89 — Node: память и история дома (B, N, A; Opus 5.5 high; L)
+
+**Deps:** M91, Р6, Р9.
+
+**Write scope:**
+
+- `app/modules/nodes/home/**` (`data_home` аккаунта, приглашение устройства, переключение);
+- порт `IdentityVerifier` в `app/modules/auth/**` (аддитивно);
+- `app/modules/oauth/**` (узел как клиент, аддитивно);
+- `app/node/{identity,telegram}/**` (свой бот, `getUpdates`);
+- канал push через `push.send` (`notifications/channels.py`, аддитивно);
+- `oauth.callback`;
+- импорт памяти M17 на узел;
+- web: переключатель «Данные дома», переход на адрес узла, «Компьютер не в сети», «Временный чат в облаке»;
+- Android: базовый URL узла + pin + баннер офлайна;
+- `tests/nodes/home/**`.
+
+**DoD:**
+
+- сквозные M60 №5 и №7 в режиме `home`;
+- после переключения в облачных таблицах нет строк содержимого аккаунта (тест);
+- узел выключен → `node_data_unavailable`, без отката;
+- push без содержимого будит телефон;
+- relay не видит открытого текста;
+- проверка пользователя: телефон вне дома (мобильная сеть) читает чаты с ПК.
+
+#### M90 — Node: узел вместо сервера (B, N, A; Opus 5.5 high; L)
+
+**Deps:** M89, Р7, Р8, Р10.
+
+**Write scope:**
+
+- `app/node/standalone/**` (локальный владелец, passkeys — библиотека `webauthn`, вход ключом устройства);
+- `app/modules/archive/**` (`mia-archive/v1`: экспорт, импорт, заморозка);
+- `/v1/account/archive`;
+- `app/node/backup/**` (age через `pyrage`, `backup verify`);
+- web: вход passkey на узле, мастер переноса;
+- Android: вход в узел по QR без облака;
+- `docs/NODE_INSTALL.md`;
+- `tests/nodes/standalone/**`.
+
+**DoD:**
+
+- e2e M60 на узле без облачной идентичности;
+- перенос облако → узел → облако: счётчики и хеши совпадают, облачное содержимое уничтожено (DEK);
+- бэкап и проверка восстановления;
+- инструкция установки;
+- проверки пользователя: установка по инструкции, телефон вне дома, свой бот Telegram, восстановление из бэкапа.
 
 ## 7. Wave gates
 
