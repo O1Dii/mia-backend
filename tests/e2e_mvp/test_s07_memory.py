@@ -2,10 +2,9 @@
 
 «Запомни, что Яна — моя жена» by voice → ``memory.remember`` → a suggested fact → confirmed in
 the browser → the same memory on the phone and in the next run's context; deleting a fact,
-«Забыть всё», an incognito run. Account deletion has no public endpoint or screen yet
-(OI-M17-004): the service-level crypto-shred is checked, the missing user path is a strict
-xfail that flips when the repair lands. Incognito exists in the API only (no toggle in web or
-Android): also a strict xfail.
+«Забыть всё», an incognito run. Account deletion: the service-level crypto-shred and the user
+path ``DELETE /v1/account`` (M17-R1; web «Ещё» and Android settings call it). Incognito: the API
+and the web chat's toggle (M17-R1).
 """
 
 from __future__ import annotations
@@ -14,8 +13,6 @@ import io
 import uuid
 import zipfile
 from pathlib import Path
-
-import pytest
 
 from tests.e2e_mvp.harness import (
     ROOT,
@@ -141,7 +138,7 @@ async def test_incognito_run_remembers_nothing_and_leaves_no_history(mvp: Mvp) -
 
 
 async def test_account_deletion_crypto_shreds_memory_at_the_service_level(mvp: Mvp) -> None:
-    """What exists today: ``MemoryService.shred_account`` (M17) — no user-facing path."""
+    """``MemoryService.shred_account`` (M17), the step ``DELETE /v1/account`` relies on."""
     phone = await mvp.phone("carol")
     added = await phone.post(
         "/v1/memory/facts", {"text": "Аллергия на орехи", "category": "health"}
@@ -162,10 +159,6 @@ async def test_account_deletion_crypto_shreds_memory_at_the_service_level(mvp: M
     assert (after.keys, after.facts) == (0, 0)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="OI-M17-004: no public account deletion (endpoint, web «Ещё», Android settings)",
-)
 async def test_the_user_can_delete_the_account(mvp: Mvp) -> None:
     phone = await mvp.phone("dave")
     added = await phone.post("/v1/memory/facts", {"text": "Живёт в Минске", "category": "profile"})
@@ -179,9 +172,6 @@ async def test_the_user_can_delete_the_account(mvp: Mvp) -> None:
     assert left.n == 0
 
 
-@pytest.mark.xfail(
-    strict=True, reason="incognito is API-only: no toggle in the web chat (nor in Android)"
-)
 def test_the_web_chat_can_start_an_incognito_run() -> None:
     sources = "\n".join(
         path.read_text("utf-8") for path in Path(ROOT / "web" / "src").rglob("*.ts*")

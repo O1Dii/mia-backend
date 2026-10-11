@@ -1320,3 +1320,48 @@
   height: 22px;
   accent-color: var(--mia-color-accent-text);
 }
+
+/* ---------- account deletion and incognito (M17-R1) ---------- */
+.mw-danger-zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mia-space-3);
+  border: 1px solid var(--mia-color-danger-soft);
+}
+.mw-danger-zone__text {
+  display: grid;
+  gap: var(--mia-space-1);
+  flex: 1 1 18rem;
+}
+.mw-danger-list {
+  display: grid;
+  gap: var(--mia-space-1);
+  margin: 0;
+  padding-left: var(--mia-space-5);
+  color: var(--mia-color-text-secondary);
+  font-size: var(--mia-type-label-size);
+}
+.mw-incognito-toggle[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--mia-color-info) 16%, transparent);
+  color: var(--mia-color-info);
+}
+.mw-incognito {
+  display: flex;
+  align-items: center;
+  gap: var(--mia-space-2);
+  margin-bottom: var(--mia-space-2);
+  padding: var(--mia-space-2) var(--mia-space-3);
+  border-radius: var(--mia-radius-md);
+  background: color-mix(in srgb, var(--mia-color-info) 16%, transparent);
+  color: var(--mia-color-text);
+  font-size: var(--mia-type-label-size);
+}
+.mw-incognito svg {
+  flex: none;
+  color: var(--mia-color-info);
+}
+.mw-chat.is-incognito .mw-composer {
+  border-color: var(--mia-color-info);
+}

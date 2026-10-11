@@ -1,6 +1,7 @@
 import { Bell, ChevronRight, Cpu, Layers3, ShieldHalf } from 'lucide-react'
 import { Link } from '../lib/router'
 import { AndroidAppRow } from './AndroidApp'
+import { DeleteAccountRow } from './DeleteAccount'
 
 const items = [
   {
@@ -55,6 +56,8 @@ export function More() {
           <AndroidAppRow />
         </li>
       </ul>
+      <h2 className="mw-section">Аккаунт</h2>
+      <DeleteAccountRow />
     </section>
   )
 }

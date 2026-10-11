@@ -4450,3 +4450,76 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Question: в worktree `mia-helper-android-wt/<сессия>` путь по умолчанию `../mia-helper/contracts` не существует, `test` падает на FileNotFoundException. Гейт запускался с `-PmiaContractsDir=<backend-wt>/contracts/realtime/v1/fixtures -PmiaMvpContractsDir=<backend-wt>/contracts/mvp/v1/fixtures`.
 - Why non-blocking: окружение worktree, код приложения не затронут; та же схема, что в handoff M76-R1.
 - Recommendation: передавать свойства в команде гейта сессий (или завести их в `~/.gradle/gradle.properties`).
+
+## M17-R1 inbox
+
+Resolution updates (for the integrator to carry into the index and the source records):
+
+- OI-M17-004 → RESOLVED by M17-R1: `DELETE /v1/account` (bearer or cookie, same-origin, `Idempotency-Key`), web «Ещё» →
+  «Удалить аккаунт» (ввод «УДАЛИТЬ»), Android «Настройки» → «Удалить аккаунт». Evidence:
+  `tests/account/test_account_deletion.py`, `tests/e2e_mvp/test_s07_memory.py::test_the_user_can_delete_the_account`.
+- OI-M15-006 → RESOLVED by M17-R1: deletion revokes every plugin connection at its provider (RFC 7009, best effort)
+  before the data key is shredded (`ConnectionService.revoke_all_for_user`). Evidence:
+  `test_deleting_the_account_from_the_phone_removes_everything` (no live provider token left), `web/tests/account.spec.ts`.
+- OI-M60-003 → RESOLVED by M17-R1 (both strict xfails of `test_s07_memory.py` removed and passing; incognito toggle in web
+  chat, Android chat and voice).
+- OI-M60-006 — not addressed (optional item): mapping a revoked app grant to its `mia_token` connections needs the
+  plugin manifest's `remoteServer.clientId`; stays OPEN for M62.
+
+### OI-M17-R1-001 — A retried `DELETE /v1/account` after success answers 401, not 204
+
+- Status: DECIDED
+- Source session: M17-R1
+- Component: `app/api/v1/account.py`, contract `deleteAccount`
+- Question: should a retry with the same `Idempotency-Key` after a lost 204 replay 204?
+- Why non-blocking: the outcome is idempotent; web and Android treat 401 after a deletion request as «уже удалён».
+- Current assumption: nothing is stored for replay (the idempotency rows cascade with the user); the old credentials
+  answer 401. Documented in openapi.
+- Options: (a) as is; (b) keep a short-lived Redis marker keyed by the session hash to replay 204 without auth.
+- Recommendation: (a) — (b) would answer an unauthenticated request.
+- Affects sessions: —
+- Revisit trigger/by: a client that cannot tell 401 from a failure.
+
+### OI-M17-R1-002 — Model-provider credentials are not revoked upstream
+
+- Status: OPEN
+- Source session: M17-R1
+- Component: `model_connections` (API keys, «Войти в ChatGPT» tokens)
+- Question: should account deletion also revoke the ChatGPT subscription tokens at OpenAI?
+- Why non-blocking: the rows cascade and the data key is shredded, so Mia can no longer read them; user API keys are the
+  user's own and cannot be revoked by Mia.
+- Current assumption: local destruction only.
+- Options: (a) revoke the ChatGPT refresh token if the provider exposes revocation; (b) leave.
+- Recommendation: (a) when the ChatGPT sign-in gets a revocation endpoint; low priority.
+- Affects sessions: M62.
+- Revisit trigger/by: before the public beta.
+
+### OI-M17-R1-003 — Retention of the account-deletion journal and of backups
+
+- Status: OPEN
+- Source session: M17-R1
+- Component: `account_deletions`, pilot backups (M62)
+- Question: how long are journal rows (random `user_id`, time, client, counts — no content) and database backups kept?
+  Memory and connection secrets in backups are unreadable after the shred; chats/runs text in backups lives until the
+  backup expires.
+- Why non-blocking: no content in the journal; backups are a pilot ops decision.
+- Current assumption: journal rows are kept indefinitely; backup retention is whatever M62 sets.
+- Options: journal 1 year; backups ≤ 30 days with a note in «Где ваши данные».
+- Recommendation: decide together with the M62 backup policy.
+- Affects sessions: M62.
+- Revisit trigger/by: pilot deploy.
+
+### OI-M17-R1-004 — Incognito conversations have no context between questions
+
+- Status: OPEN
+- Source session: M17-R1
+- Component: runs (`incognito: true` runs carry no `conversation_id`), web/Android incognito
+- Question: each incognito question is answered without the previous incognito turns (the server keeps no history by
+  design). Should an incognito dialog keep short-lived context?
+- Why non-blocking: incognito works and stores nothing; follow-ups need restating.
+- Current assumption: single-turn incognito runs; the conversation is shown on the client only.
+- Options: (a) as is; (b) the client sends the last N incognito turns with the run (new optional field); (c) an
+  ephemeral in-memory conversation on the server with a short TTL.
+- Recommendation: (b) after the pilot if users ask.
+- Affects sessions: M12 follow-up, web/Android chat.
+- Revisit trigger/by: pilot feedback.

@@ -712,5 +712,12 @@
     "retryable": false,
     "public_message": "The background task is already finishing; the text was not added to its result.",
     "owner": "M74"
+  },
+  {
+    "code": "account_deletion_incomplete",
+    "http_status": 503,
+    "retryable": true,
+    "public_message": "The account was not fully deleted. Try again.",
+    "owner": "M17"
   }
 ]

@@ -26,6 +26,7 @@ tags:
   - name: Devices
   - name: Telegram
   - name: Apps
+  - name: Account
 x-mia-anchors:
   request-id: &rid
     X-Request-ID:
@@ -501,6 +502,33 @@ paths:
         '303':
           description: Signed in; Location is the same-origin landing path. Never cached.
           headers: *rid
+        default: *error
+  /v1/account:
+    delete:
+      tags: [Account]
+      operationId: deleteAccount
+      summary: >-
+        «Удалить аккаунт» (M17-R1): bearer (Android) or the session cookie (web, same-origin only).
+        Cancels the caller's unfinished runs, revokes plugin accounts at their providers, erases
+        memory and crypto-shreds the data key, then deletes the account with everything that
+        belongs to it (sessions on every device, Mia sign-in grants and tokens of apps, push
+        tokens, the Telegram link, chats, runs, jobs, installations). A journal row records the
+        deletion without content. Afterwards the old bearer and cookie answer 401; a new Google
+        sign-in creates a new, empty account. Nothing is replayed: a retry after success answers
+        401, which the client treats as done.
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Deleted; a browser's session cookie is cleared
+          headers: *rid
+        '503':
+          description: >-
+            account_deletion_incomplete (retryable): a step failed and the account still exists;
+            deleting again continues where it stopped
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         default: *error
   /v1/workspace:
     get:

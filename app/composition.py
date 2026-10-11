@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from pydantic import SecretStr
 
+from app.api.v1.account import install_account
 from app.api.v1.device_tools import install_device_tools
 from app.api.v1.tiles import install_tiles
 from app.api.v1.web_handoff import install_web_handoff
@@ -211,6 +212,13 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         ),
     )
     connections.use_mia_tokens(oauth.service)
+    install_account(
+        app,
+        runtime.database.session_factory,
+        memory=memory.service,
+        providers=connections,
+        runs=runs,
+    )
     app.include_router(
         build_conversation_router(
             session_factory=runtime.database.session_factory,

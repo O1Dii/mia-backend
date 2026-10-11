@@ -35,6 +35,7 @@ sys.path.insert(0, str(REPO))
 import app.modules.auth.composition as auth_composition  # noqa: E402
 import app.modules.models.composition as models_composition  # noqa: E402
 import uvicorn  # noqa: E402
+from app.api.v1.account import install_account  # noqa: E402
 from app.api.v1.approvals import build_approvals_router  # noqa: E402
 from app.api.v1.tiles import install_tiles  # noqa: E402
 from app.composition import AuthServiceAuthenticator  # noqa: E402
@@ -550,6 +551,14 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
     web_auth = request_authenticator(app)
     # Chats (M74), the feed per chat and «Сейчас»; titles come from the scripted model.
     install_chats(app, runtime, runs=runs, gateway=gateway)  # type: ignore[arg-type]
+    # «Удалить аккаунт» (M17-R1): the same deletion as the server, provider revocation included.
+    install_account(
+        app,
+        runtime.database.session_factory,
+        memory=memory.service,
+        providers=connections,
+        runs=runs,
+    )
 
     async def publish_remote(
         plugin_id: str, name: str, version: str, notify: bool, tiles: bool = False

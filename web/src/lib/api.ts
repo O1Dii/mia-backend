@@ -529,15 +529,20 @@ export const api = {
   googleLogin: (credential: string) =>
     http<{ user: User }>('POST', '/v1/auth/web/google', { body: { credential } }),
   logout: () => http<void>('POST', '/v1/auth/web/logout'),
+  /** «Удалить аккаунт» (M17-R1): 204, or 401 when it is already gone. */
+  deleteAccount: () => http<void>('DELETE', '/v1/account', { quiet401: true }),
 
   // ---- chat
   feed: (before?: string, limit = 30, conversationId?: string) =>
     http<FeedPage>('GET', '/v1/feed', {
       query: { before, limit, conversation_id: conversationId },
     }),
-  createRun: (text: string, key: string, conversationId?: string) =>
+  /** An incognito run (M17-R1) has no chat: nothing is remembered and no history is kept. */
+  createRun: (text: string, key: string, conversationId?: string, incognito = false) =>
     http<Run>('POST', '/v1/runs', {
-      body: { profile: 'chat', input: { text }, conversation_id: conversationId },
+      body: incognito
+        ? { profile: 'chat', input: { text }, incognito: true }
+        : { profile: 'chat', input: { text }, conversation_id: conversationId },
       key,
     }),
 

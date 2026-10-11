@@ -63,6 +63,8 @@ const messages: Record<string, string> = {
   notification_channel_unknown: 'Такого канала уведомлений нет.',
   notification_event_type_unknown: 'Такого типа уведомлений нет.',
   job_limit_exceeded: 'Слишком много фоновых задач. Дождитесь завершения.',
+  account_deletion_incomplete: 'Аккаунт удалён не полностью. Повторите удаление.',
+  memory_incognito: 'В режиме инкогнито Мия ничего не запоминает.',
 }
 
 export function errorText(code: string | undefined, fallback?: string): string {
