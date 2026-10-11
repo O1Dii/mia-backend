@@ -48,6 +48,7 @@ ALLOWED_LANDING_ROOTS = frozenset(
         "inbox",
         "data",
         "more",
+        "devices",  # M84: «Устройства» opened from the app's settings
     }
 )
 MAX_LANDING_LENGTH = 512

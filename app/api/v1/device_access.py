@@ -10,12 +10,17 @@ Only the app on the device itself (bearer of a session signed in on that device)
 - ``GET  /v1/devices/{device_id}/capabilities`` and
   ``PUT  /v1/devices/{device_id}/capabilities/{capability}`` — may other clients ask
   (``ask``) or never (``deny``).
+
+M84 («Устройства»): listing and revoking grants and reading the access log are also open to
+any other signed-in session of the phone's owner (``account_access``) — they show names and
+decisions only and revoking only takes access away. Queued calls and the capability switches
+stay with the phone itself.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, Protocol
 
@@ -27,9 +32,12 @@ from app.core.ports.device_tool_channel import DeviceToolCall
 from app.modules.auth.principal import RequestAuthenticator, RequestPrincipal
 from app.modules.tools.device import call_body
 from app.modules.tools.device_access import DeviceAccess
-from app.modules.tools.device_policy import CAPABILITIES, capability_for
+from app.modules.tools.device_policy import CAPABILITIES, capability_named
 from app.modules.tools.device_store import AccessLogEntry, GrantRecord
 from app.modules.tools.errors import DEVICE_ACCESS_CODES
+
+AccountAccess = Callable[[str, str], Awaitable[bool]]
+"""``(user_id, device_id)`` → is it a phone of this account (M84)."""
 
 
 class PendingCalls(Protocol):
@@ -55,7 +63,7 @@ def _requester(kind: str, label: str) -> dict[str, str]:
 
 def grant_body(grant: GrantRecord) -> dict[str, Any]:
     """``DeviceGrant``."""
-    capability = capability_for(grant.capability)
+    capability = capability_named(grant.capability)
     return {
         "id": grant.id,
         "capability": grant.capability,
@@ -75,7 +83,7 @@ def log_body(entry: AccessLogEntry, now: datetime) -> dict[str, Any]:
     body: dict[str, Any] = {
         "id": entry.id,
         "capability": entry.capability,
-        "capability_label": capability_for(entry.capability).label,
+        "capability_label": capability_named(entry.capability).label,
         "tool": entry.tool,
         "requester": _requester(entry.requester_kind, entry.requester_label),
         "decision": decision,
@@ -131,6 +139,7 @@ def build_device_access_router(
     calls: PendingCalls,
     authenticator: RequestAuthenticator,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    account_access: AccountAccess | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/devices/{device_id}", tags=["Devices"])
 
@@ -148,6 +157,22 @@ def build_device_access_router(
         access.seen(user_id=principal.user_id, device_id=device)
         return principal, None
 
+    async def account_device(
+        request: Request, device_id: uuid.UUID
+    ) -> tuple[RequestPrincipal, JSONResponse | None]:
+        """The phone itself, or (M84) another session of its owner."""
+        principal = await authenticator.authenticate(request)
+        if principal.method == "bearer":
+            device = await access.store.session_device(
+                user_id=principal.user_id, family_id=principal.session_id
+            )
+            if device == str(device_id):
+                access.seen(user_id=principal.user_id, device_id=device)
+                return principal, None
+        if account_access is not None and await account_access(principal.user_id, str(device_id)):
+            return principal, None
+        return principal, device_error(request, "device_access_forbidden")
+
     @router.get("/tool-calls")
     async def list_tool_calls(device_id: uuid.UUID, request: Request) -> JSONResponse:
         principal, denied = await own_device(request, device_id)
@@ -160,7 +185,7 @@ def build_device_access_router(
 
     @router.get("/grants")
     async def list_grants(device_id: uuid.UUID, request: Request) -> JSONResponse:
-        principal, denied = await own_device(request, device_id)
+        principal, denied = await account_device(request, device_id)
         if denied is not None:
             return denied
         grants = await access.store.list_grants(
@@ -178,7 +203,7 @@ def build_device_access_router(
         ] = None,
     ) -> Response:
         del idempotency_key  # revoking twice answers 404 the second time
-        principal, denied = await own_device(request, device_id)
+        principal, denied = await account_device(request, device_id)
         if denied is not None:
             return denied
         revoked = await access.store.revoke_grant(
@@ -194,7 +219,7 @@ def build_device_access_router(
         request: Request,
         limit: Annotated[int, Query(ge=1, le=100)] = 50,
     ) -> JSONResponse:
-        principal, denied = await own_device(request, device_id)
+        principal, denied = await account_device(request, device_id)
         if denied is not None:
             return denied
         entries = await access.store.access_log(

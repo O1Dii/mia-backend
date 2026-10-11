@@ -4353,7 +4353,93 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ## M84 inbox
 
-- Нет записей.
+### OI-M84-001 — Android «Устройства»: WebView, not a native screen
+
+- Status: DECIDED
+- Source session: M84
+- Component: Android `feature/web` (`WebSurface.DEVICES`), `feature/settings`, backend `ALLOWED_LANDING_ROOTS` (+`devices`)
+- Question: native Compose screen or the web screen through the M24 WebView?
+- Why non-blocking: either way the data is server-side; the phone already shows its own permissions natively («Доступ с других устройств», M71).
+- Current assumption: WebView. One implementation and one set of tests; the WebView session is bound to the phone, so the card reads «Это устройство»; Personal Node rows (M86) appear on the phone without an app update. The phone's native part is the «пульс» with the permission report.
+- Options: (a) WebView; (b) native screen over `GET /v1/devices`.
+- Recommendation: (a); revisit if the screen must work offline.
+- Affects sessions: M86
+- Revisit trigger/by: design review UC-M84-1 or an offline requirement.
+
+### OI-M84-002 — Grants list/revoke and the access log are open to every session of the phone's owner
+
+- Status: DECIDED
+- Source session: M84
+- Component: `app/api/v1/device_access.py` (`account_access`), contract descriptions of `listDeviceGrants`, `revokeDeviceGrant`, `listDeviceAccessLog`
+- Question: may the web (or another phone of the account) see and revoke the persistent permissions of a phone and read its access log? M70 allowed only the phone itself.
+- Why non-blocking: revoking only takes access away; the log holds names, requester labels and decisions, no content; granting and the capability switches (`PUT …/capabilities/{capability}`) and queued calls stay phone-only (ADR-0016 §4).
+- Current assumption: yes, for any signed-in session of the same account (mounted via `account_access`; a router built without it keeps the M70 behaviour).
+- Options: (a) as is; (b) read-only on the web, revoke only on the phone.
+- Recommendation: (a) — ADR-0016 asks for visible, revocable grants; a stolen web session can at worst revoke.
+- Affects sessions: M71 (Android keeps working unchanged), M86
+- Revisit trigger/by: security review.
+
+### OI-M84-003 — «Отключить устройство»: sign-out, push token, grants, declarations; the current device is refused
+
+- Status: DECIDED
+- Source session: M84
+- Component: `app/modules/devices/store.py` (`SqlPhoneSource.disconnect`, `SqlBrowserSource.disconnect`)
+- Question: what exactly does disconnect remove, and may a device disconnect itself?
+- Why non-blocking: behaviour is documented in the contract and tested.
+- Current assumption: phone — every refresh family and its WebView sessions revoked (bearer → 401), push token deleted, grants it gave and received revoked, device-tool declarations deleted (no longer a target), status report cleared; the `devices` row, its user-chosen name and its access log stay, so signing in again brings it back with the same name. Browser — the web session revoked and grants given to it revoked. The device making the request gets `409 device_is_current` (sign out instead). The phone is listed only while it has an active sign-in, so a phone that signed out disappears from the list too.
+- Options: (a) as is; (b) also delete the `devices` row (loses the access log).
+- Recommendation: (a).
+- Affects sessions: M86 (node revoke should follow the same shape)
+- Revisit trigger/by: user check UC-M84-1.
+
+### OI-M84-004 — Presence: requests and a 60 s heartbeat; «поток событий» is not tracked separately
+
+- Status: OPEN
+- Source session: M84
+- Component: `app/modules/devices/presence.py`, `RequestAuthenticator.add_observer`, web `useDeviceHeartbeat`, Android `DevicePulse`
+- Question: the card says «онлайн — открыт поток событий или контакт < 2 мин». There is no account-level event stream; run SSE and realtime WS are per run.
+- Why non-blocking: every authenticated request is a contact, and an open app/visible tab sends a heartbeat every 60 s, so «онлайн» = app on screen or tab visible (≤ 2 min). Contact is kept in memory (single API process, like the device channel) and written to the database at most once a minute. A long-lived connection API (`PresenceTracker.connected/disconnected`) is ready for M86 nodes.
+- Options: (a) as is; (b) count an open run SSE/realtime WS as a connection (hook in `runs.py`/realtime router).
+- Recommendation: (a) until there is a long-lived account stream; M86 uses (b)-style connection presence for nodes.
+- Affects sessions: M86, M62 (if the API is ever scaled to several processes, in-memory presence and the device channel need a shared store together)
+- Revisit trigger/by: several API processes or an account event stream.
+
+### OI-M84-005 — Phone status «нет push» whenever FCM is not configured on the server
+
+- Status: OPEN
+- Source session: M84
+- Component: `app/modules/devices/composition.py::push_configured`, `presence_of`
+- Question: without `FCM_PROJECT_ID`/`FCM_CREDENTIALS_FILE` no phone can be woken, so every phone that is not on screen shows «нет push» (with the hint «Push не настроен на сервере…»).
+- Why non-blocking: that is the truth for consent requests (ADR-0016 §8: `device_offline`); with FCM configured phones with a token read «был(а) N мин назад» / «офлайн».
+- Options: (a) as is; (b) show «офлайн» and mention push only in the card.
+- Recommendation: (a); check on the server after deploy (UC-M84-1 step 2).
+- Affects sessions: M62
+- Revisit trigger/by: user check UC-M84-1.
+
+### OI-M84-006 — Grant and access-log labels of M70 read «действие на телефоне (alarm.clock)»
+
+- Status: RESOLVED
+- Source session: M84
+- Component: `app/api/v1/device_access.py` (`grant_body`, `log_body`), `app/modules/tools/device_policy.py`
+- Question: `capability_for()` takes a tool name, but grants and log entries store the capability name, so every label fell back to «действие на телефоне (<name>)» (Android «Доступ с других устройств» showed it too).
+- Why non-blocking: fixed in M84 (`capability_named()`), regression test in `tests/devices/test_api.py`.
+- Current assumption: —
+- Options: —
+- Recommendation: —
+- Affects sessions: M71 (labels on the phone now correct without an app change)
+- Revisit trigger/by: —
+
+### OI-M84-007 — Full Playwright suite with `--workers=2`: dashboard «model_calls» counter races
+
+- Status: OPEN
+- Source session: M84
+- Component: `web/tests/dashboard.spec.ts:26` (global `Script.model_calls` of the e2e server)
+- Question: the suite is configured for 1 worker; with `--workers=2` (resource rule of this run) a concurrent chat test raises the global counter and «the timer tile counts down … without the model» fails (66 vs 69). Alone it passes (13/13).
+- Why non-blocking: test-only race, not product code; unrelated to M84.
+- Options: (a) run the full suite with 1 worker; (b) make the counter per user.
+- Recommendation: (b) when the dashboard tests are touched next; (a) meanwhile.
+- Affects sessions: integrators
+- Revisit trigger/by: next gate run with 2 workers.
 
 ## M85 inbox
 

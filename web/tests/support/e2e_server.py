@@ -37,10 +37,12 @@ import app.modules.models.composition as models_composition  # noqa: E402
 import uvicorn  # noqa: E402
 from app.api.v1.account import install_account  # noqa: E402
 from app.api.v1.approvals import build_approvals_router  # noqa: E402
+from app.api.v1.device_access import build_device_access_router  # noqa: E402
 from app.api.v1.tiles import install_tiles  # noqa: E402
 from app.composition import AuthServiceAuthenticator  # noqa: E402
 from app.core.config import Settings  # noqa: E402
 from app.core.database import Database  # noqa: E402
+from app.core.ports.device_tool_channel import DeviceToolDeclaration  # noqa: E402
 from app.core.ports.model_gateway import (  # noqa: E402
     ModelDone,
     ModelEvent,
@@ -54,9 +56,11 @@ from app.core.ports.types import DEFAULT_MODEL  # noqa: E402
 from app.core.runtime import Runtime  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.modules.auth.composition import install_auth, request_authenticator  # noqa: E402
+from app.modules.auth.models import Device  # noqa: E402
 from app.modules.connections.oauth.client import OAuthClient  # noqa: E402
 from app.modules.connections.oauth.service import ConnectionService  # noqa: E402
 from app.modules.conversations.composition import install_chats  # noqa: E402
+from app.modules.devices.composition import install_devices  # noqa: E402
 from app.modules.jobs.composition import install_jobs  # noqa: E402
 from app.modules.memory import install_memory  # noqa: E402
 from app.modules.models.composition import install_models  # noqa: E402
@@ -78,6 +82,12 @@ from app.modules.tools.audit import SqlToolAudit  # noqa: E402
 from app.modules.tools.composition import ToolStack  # noqa: E402
 from app.modules.tools.core_tools import CoreToolRegistry  # noqa: E402
 from app.modules.tools.device import InMemoryDeviceToolChannel  # noqa: E402
+from app.modules.tools.device_access import DeviceAccess  # noqa: E402
+from app.modules.tools.device_store import (  # noqa: E402
+    AccessLogEntry,
+    GrantRecord,
+    SqlDeviceAccessStore,
+)
 from app.modules.tools.mcp_client import McpConnector  # noqa: E402
 from app.modules.tools.router import McpToolRouter, RouterConfig  # noqa: E402
 from app.modules.users import UserRepository  # noqa: E402
@@ -559,6 +569,28 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         providers=connections,
         runs=runs,
     )
+    # «Устройства» (M84): the directory, the phone's grants/log for the owner, presence. FCM is
+    # treated as configured so a phone with a token can read «был(а) N мин назад»; nothing is sent.
+    device_access = DeviceAccess(SqlDeviceAccessStore(runtime.database.session_factory))
+
+    async def account_access(user_id: str, device_id: str) -> bool:
+        return bool(await devices.owns_phone(user_id=user_id, device_id=device_id))
+
+    app.include_router(
+        build_device_access_router(
+            access=device_access,
+            calls=InMemoryDeviceToolChannel(access=device_access),
+            authenticator=web_auth,
+            account_access=account_access,
+        )
+    )
+    devices = install_devices(
+        app,
+        runtime.database.session_factory,
+        access=device_access,
+        plugins=registry,
+        push=True,
+    )
 
     async def publish_remote(
         plugin_id: str, name: str, version: str, notify: bool, tiles: bool = False
@@ -665,6 +697,78 @@ def build_app(admin_id: str, public_origin: str) -> FastAPI:
         principal = await web_auth.authenticate(request)
         chat = telegram_chat_of(principal.user_id)
         return JSONResponse({"sent": [m for m in bot_api.sent if m["chat_id"] == chat]})
+
+    @test_routes.post("/devices/declare")
+    async def devices_declare(request: Request) -> JSONResponse:
+        """The app on a phone of the signed-in user declared its device tools (M23)."""
+        principal = await web_auth.authenticate(request)
+        body = await request.json()
+        tools = [
+            DeviceToolDeclaration(
+                name=name,
+                description=f"{name} on the phone",
+                input_schema={"type": "object", "properties": {}},
+                risk="read",
+                voice=True,
+                requires_unlocked=False,
+                timeout_ms=2000,
+            )
+            for name in body["tools"]
+        ]
+        saved = await device_access.store.save_declarations(
+            user_id=principal.user_id,
+            device_id=body["device_id"],
+            tools=tools,
+            now=datetime.now(UTC),
+        )
+        return JSONResponse({"saved": saved})
+
+    @test_routes.post("/devices/seen")
+    async def devices_seen(request: Request) -> JSONResponse:
+        """Pretend the phone was last in contact ``minutes_ago`` minutes ago."""
+        principal = await web_auth.authenticate(request)
+        body = await request.json()
+        device_id = uuid.UUID(body["device_id"])
+        async with runtime.database.session_factory() as session, session.begin():
+            row = await session.get(Device, device_id)
+            assert row is not None and str(row.user_id) == principal.user_id
+            row.last_seen_at = datetime.now(UTC) - timedelta(minutes=int(body["minutes_ago"]))
+        devices.tracker.forget("phone", str(device_id))
+        return JSONResponse({"ok": True})
+
+    @test_routes.post("/devices/grant")
+    async def devices_grant(request: Request) -> JSONResponse:
+        """A browser was allowed «будильник» on the phone for 30 days, and asked for contacts."""
+        principal = await web_auth.authenticate(request)
+        body = await request.json()
+        now = datetime.now(UTC)
+        grant = GrantRecord(
+            id=str(uuid.uuid4()),
+            user_id=principal.user_id,
+            target_device_id=body["device_id"],
+            capability="alarm.clock",
+            scope="persistent",
+            requester_kind="web",
+            requester_label="браузер Chrome на macOS",
+            created_at=now,
+            expires_at=now + timedelta(days=30),
+            requester_key=f"web:{uuid.uuid4()}",
+        )
+        await device_access.store.add_grant(grant)
+        await device_access.store.log(
+            AccessLogEntry(
+                id=str(uuid.uuid4()),
+                user_id=principal.user_id,
+                device_id=body["device_id"],
+                capability="contacts.read",
+                tool="device.contacts.search",
+                requester_kind="web",
+                requester_label="браузер Chrome на macOS",
+                decision="denied",
+                created_at=now,
+            )
+        )
+        return JSONResponse({"grant_id": grant.id})
 
     @test_routes.post("/model-mode")
     async def model_mode(request: Request) -> JSONResponse:

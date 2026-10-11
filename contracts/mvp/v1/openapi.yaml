@@ -469,7 +469,8 @@ paths:
                   description: >-
                     Same-origin landing path bound to the code, for example /store. The first
                     segment must be one of chat, store, installed, models, approvals, dashboard,
-                    memory, inbox, data, more; default /chat. Otherwise 400 web_handoff_path_invalid.
+                    memory, inbox, data, more, devices (M84); default /chat. Otherwise 400
+                    web_handoff_path_invalid.
       responses:
         '201':
           description: >-
@@ -1952,6 +1953,106 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/InboxItem'}
         default: *error
+  # --- M84 «Устройства»: any signed-in session of the account (devices.schema.json)
+  /v1/devices:
+    get:
+      tags: [Devices]
+      operationId: listDevices
+      summary: The account's devices with presence, and the «Облако Mia» row (M84)
+      description: >-
+        Phones (the Mia app, while signed in), browsers (web sessions; the app's WebView is its
+        phone) and, from M86, Personal Nodes. Presence online / recent / offline / no_push; names,
+        states and times only, never phone numbers or content.
+      responses:
+        '200':
+          description: The current device first, then phones, nodes, browsers
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceList'}
+        default: *error
+  /v1/devices/heartbeat:
+    post:
+      tags: [Devices]
+      operationId: deviceHeartbeat
+      summary: «Пульс» of an open app or tab; the app on a phone adds its status report (M84)
+      description: >-
+        Sent every next_heartbeat_seconds while the app is in the foreground or the tab is
+        visible; keeps the device «онлайн». The report (OS, model, OS permission per capability)
+        is stored only when the app on a phone sends it with its bearer; other callers' reports
+        are ignored. 404 device_not_found when the session has no device (a token of a signed-out
+        phone).
+      parameters: [*idem]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeviceHeartbeatRequest'}
+      responses:
+        '200':
+          description: The caller's device
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceHeartbeat'}
+        default: *error
+  /v1/devices/{device_id}:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Devices]
+      operationId: getDevice
+      summary: One device's card (M84); 404 device_not_found
+      description: >-
+        Phones: every capability (on in Mia, OS permission, whether other clients may ask, which
+        installed plugins use it), the persistent permissions it gave (revoke with
+        DELETE /v1/devices/{id}/grants/{grant_id}) and the access-log link. Browsers: the
+        permissions phones gave to them.
+      responses:
+        '200':
+          description: The card
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceDetail'}
+        default: *error
+    patch:
+      tags: [Devices]
+      operationId: renameDevice
+      summary: Rename a device; null returns the default name (M84); 404 device_not_found
+      parameters: [*idem]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeviceRenameRequest'}
+      responses:
+        '200':
+          description: The card with the new name
+          headers: *rid
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeviceDetail'}
+        default: *error
+  /v1/devices/{device_id}/disconnect:
+    parameters:
+      - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Devices]
+      operationId: disconnectDevice
+      summary: «Отключить устройство» (M84)
+      description: >-
+        A phone: every sign-in of the app on it ends (its bearer and WebView answer 401), its push
+        token is deleted, the permissions it gave and received are revoked and it stops being a
+        target of device tools until the app signs in again. A browser: its session ends and the
+        permissions given to it are revoked. 409 device_is_current for the device making the
+        request (sign out instead); 404 device_not_found when it is not (or no longer) connected.
+      parameters: [*idem]
+      responses:
+        '204':
+          description: Disconnected
+          headers: *rid
+        default: *error
   /v1/devices/push-token:
     put:
       tags: [Devices]
@@ -1991,7 +2092,8 @@ paths:
           description: Declarations replaced
           headers: *rid
         default: *error
-  # --- M70 device access (ADR-0016): only the app signed in on {device_id} (else 403 device_access_forbidden)
+  # --- M70 device access (ADR-0016): only the app signed in on {device_id} (else 403 device_access_forbidden);
+  # M84: grants (list, revoke) and the access log also for any other session of the phone's owner
   /v1/devices/{device_id}/tool-calls:
     parameters:
       - {name: device_id, in: path, required: true, schema: {type: string, format: uuid}}
@@ -2017,7 +2119,7 @@ paths:
     get:
       tags: [Devices]
       operationId: listDeviceGrants
-      summary: Persistent permissions this device gave to other clients (M70)
+      summary: Persistent permissions this device gave to other clients (M70; M84 any session of the owner)
       responses:
         '200':
           description: Active grants, newest first
@@ -2033,7 +2135,7 @@ paths:
     delete:
       tags: [Devices]
       operationId: revokeDeviceGrant
-      summary: Revoke one persistent permission (M70); 404 device_grant_not_found
+      summary: Revoke one persistent permission (M70; M84 any session of the owner); 404 device_grant_not_found
       parameters: [*idem]
       responses:
         '204':
@@ -2046,7 +2148,7 @@ paths:
     get:
       tags: [Devices]
       operationId: listDeviceAccessLog
-      summary: Device reads/actions requested by other clients, newest first (M70)
+      summary: Device reads/actions requested by other clients, newest first (M70; M84 any session of the owner)
       parameters:
         - {$ref: '#/components/parameters/Limit'}
       responses:
@@ -3511,6 +3613,11 @@ components:
     DeviceCapabilitySetting: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySetting'}
     DeviceCapabilitySettingList: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySettingList'}
     DeviceCapabilitySettingRequest: {$ref: 'device-access.schema.json#/$defs/DeviceCapabilitySettingRequest'}
+    DeviceList: {$ref: 'devices.schema.json#/$defs/DeviceList'}
+    DeviceDetail: {$ref: 'devices.schema.json#/$defs/DeviceDetail'}
+    DeviceRenameRequest: {$ref: 'devices.schema.json#/$defs/DeviceRenameRequest'}
+    DeviceHeartbeatRequest: {$ref: 'devices.schema.json#/$defs/DeviceHeartbeatRequest'}
+    DeviceHeartbeat: {$ref: 'devices.schema.json#/$defs/DeviceHeartbeat'}
     NotificationSettings: {$ref: 'notifications.schema.json#/$defs/NotificationSettings'}
     UpdateNotificationSettingsRequest: {$ref: 'notifications.schema.json#/$defs/UpdateNotificationSettingsRequest'}
     Fact: {$ref: 'memory.schema.json#/$defs/Fact'}

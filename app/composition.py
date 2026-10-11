@@ -18,6 +18,7 @@ from app.modules.connections.resources import PluginResources
 from app.modules.conversations.composition import install_chats
 from app.modules.conversations.router import build_conversation_router
 from app.modules.conversations.streaming import TextSSEService
+from app.modules.devices.composition import install_devices
 from app.modules.jobs.composition import install_jobs
 from app.modules.memory import install_memory
 from app.modules.models import install_models
@@ -196,6 +197,12 @@ def install_runtime_api(app: FastAPI, settings: Settings, runtime: Runtime) -> N
         runs=runs,
         authenticator=request_authenticator(app),
         sessions=tools.device_access.store if tools.device_access else None,
+    )
+    install_devices(
+        app,
+        runtime.database.session_factory,
+        access=tools.device_access,
+        plugins=tools.registry,
     )
     oauth = install_oauth(
         app,

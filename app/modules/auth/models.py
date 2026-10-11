@@ -38,6 +38,13 @@ class Device(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    """Last contact with the API (sign-in; since M84 also requests and heartbeats, throttled)."""
+    display_name: Mapped[str | None] = mapped_column(String(128))
+    """Name chosen by the user on the «Устройства» screen (M84); wins over ``device_name``."""
+    status_report: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    """The app's last heartbeat report (M84): OS, model, OS permission per capability.
+    Names and states only; no phone numbers or other content."""
+    status_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuthSession(Base):
@@ -97,3 +104,9 @@ class WebSession(Base):
     )
     """Set for the app's WebView session (M24 hand-off, M70): requests of this session come
     from that device (ADR-0016 §3). NULL for a browser session."""
+    display_name: Mapped[str | None] = mapped_column(String(128))
+    """Name chosen by the user on the «Устройства» screen (M84)."""
+    client_label: Mapped[str | None] = mapped_column(String(128))
+    """«браузер Chrome на macOS», derived once from the User-Agent (never the raw header)."""
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """Last request of this session (M84, throttled)."""

@@ -1,0 +1,14 @@
+{
+  "report": {
+    "os": "Android 15",
+    "model": "Samsung SM-S938B",
+    "app_version": "0.9.0",
+    "notifications": "granted",
+    "capabilities": [
+      { "capability": "contacts.read", "os_permission": "denied" },
+      { "capability": "alarm.clock", "os_permission": "not_required" },
+      { "capability": "apps.open", "os_permission": "not_required" },
+      { "capability": "telegram.draft", "os_permission": "not_required" }
+    ]
+  }
+}
