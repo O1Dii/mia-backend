@@ -300,6 +300,12 @@ type ChatState = {
   activity: number
   /** Bumped when the user picks, starts or deletes a chat: the composer starts afresh. */
   switched: number
+  /**
+   * Incognito (M17-R1): questions go as `incognito: true` runs without a chat — Mia remembers
+   * nothing, no history is kept. The conversation lives on this screen only.
+   */
+  incognito: boolean
+  setIncognito: (on: boolean) => void
 }
 
 const Context = createContext<ChatState | null>(null)
@@ -328,6 +334,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState(false)
   const [activity, setActivity] = useState(0)
   const [switched, setSwitched] = useState(0)
+  const [incognito, setIncognitoState] = useState(false)
+  const incognitoRef = useRef(false)
+  /** The address incognito was turned on at: coming back to it keeps the incognito screen. */
+  const incognitoBase = useRef<string | null>(null)
+  const targetRef = useRef(target)
+  targetRef.current = target
   const [prefs, setPrefs] = useVoicePrefs()
   const voice = useVoice()
   const prefsRef = useRef(prefs)
@@ -539,7 +551,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const chatId = activeRef.current
     if (!chatId || loadedKey.current !== chatId) return
     const page = await api.feed(undefined, 30, chatId).catch(() => null)
-    if (!page || activeRef.current !== chatId) return
+    // The chat may have been left meanwhile (another chat, incognito): its tail is not shown.
+    if (!page || activeRef.current !== chatId || loadedKey.current !== chatId) return
     setMessages((all) => {
       const keys = new Set(all.map((m) => m.key))
       const runs = new Set(all.map((m) => m.runId).filter(Boolean))
@@ -558,6 +571,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!target || !targetKey) return
+    if (incognitoRef.current) {
+      if (targetKey === incognitoBase.current || targetKey === 'default') return
+      // Another chat was opened: the incognito conversation is over.
+      incognitoRef.current = false
+      setIncognitoState(false)
+    }
     if (loadedKey.current === targetKey) return
     if (target.kind === 'new') {
       seq.current++
@@ -627,6 +646,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         blank({ key: botKey, role: 'assistant', pending: true, dictated }),
       ])
       try {
+        if (incognitoRef.current) {
+          // No chat is created and none is written to: the run carries `incognito: true`.
+          const run = await api.createRun(clean, newKey(), undefined, true)
+          patch(botKey, (m) => ({ ...m, runId: run.id }))
+          await follow(botKey, run.id, dictated, null)
+          return
+        }
         let chatId = activeRef.current
         if (!chatId) {
           // A draft becomes a chat with its first message, so no empty chats pile up.
@@ -670,17 +696,67 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const leaveIncognito = useCallback(() => {
+    if (!incognitoRef.current) return
+    incognitoRef.current = false
+    setIncognitoState(false)
+    loadedKey.current = null
+  }, [])
+
+  const setIncognito = useCallback(
+    (on: boolean) => {
+      if (incognitoRef.current === on) return
+      seq.current++
+      abortAll()
+      setSwitched((n) => n + 1)
+      if (on) {
+        incognitoRef.current = true
+        incognitoBase.current = targetKey
+        loadedKey.current = 'incognito'
+        setIncognitoState(true)
+        setMessages([])
+        setCursor(null)
+        setLoading(false)
+        setLoadError('')
+        return
+      }
+      leaveIncognito()
+      // Back to the chat the address names.
+      const current = targetRef.current
+      if (current?.kind === 'new') {
+        loadedKey.current = 'new'
+        setMessages([])
+        setDraft(true)
+        return
+      }
+      void loadChat(current?.kind === 'chat' ? current.id : (activeRef.current ?? undefined))
+    },
+    [abortAll, leaveIncognito, loadChat, targetKey],
+  )
+
   const newChat = useCallback(() => {
+    if (incognitoRef.current) setIncognito(false)
     if (loadedKey.current === 'new') return
     setSwitched((n) => n + 1)
     navigate('/chat/new')
-  }, [])
+  }, [setIncognito])
 
-  const selectChat = useCallback((id: string) => {
-    if (activeRef.current === id && loadedKey.current === id) return
-    setSwitched((n) => n + 1)
-    navigate(chatPath(id))
-  }, [])
+  const selectChat = useCallback(
+    (id: string) => {
+      if (incognitoRef.current) {
+        leaveIncognito()
+        if (activeRef.current === id) {
+          setSwitched((n) => n + 1)
+          void loadChat(id)
+          return
+        }
+      }
+      if (activeRef.current === id && loadedKey.current === id) return
+      setSwitched((n) => n + 1)
+      navigate(chatPath(id))
+    },
+    [leaveIncognito, loadChat],
+  )
 
   const renameChat = useCallback(async (id: string, title: string | null) => {
     const updated = await api.patchChat(id, { title })
@@ -748,6 +824,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       removeChat,
       activity,
       switched,
+      incognito,
+      setIncognito,
     }),
     [
       messages,
@@ -781,6 +859,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       removeChat,
       activity,
       switched,
+      incognito,
+      setIncognito,
     ],
   )
   return <Context.Provider value={value}>{children}</Context.Provider>

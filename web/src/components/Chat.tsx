@@ -11,6 +11,7 @@ import {
   PinOff,
   Settings2,
   Square,
+  VenetianMask,
   Volume2,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -104,7 +105,7 @@ export function Chat() {
 
   const last = chat.messages.at(-1)
   const followups = !chat.busy && last?.role === 'assistant' ? last.followups : []
-  const current = chat.chats.find((c) => c.id === chat.activeId)
+  const current = chat.incognito ? undefined : chat.chats.find((c) => c.id === chat.activeId)
 
   async function togglePin() {
     if (!current) return
@@ -118,7 +119,11 @@ export function Chat() {
   return (
     <div className="mw-chat-shell">
       <ChatList open={listOpen} onClose={() => setListOpen(false)} />
-      <section className="mw-chat" aria-label="Чат с Мией">
+      <section
+        className={`mw-chat ${chat.incognito ? 'is-incognito' : ''}`}
+        aria-label="Чат с Мией"
+        data-incognito={chat.incognito || undefined}
+      >
         <header className="mw-chat__head">
           <button
             type="button"
@@ -130,7 +135,13 @@ export function Chat() {
             <MessagesSquare size={20} />
           </button>
           <h1 className="mw-chat__title" title={current ? chatTitle(current) : undefined}>
-            {current ? chatTitle(current) : chat.draft ? 'Новый чат' : 'Чат'}
+            {chat.incognito
+              ? 'Инкогнито'
+              : current
+                ? chatTitle(current)
+                : chat.draft
+                  ? 'Новый чат'
+                  : 'Чат'}
           </h1>
           {current && (
             <button
@@ -145,6 +156,17 @@ export function Chat() {
           )}
           <button
             type="button"
+            className="mia-icon-btn mw-incognito-toggle"
+            aria-label="Инкогнито"
+            aria-pressed={chat.incognito}
+            title={chat.incognito ? 'Выйти из инкогнито' : 'Инкогнито: без памяти и истории'}
+            disabled={chat.busy}
+            onClick={() => chat.setIncognito(!chat.incognito)}
+          >
+            <VenetianMask size={20} />
+          </button>
+          <button
+            type="button"
             className="mia-icon-btn mw-chat__fresh"
             aria-label="Новый чат"
             onClick={chat.newChat}
@@ -152,7 +174,17 @@ export function Chat() {
             <MessageSquarePlus size={20} />
           </button>
         </header>
-        <NowStrip />
+        {chat.incognito ? (
+          <p className="mw-incognito" role="status">
+            <VenetianMask size={16} aria-hidden="true" />
+            <span>
+              Инкогнито: Мия ничего не запоминает, разговор не попадает в историю и исчезнет, когда
+              вы выйдете из этого режима.
+            </span>
+          </p>
+        ) : (
+          <NowStrip />
+        )}
         <div
           className="mw-chat__scroll"
           ref={scroller}
@@ -193,10 +225,11 @@ export function Chat() {
           {!chat.loading && !chat.messages.length && !chat.loadError && (
             <div className="mw-empty mia-rise">
               <span className="mia-orb mia-orb--lg" data-state="idle" aria-hidden="true" />
-              <h2>С чего начнём?</h2>
+              <h2>{chat.incognito ? 'Разговор без следа' : 'С чего начнём?'}</h2>
               <p>
-                Спросите что угодно или попросите Мию что-то сделать с помощью установленных
-                плагинов.
+                {chat.incognito
+                  ? 'Спросите что угодно. Ответы видны только здесь, в памяти Мии ничего не останется.'
+                  : 'Спросите что угодно или попросите Мию что-то сделать с помощью установленных плагинов.'}
               </p>
               <div className="mw-chips">
                 {starters.map((starter) => (
@@ -251,7 +284,13 @@ export function Chat() {
               ref={field}
               className="mia-field__input mw-composer__input"
               aria-label="Сообщение Мии"
-              placeholder={voice.listening ? 'Слушаю…' : 'Напишите Мии…'}
+              placeholder={
+                voice.listening
+                  ? 'Слушаю…'
+                  : chat.incognito
+                    ? 'Инкогнито: напишите Мии…'
+                    : 'Напишите Мии…'
+              }
               rows={1}
               maxLength={16000}
               value={text}

@@ -88,6 +88,10 @@ type GoogleAPI = {
 }
 
 function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
+  // After «Удалить аккаунт» (M17-R1) the page reloads here with ?account=deleted.
+  const [deleted] = useState(
+    () => new URLSearchParams(location.search).get('account') === 'deleted',
+  )
   const [error, setError] = useState(
     GOOGLE_CLIENT_ID ? '' : 'Вход не настроен: не задан VITE_GOOGLE_CLIENT_ID.',
   )
@@ -151,6 +155,11 @@ function Login({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
             <ShieldCheck size={14} /> Вы подтверждаете действия
           </span>
         </div>
+        {deleted && (
+          <p className="mw-notice" role="status">
+            Аккаунт удалён. Если войти снова, будет создан новый пустой аккаунт.
+          </p>
+        )}
         <div id="google-signin" />
         <AndroidAppLink />
         {error && (
