@@ -286,7 +286,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M85-008 | OPEN | models | Какая локальная модель справляется с русским и tools | проверка пользователя в M88 | M88 |
 | OI-M85-009 | RESOLVED | docs | Строки индексов ADR и contracts README | integrator MW6b добавил | — |
 | OI-M85-010 | OPEN | supply chain | Подпись релизов и цепочка поставки `mia-node` | — | M90 / post-MVP |
-| OI-M85-011 | OPEN | Node packaging | Подпись установщиков `mia-node` (платно) | без подписи на пилот | решение пользователя / M92 |
+| OI-M85-011 | DECIDED | Node packaging | Подпись установщиков `mia-node` (платно) | пользователь 2026-10-11: подпись пока не нужна; сборка без подписи с инструкцией | M92 |
 
 ## Record template
 
@@ -4501,7 +4501,7 @@ from the old voice/session dependency graph. These issues do not change its gate
 
 ### OI-M85-011 — Подпись установщиков `mia-node` (платно)
 
-- Status: OPEN (решение пользователя)
+- Status: DECIDED (пользователь 2026-10-11: подпись пока не нужна — вариант (a); ПК пользователя на macOS)
 - Source session: integrator MW6b (решение Р11 = установщики)
 - Component: `packaging/node/**` (M92)
 - Question: без подписи macOS и Windows показывают предупреждение при первом запуске. Подпись: macOS — аккаунт Apple Developer (≈ $99/год), Windows — сертификат подписи кода (обычно сотни долларов в год; цены уточнить при решении).

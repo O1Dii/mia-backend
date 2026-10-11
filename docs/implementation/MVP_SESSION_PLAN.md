@@ -1826,6 +1826,8 @@ M91 → M89 → M90
 #### M92 — Node: установщики для Windows, macOS и Linux (B, N; Sonnet 5.5 high, fallback Opus 5.5 high; M)
 
 Добавлено 2026-10-11: пользователь выбрал установщики (Р11 = б).
+ПК пользователя — macOS: первая платформа (живая проверка), Windows и Linux — сборка и смоук в CI. Подпись кода пока не нужна
+(OI-M85-011 = a): собирать без подписи, с инструкцией первого запуска.
 **Deps:** M86 (облегчённый режим без БД); после M91 установщик дополняется встроенным Postgres (DoD M91).
 **Write scope:** `packaging/node/**` (сборка, иконки, скрипты), `.github/workflows/node-release.yml` (сборка на трёх ОС),
 `app/node/cli/**` (команды `install-service`/`uninstall`), `docs/NODE_INSTALL.md`; без правок ядра.
