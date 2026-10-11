@@ -36,7 +36,7 @@ from app.modules.devices.store import DeviceRecord, DeviceSource, SqlDirectorySt
 from app.modules.plugins.install.consent import device_capabilities, where_it_runs
 from app.modules.tools.device_access import DeviceAccess
 from app.modules.tools.device_origin import browser_label
-from app.modules.tools.device_policy import CAPABILITIES, capability_for
+from app.modules.tools.device_policy import CAPABILITIES, capability_for, capability_named
 from app.modules.tools.device_store import GrantRecord
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def _grant_body(grant: GrantRecord) -> dict[str, Any]:
     return {
         "id": grant.id,
         "capability": grant.capability,
-        "capability_label": capability_for(grant.capability).label,
+        "capability_label": capability_named(grant.capability).label,
         "requester": {"kind": grant.requester_kind, "label": grant.requester_label},
         "created_at": _iso(grant.created_at),
         "expires_at": _iso(grant.expires_at),
@@ -287,7 +287,7 @@ class DeviceDirectory:
         names = list(CAPABILITIES) + sorted(name for name in declared if name not in CAPABILITIES)
         rows: list[dict[str, Any]] = []
         for name in names:
-            capability = CAPABILITIES.get(name) or capability_for(name)
+            capability = capability_named(name)
             enabled = name in declared
             permission = record.os_permissions.get(name, "unknown")
             rows.append(
@@ -411,7 +411,7 @@ class DeviceDirectory:
                 "target_device_id": grant.target_device_id,
                 "target_device_name": grant.target_device_name,
                 "capability": grant.capability,
-                "capability_label": capability_for(grant.capability).label,
+                "capability_label": capability_named(grant.capability).label,
                 "created_at": _iso(grant.created_at),
                 "expires_at": _iso(grant.expires_at),
                 "last_used_at": _iso(grant.last_used_at),

@@ -22,7 +22,7 @@ from sqlalchemy import and_, delete, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.auth.models import AuthSession, Device, WebSession
-from app.modules.devices.presence import DeviceKind, PushState, latest
+from app.modules.devices.presence import DeviceKind, PushState
 from app.modules.devices.report import os_permissions, report_text
 from app.modules.notifications.models import PushTokenRow
 from app.modules.tools.models import DeviceGrant, DeviceToolDeclarationSet
@@ -142,7 +142,7 @@ class SqlPhoneSource:
             default_name=device.device_name or model or DEFAULT_PHONE_NAME,
             custom_name=device.display_name,
             connected_at=connected_at,
-            last_seen_at=latest(device.last_seen_at, connected_at),
+            last_seen_at=device.last_seen_at,  # set at sign-in, then by every contact
             push=push,
             os=report_text(report, "os"),
             model=model,
@@ -273,7 +273,7 @@ class SqlBrowserSource:
             default_name=row.client_label or DEFAULT_BROWSER_NAME,
             custom_name=row.display_name,
             connected_at=row.created_at,
-            last_seen_at=latest(row.last_seen_at, row.created_at),
+            last_seen_at=row.last_seen_at or row.created_at,
             push="not_applicable",
             client=row.client_label,
         )

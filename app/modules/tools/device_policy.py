@@ -94,6 +94,15 @@ def capability_for(tool: str) -> Capability:
     return Capability(tool, "external", f"действие на телефоне ({tool})", "результат действия")
 
 
+def capability_named(name: str) -> Capability:
+    """A capability by its own name (``alarm.clock``), as grants and the access log store it.
+
+    :func:`capability_for` takes a *tool* name; an unknown capability name falls back to it
+    (an unknown device tool is its own capability, named after the tool).
+    """
+    return CAPABILITIES.get(name) or capability_for(name)
+
+
 @dataclass(frozen=True, slots=True)
 class Requester:
     kind: RequesterKind

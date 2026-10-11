@@ -369,6 +369,10 @@ async def test_the_card_shows_capabilities_plugins_grants_and_the_log(rig: Rig) 
         assert caps["telegram.draft"]["plugins"][0]["optional"] is False
         assert body["notifications"] == "granted"
         assert [g["id"] for g in body["grants"]] == [grant.id]
+        # Labels come from the capability name (not a tool name): M70's lists too.
+        assert body["grants"][0]["capability_label"] == "будильник в «Часах» телефона"
+        listed = (await phone.get(f"/v1/devices/{galaxy}/grants", headers=bearer)).json()
+        assert listed["items"][0]["capability_label"] == "будильник в «Часах» телефона"
         assert body["links"]["access_log"] == f"/v1/devices/{galaxy}/access-log"
         assert body["actions"] == {"rename": True, "disconnect": True}
 
@@ -376,6 +380,7 @@ async def test_the_card_shows_capabilities_plugins_grants_and_the_log(rig: Rig) 
         log = await browser.get(body["links"]["access_log"])
         assert log.status_code == 200, log.text
         assert [e["decision"] for e in log.json()["items"]] == ["denied"]
+        assert log.json()["items"][0]["capability_label"] == "поиск в контактах телефона"
         revoked = await browser.delete(
             f"/v1/devices/{galaxy}/grants/{grant.id}", headers=browser_headers()
         )

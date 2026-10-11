@@ -32,7 +32,7 @@ from app.core.ports.device_tool_channel import DeviceToolCall
 from app.modules.auth.principal import RequestAuthenticator, RequestPrincipal
 from app.modules.tools.device import call_body
 from app.modules.tools.device_access import DeviceAccess
-from app.modules.tools.device_policy import CAPABILITIES, capability_for
+from app.modules.tools.device_policy import CAPABILITIES, capability_named
 from app.modules.tools.device_store import AccessLogEntry, GrantRecord
 from app.modules.tools.errors import DEVICE_ACCESS_CODES
 
@@ -63,7 +63,7 @@ def _requester(kind: str, label: str) -> dict[str, str]:
 
 def grant_body(grant: GrantRecord) -> dict[str, Any]:
     """``DeviceGrant``."""
-    capability = capability_for(grant.capability)
+    capability = capability_named(grant.capability)
     return {
         "id": grant.id,
         "capability": grant.capability,
@@ -83,7 +83,7 @@ def log_body(entry: AccessLogEntry, now: datetime) -> dict[str, Any]:
     body: dict[str, Any] = {
         "id": entry.id,
         "capability": entry.capability,
-        "capability_label": capability_for(entry.capability).label,
+        "capability_label": capability_named(entry.capability).label,
         "tool": entry.tool,
         "requester": _requester(entry.requester_kind, entry.requester_label),
         "decision": decision,
