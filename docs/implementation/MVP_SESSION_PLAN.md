@@ -1569,7 +1569,7 @@ MW7 ◄─ MW6b
 | M85 | Personal Node: ADR и протокол | M60, M70 | B | Opus 5.5 high | Opus 5.5 xhigh |
 | M86 | Node: runtime, pairing, канал, «Устройства» | M85, M84, решения Р1–Р4, Р11 | B, A, N | Opus 5.5 high | — |
 | M87 | Node: файлы и действия на ПК | M86 | B, N | Sonnet 5.5 high | Opus 5.5 high |
-| M88 | Node: локальные модели (Ollama) | M86 | B, N | Sonnet 5.5 high | Opus 5.5 high |
+| M88 | Node: локальные модели (Ollama, LM Studio, OpenAI-совместимые) | M86 | B, N | Sonnet 5.5 high | Opus 5.5 high |
 | M91 | Node: ядро на узле и TLS-туннель | M86, Р1–Р3 | B, N | Opus 5.5 high | — |
 | M89 | Node: память и история дома | M91 | B, N, A | Opus 5.5 high | — |
 | M90 | Node: узел вместо сервера | M89 | B, N, A | Opus 5.5 high | — |
@@ -1766,7 +1766,13 @@ M91 → M89 → M90
 - путей и содержимого нет в событиях и логах;
 - журнал на узле и в access log.
 
-#### M88 — Node: локальные модели (Ollama) (B, N; Sonnet 5.5 high, fallback Opus 5.5 high; M)
+#### M88 — Node: локальные модели (Ollama, LM Studio, OpenAI-совместимые) (B, N; Sonnet 5.5 high, fallback Opus 5.5 high; M)
+
+Решение пользователя 2026-10-11: кроме Ollama — как минимум LM Studio. Мост узла работает с «бэкендами локальных моделей»:
+`ollama` (родной API), `lmstudio` (OpenAI-совместимый сервер LM Studio, по умолчанию `localhost:1234/v1`) и `openai_compat`
+(любой локальный OpenAI-совместимый сервер: llama.cpp server, Jan, LocalAI, vLLM — адрес задаёт пользователь на ПК).
+Узел сам находит запущенные Ollama/LM Studio, список моделей объединяется с пометкой источника; поддержка tools
+определяется по модели (без tools — только чат). Ниже `ollama` читать как «любой из этих бэкендов».
 
 **Deps:** M86.
 

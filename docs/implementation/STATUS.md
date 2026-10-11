@@ -498,7 +498,7 @@ operations, 102 error codes) PASS; pytest **1570 passed, 6 skipped, 4 xfailed (s
 | M85 | MW6b | COMPLETED | M60, M70 | Opus 5.5 high | [M85](handoffs/M85.md) | `d2616c5` | ADR-0019 Proposed, `contracts/node/v1`; ждёт решений пользователя Р1–Р12 (OI-M85-001) |
 | M86 | MW6b | PENDING | M85, M84, решения Р1–Р4, Р11 | Opus 5.5 high | — | — | Node: runtime, pairing, канал, «Устройства» |
 | M87 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: файлы и действия на ПК |
-| M88 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: Ollama |
+| M88 | MW6b | PENDING | M86 | Sonnet 5.5 high | — | — | Node: Ollama, LM Studio, OpenAI-совместимые локальные серверы |
 | M91 | MW6b | PENDING | M86, Р1–Р3 | Opus 5.5 high | — | — | Node: ядро на узле (встроенный Postgres) и сквозной TLS-туннель |
 | M89 | MW6b | PENDING | M91 | Opus 5.5 high | — | — | Node: память и история дома |
 | M90 | MW6b | PENDING | M89 | Opus 5.5 high | — | — | Node: узел вместо сервера |
