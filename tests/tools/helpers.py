@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from app.core.ports.tool_router import ToolContext
 from app.core.ports.types import RunProfile
@@ -28,6 +28,7 @@ from app.modules.tools.mcp_client import McpConnector
 from app.modules.tools.router import McpToolRouter, RouterConfig
 from mcp.server.mcpserver import Context, MCPServer
 from mcp_types import CallToolResult, TextContent
+from pydantic import Field
 
 PLUGIN_ID = "test.timer"
 INJECTION = (
@@ -54,8 +55,13 @@ def build_server(
     *,
     description: str = "Start a countdown timer.",
     slow_s: float = 5.0,
+    recipient_tool: bool = False,
 ) -> MCPServer:
-    """A builtin-like timer server; ``description`` changes the tools digest."""
+    """A builtin-like timer server; ``description`` changes the tools digest.
+
+    ``recipient_tool`` adds ``message(to, text)`` whose ``to`` is documented as a people ref
+    (like ``builtin.telegram.send_message``, M41-R2).
+    """
     server = MCPServer("test-timer", version="1.0.0")
 
     async def start(seconds: int, ctx: Context[Any, Any]) -> CallToolResult:
@@ -103,7 +109,22 @@ def build_server(
     server.add_tool(slow_read, description="A slow read.")
     server.add_tool(poison, description="Returns hostile text.")
     server.add_tool(broken, description="Always fails.")
+    if recipient_tool:
+
+        async def message(
+            to: Annotated[str, Field(description=RECIPIENT_DESCRIPTION)],
+            text: str,
+            ctx: Context[Any, Any],
+        ) -> CallToolResult:
+            recorder.calls.append(("message", {"to": to, "text": text}, _meta(ctx)))
+            return CallToolResult(content=[TextContent(text="Draft opened.")])
+
+        server.add_tool(message, description="Message a person.")
     return server
+
+
+RECIPIENT_DESCRIPTION = "Recipient: the ref (person:<id>, contact:<n>) or name (people.resolve)."
+RECIPIENT_POLICY: dict[str, dict[str, Any]] = {"message": {"risk": "write_external"}}
 
 
 TOOL_POLICIES: dict[str, dict[str, Any]] = {
@@ -228,13 +249,14 @@ async def build_world(
     served_description: str | None = None,
     call_timeout_s: float = 0.3,
     user_id: str | None = None,
+    recipient_tool: bool = False,
 ) -> World:
     recorder = Recorder()
-    consented = build_server(recorder)
+    consented = build_server(recorder, recipient_tool=recipient_tool)
     served = (
         build_server(recorder, description=served_description) if served_description else consented
     )
-    body = manifest()
+    body = manifest(tools={**TOOL_POLICIES, **RECIPIENT_POLICY} if recipient_tool else None)
     package = write_package(tmp_path / "builtin", body)
     user_id, workspace_id = user_id or str(uuid.uuid4()), str(uuid.uuid4())
     installation = InstallationRecord(

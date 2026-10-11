@@ -4365,3 +4365,59 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Recommendation: (a), пока UC-M60-8 не покажет задержку из-за device-чтений.
 - Affected future sessions: M61.
 - Revisit trigger/deadline: результаты UC-M60-8.
+
+## M41-R2 inbox
+
+Закрывает (индекс обновляет интегратор): OI-M60-002, OI-M41-001 — карточка подтверждения и голосовая фраза называют получателя по ссылке («to=«Яна Петрова (жена)»»), аргументы и `args_hash` прежние.
+
+### OI-M41-R2-001 — Имя на карточке зафиксировано в момент запроса подтверждения
+
+- Status: OPEN
+- Source session: M41-R2
+- Component: `McpToolRouter._ref_labels`, `MemoryRefNames`
+- Question: подтверждение привязано к ссылке `person:<id>`, а не к имени. Если пользователь переименует или удалит человека между запросом и «Одобрить», исполнится ссылка (удалённый человек → «не нашла», ничего не отправлено), а на карточке останется старое имя.
+- Why non-blocking: окно ≤ 2 минут (TTL подтверждения), меняет только сам владелец в своей памяти; черновик в Telegram пользователь видит и отправляет сам.
+- Current assumption: имя на момент запроса.
+- Options: (a) оставить; (b) при исполнении сверять текущее имя с показанным и требовать новое подтверждение при расхождении.
+- Recommendation: (a) для MVP.
+- Affected future sessions: нет.
+- Revisit trigger/deadline: если появятся инструменты с необратимой отправкой по ссылке без черновика.
+
+### OI-M41-R2-002 — Аргумент-ссылка распознаётся по тексту схемы
+
+- Status: OPEN
+- Source session: M41-R2
+- Component: `app/modules/tools/policy.py` `ref_arguments`
+- Question: роутер называет человека только для аргументов, чья схема упоминает `person:`/`contact:` в `description` или `pattern` (так у `builtin.telegram.send_message.to`). Новый встроенный инструмент, забывший это указать, покажет сырую ссылку (безопасный отказ, не подмена).
+- Why non-blocking: единственный такой инструмент — Telegram; удалённым плагинам имена не подставляются вовсе.
+- Current assumption: соглашение в описании схемы.
+- Options: (a) оставить соглашение; (b) явное поле манифеста `mia.json` (`tools.<name>.peopleRefs: ["to"]`) — правка контракта манифеста.
+- Recommendation: (b) при следующей правке контракта манифеста плагинов.
+- Affected future sessions: следующая сессия, меняющая `mia.plugin/1`.
+- Revisit trigger/deadline: второй инструмент, принимающий ссылки на людей.
+
+### OI-M41-R2-003 — Имя получателя теперь хранится в `summary` подтверждения открытым текстом
+
+- Status: OPEN
+- Source session: M41-R2
+- Component: `tool_approvals.summary`, событие `approval.requested`, шаги ленты
+- Question: память шифруется ключом пользователя, а `summary` (теперь с именем и отношением) лежит в `tool_approvals` и `run_events` открытым текстом — как и раньше лежали аргументы с текстом сообщения. После «Забыть человека» имя остаётся в истории подтверждений до их удаления; удаление аккаунта (каскад) удаляет всё.
+- Why non-blocking: та же чувствительность, что у уже хранимого текста сообщения; видно только владельцу.
+- Current assumption: хранится как остальная история run.
+- Options: (a) оставить; (b) срок хранения истории подтверждений/событий по настройке приватности (retention M17); (c) хранить в `summary` ссылку и подставлять имя при чтении.
+- Recommendation: (b) вместе с общим сроком хранения истории (OI-M41-R1-003).
+- Affected future sessions: M62 / post-MVP retention.
+- Revisit trigger/deadline: ревью приватности перед пилотом.
+
+### OI-M41-R2-004 — Нестабильный `test_s08_security`: «секрет» 4711 бывает в случайном `request_id`
+
+- Status: OPEN
+- Source session: M41-R2
+- Component: `tests/e2e_mvp/test_s08_security.py::test_another_tenant_reaches_nothing_of_anns_over_http`
+- Question: тест ищет строки Анны (в том числе «4711») в любом ответе Боба, включая конверт ошибки 404 со случайным `request_id`. В полном прогоне M41-R2 он упал на `/v1/inbox/{id}` (код M41-R2 его не трогает); отдельно проходит 4/4. Вероятная причина — «4711» внутри случайного шестнадцатеричного id.
+- Why non-blocking: утечки нет (ответ 404 с конвертом); падение случайное.
+- Current assumption: флейк теста.
+- Options: (a) искать секреты только вне `error.request_id` или заменить «4711» на строку, невозможную в hex (например «сейф-Анны»); (b) оставить.
+- Recommendation: (a) при следующей правке `tests/e2e_mvp` (повтор M60).
+- Affected future sessions: повтор M60.
+- Revisit trigger/deadline: повтор M60.

@@ -5,6 +5,9 @@ Usage in ``app/composition.py`` (after ``install_models`` and ``install_tools``)
     memory = install_memory(app, runtime, vault=models_stack.vault, tools=tools)
     runs = install_runs(..., memory=memory.service)
     memory.tools.bind_publisher(runs.publish)
+
+With ``tools`` the stack also binds the router's ref-name resolver (approval text names
+``person:<id>``/``contact:<n>`` for the run's owner, M41-R2).
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from app.core.runtime import Runtime
 from app.modules.auth.composition import request_authenticator
 from app.modules.memory.cipher import MemoryCipher
 from app.modules.memory.errors import MemoryLedgerError, memory_error_handler
+from app.modules.memory.names import MemoryRefNames
 from app.modules.memory.retention import RetentionService, RetentionSweeper
 from app.modules.memory.service import MemoryService
 from app.modules.memory.tools import ContactsCache, MemoryTools, SqlRunPrivacy
@@ -63,6 +67,8 @@ def build_memory_stack(
     if tools is not None:
         for tool in memory_tools.core_tools():
             tools.core_tools.register(tool)
+        # Late binding (M41-R2): the router names people refs on the owner's approval card.
+        tools.router.bind_ref_names(MemoryRefNames(service, memory_tools.contacts))
     retention = RetentionService(session_factory, incognito_ttl=config.incognito_run_ttl)
     return MemoryStack(
         service, memory_tools, retention, RetentionSweeper(retention, config.retention_sweep_s)
