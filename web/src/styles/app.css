@@ -1365,3 +1365,58 @@
 .mw-chat.is-incognito .mw-composer {
   border-color: var(--mia-color-info);
 }
+
+/* ---------- «Устройства» (M84) ---------- */
+.mw-device-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mia-space-2);
+  min-width: 0;
+}
+.mw-device-row__title strong,
+.mw-device-row__title h1,
+.mw-device-row__title h2 {
+  overflow-wrap: anywhere;
+}
+.mw-device-row__hint {
+  font-size: var(--mia-type-caption-size);
+}
+.mw-device-facts {
+  margin: 0;
+  gap: var(--mia-space-2);
+}
+.mw-device-facts__row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: var(--mia-space-3);
+}
+.mw-device-facts dt {
+  color: var(--mia-color-text-secondary);
+}
+.mw-device-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mw-capability {
+  gap: var(--mia-space-2);
+}
+.mw-capability .mw-list li {
+  display: block;
+}
+.mw-cloud details summary {
+  cursor: pointer;
+  min-height: var(--mia-size-touch-web);
+  display: flex;
+  align-items: center;
+}
+.mw-access-log li {
+  padding-block: var(--mia-space-1);
+  border-bottom: 1px solid var(--mia-color-border);
+}
+@media (max-width: 767px) {
+  .mw-device-facts__row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

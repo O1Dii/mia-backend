@@ -1,4 +1,4 @@
-import { Bell, ChevronRight, Cpu, Layers3, ShieldHalf } from 'lucide-react'
+import { Bell, ChevronRight, Cpu, Layers3, MonitorSmartphone, ShieldHalf } from 'lucide-react'
 import { Link } from '../lib/router'
 import { AndroidAppRow } from './AndroidApp'
 import { DeleteAccountRow } from './DeleteAccount'
@@ -15,6 +15,12 @@ const items = [
     icon: Cpu,
     title: 'Модели',
     text: 'Ключи и подключения моделей, которыми отвечает Мия.',
+  },
+  {
+    to: '/devices',
+    icon: MonitorSmartphone,
+    title: 'Устройства',
+    text: 'Телефоны и браузеры аккаунта: кто онлайн и что Мия может сделать на каждом.',
   },
   {
     to: '/notifications',

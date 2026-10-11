@@ -1,6 +1,11 @@
 // Public error codes (contracts/mvp/v1/error-codes.json) in the words the user sees.
 const messages: Record<string, string> = {
   authentication_required: 'Войдите, чтобы продолжить.',
+  device_not_found: 'Устройство не найдено: возможно, оно уже отключено.',
+  device_is_current:
+    'Это устройство, с которого вы сейчас работаете. Чтобы отключить его, выйдите из аккаунта.',
+  device_grant_not_found: 'Разрешение уже отозвано.',
+  device_access_forbidden: 'Это можно изменить только в приложении на самом телефоне.',
   invalid_credentials: 'Сессия недействительна. Войдите снова.',
   token_expired: 'Сессия истекла. Войдите снова.',
   unauthenticated: 'Войдите, чтобы продолжить.',

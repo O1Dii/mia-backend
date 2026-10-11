@@ -520,6 +520,111 @@ export type ConnectedApp = {
   updated_at: string
 }
 
+// ---------------------------------------------------------------- «Устройства» (M84, devices.schema.json)
+/** Unknown values (a Personal Node of M86, a new status) are shown as «другое», never an error. */
+export type DeviceKind = 'phone' | 'browser' | 'node' | (string & {})
+export type PresenceStatus = 'online' | 'recent' | 'offline' | 'no_push' | (string & {})
+export type DevicePush = 'registered' | 'missing' | 'not_configured' | 'not_applicable'
+export type OsPermission = 'granted' | 'denied' | 'not_required' | 'unknown'
+
+export type DeviceSummary = {
+  id: string
+  kind: DeviceKind
+  name: string
+  default_name: string
+  custom_name: boolean
+  current: boolean
+  platform: {
+    os: string | null
+    model: string | null
+    app_version: string | null
+    client: string | null
+  }
+  connected_at: string
+  last_seen_at: string | null
+  presence: { status: PresenceStatus; via: 'connection' | 'contact' | null }
+  push: DevicePush
+  capabilities_ready?: number
+  capabilities_total?: number
+}
+
+export type DevicePluginUse = {
+  plugin_id: string
+  name: string
+  description: string
+  optional: boolean
+}
+
+export type DeviceCapabilityState = {
+  capability: string
+  label: string
+  kind: 'read' | 'action' | 'external'
+  model_sees: string
+  persistent_allowed: boolean
+  enabled: boolean
+  os_permission: OsPermission
+  remote: 'ask' | 'deny'
+  ready: boolean
+  plugins: DevicePluginUse[]
+}
+
+/** A persistent permission a phone gave to another client (device-access.schema.json). */
+export type DeviceGrant = {
+  id: string
+  capability: string
+  capability_label: string
+  requester: { kind: string; label: string }
+  created_at: string
+  expires_at: string
+  last_used_at: string | null
+}
+
+export type DeviceReceivedGrant = {
+  id: string
+  target_device_id: string
+  target_device_name: string
+  capability: string
+  capability_label: string
+  created_at: string
+  expires_at: string
+  last_used_at: string | null
+}
+
+export type DeviceDetail = DeviceSummary & {
+  notifications?: 'granted' | 'denied' | 'unknown'
+  reported_at?: string | null
+  capabilities: DeviceCapabilityState[]
+  grants: DeviceGrant[]
+  received_grants: DeviceReceivedGrant[]
+  links: { access_log: string | null }
+  actions: { rename: boolean; disconnect: boolean }
+}
+
+export type CloudRow = {
+  label: string
+  status: 'online'
+  summary: string
+  plugins: { plugin_id: string; name: string; cloud: string; device: string | null }[]
+}
+
+export type DeviceList = {
+  items: DeviceSummary[]
+  cloud: CloudRow
+  server_time: string
+  online_window_seconds: number
+}
+
+export type DeviceAccessLogEntry = {
+  id: string
+  capability: string
+  capability_label: string
+  tool: string
+  requester: { kind: string; label: string }
+  decision: string
+  created_at: string
+  run_id?: string
+}
+
 const enc = encodeURIComponent
 
 export const api = {
@@ -753,6 +858,26 @@ export const api = {
   notificationSettings: () => http<NotificationSettings>('GET', '/v1/notifications/settings'),
   updateNotificationSettings: (patch: NotificationSettingsPatch) =>
     http<NotificationSettings>('PATCH', '/v1/notifications/settings', { body: patch }),
+
+  // ---- «Устройства» (M84)
+  devices: () => http<DeviceList>('GET', '/v1/devices'),
+  device: (id: string) => http<DeviceDetail>('GET', `/v1/devices/${enc(id)}`),
+  renameDevice: (id: string, name: string | null) =>
+    http<DeviceDetail>('PATCH', `/v1/devices/${enc(id)}`, { body: { name } }),
+  disconnectDevice: (id: string) => http<void>('POST', `/v1/devices/${enc(id)}/disconnect`),
+  /** «Пульс» of an open tab: keeps this browser «онлайн» on the «Устройства» screen. */
+  deviceHeartbeat: () =>
+    http<{ device_id: string; kind: DeviceKind; next_heartbeat_seconds: number }>(
+      'POST',
+      '/v1/devices/heartbeat',
+      { quiet401: true, timeoutMs: 10000 },
+    ),
+  revokeDeviceGrant: (deviceId: string, grantId: string) =>
+    http<void>('DELETE', `/v1/devices/${enc(deviceId)}/grants/${enc(grantId)}`),
+  deviceAccessLog: (deviceId: string, limit = 50) =>
+    http<{ items: DeviceAccessLogEntry[] }>('GET', `/v1/devices/${enc(deviceId)}/access-log`, {
+      query: { limit },
+    }),
 
   // ---- connected apps (M50)
   apps: () => http<{ items: ConnectedApp[] }>('GET', '/v1/apps'),

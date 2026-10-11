@@ -11,10 +11,12 @@ import {
 } from 'lucide-react'
 import { useAuth } from './lib/auth'
 import { ChatProvider, chatPath, useChat } from './lib/chat'
+import { useDeviceHeartbeat } from './lib/heartbeat'
 import { Link, navigate, usePlace } from './lib/router'
 import { Approvals, usePendingApprovals } from './components/Approvals'
 import { Chat } from './components/Chat'
 import { Dashboard } from './components/Dashboard'
+import { Devices } from './components/Devices'
 import { Inbox, useUnreadInbox } from './components/Inbox'
 import { Memory } from './components/Memory'
 import { Models } from './components/Models'
@@ -53,7 +55,7 @@ const tabs: Tab[] = [
     to: '/more',
     label: 'Ещё',
     icon: Ellipsis,
-    match: /^\/(more|installed|models|data|notifications)/,
+    match: /^\/(more|installed|models|data|notifications|devices)/,
   },
 ]
 
@@ -72,6 +74,7 @@ function Shell() {
   const count = pending.items?.length ?? 0
   const unread = useUnreadInbox()
   const chat = useChat()
+  useDeviceHeartbeat()
   // The tab returns to the chat that was open, not to the latest one.
   const chatHref = chatPath(chat.activeId, chat.draft)
 
@@ -87,6 +90,9 @@ function Shell() {
   else if (path.startsWith('/memory')) screen = <Memory />
   else if (path.startsWith('/data')) screen = <Privacy />
   else if (path.startsWith('/notifications')) screen = <Notifications />
+  else if (path === '/devices' || path === '/devices/') screen = <Devices />
+  else if (path.startsWith('/devices/'))
+    screen = <Devices deviceId={decodeURIComponent(path.slice('/devices/'.length))} />
   else if (path.startsWith('/more')) screen = <More />
   else if (path === '/store/connected') screen = <StoreConnected search={place.search} />
   else if (path === '/store/add-url') screen = <StoreAddUrl search={place.search} />
