@@ -257,6 +257,11 @@ class RunExecution:
         self.final_lock = asyncio.Lock()
         self.steps = 0
         self.tool_calls = 0
+        """Tool calls executed (reported in ``run.completed``)."""
+        self.budget_used = 0
+        """Units of ``limits.max_tool_calls`` spent; a step's parallel reads share one."""
+        self.step_reads = 0
+        """Reads of the current model step that share a budget unit (OI-M60-001)."""
         self.usage = _Usage()
         self.descriptors: dict[str, ToolDescriptor] = {}
         self.seen_calls: dict[str, tuple[str, str]] = {}
@@ -417,7 +422,7 @@ class RunExecution:
             offer_tools = (
                 bool(specs)
                 and self.steps + 1 < self.limits.max_steps
-                and self.tool_calls < self.limits.max_tool_calls
+                and self.budget_used < self.limits.max_tool_calls
             )
             request = ModelRequest(
                 user_id=str(self.record.user_id),
@@ -433,6 +438,7 @@ class RunExecution:
             messages.append(
                 ModelMessage(role="assistant", content=step.text, tool_calls=tuple(step.calls))
             )
+            self.step_reads = 0
             for call in step.calls:
                 content = await self.call_tool(call)
                 messages.append(
@@ -505,8 +511,17 @@ class RunExecution:
                 extra={"run_id": str(self.record.id), "tool_name": call.name[:128]},
             )
             return _model_result("failed", error="tool_not_found")
-        if self.tool_calls >= self.limits.max_tool_calls:
-            return _model_result("skipped", error="tool_budget_exceeded")
+        shares = descriptor.risk == "read" and self.limits.max_parallel_reads > 1
+        if shares and self.step_reads >= self.limits.max_parallel_reads:
+            return _model_result("skipped", error="parallel_read_limit")
+        if shares and self.step_reads > 0:
+            self.step_reads += 1  # joins the unit the first read of this step paid for
+        else:
+            if self.budget_used >= self.limits.max_tool_calls:
+                return _model_result("skipped", error="tool_budget_exceeded")
+            self.budget_used += 1
+            if shares:
+                self.step_reads = 1
         self.tool_calls += 1
         started: dict[str, Any] = {
             "tool_call_id": call.call_id,

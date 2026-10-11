@@ -4337,3 +4337,31 @@ from the old voice/session dependency graph. These issues do not change its gate
 ## M90 inbox
 
 - Нет записей.
+
+## M12-R1 inbox
+
+### OI-M12-R1-001 — Параллельные чтения шага выполняются последовательно
+
+- Status: OPEN
+- Source session: M12-R1
+- Component: `app/modules/runs/engine.py` (`call_tool`), профиль `voice`
+- Question: бюджет считает чтения одного шага за один вызов, но движок вызывает их по очереди. Нужно ли выполнять группу чтений конкурентно (`asyncio.gather`) ради ~6 с до первого звука?
+- Why non-blocking: на фейках и в e2e укладывается; на живой модели с Linear по сети задержку никто не мерил. Конкурентный запуск меняет порядок событий `tool.call.started/completed` и требует отдельной проверки порядка `sequence`.
+- Current assumption: последовательно, порядок событий детерминирован.
+- Options: (a) оставить; (b) выполнять группу чтений конкурентно, события — в порядке вызовов.
+- Recommendation: решить по замеру UC-M60-8 (первый звук «Что у меня сегодня» на живой модели): если p95 первого звука > 4 с, делать (b).
+- Affected future sessions: M61, M62.
+- Revisit trigger/deadline: результаты UC-M60-8.
+
+### OI-M12-R1-002 — Чтения на устройстве делят единицу бюджета с серверными
+
+- Status: OPEN
+- Source session: M12-R1
+- Component: профиль `voice`, `ToolDescriptor.risk == "read"`
+- Question: чтение через телефон (`executor: device`) тоже имеет `risk: read` и входит в группу до 4 чтений на шаг; оно медленнее серверного (обход до телефона).
+- Why non-blocking: правило пользователя (OI-M60-001) говорит о «read-вызовах» без разбора исполнителя; новых классификаций не вводилось.
+- Current assumption: все `read` равны.
+- Options: (a) оставить; (b) группировать только серверные чтения.
+- Recommendation: (a), пока UC-M60-8 не покажет задержку из-за device-чтений.
+- Affected future sessions: M61.
+- Revisit trigger/deadline: результаты UC-M60-8.

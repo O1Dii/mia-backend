@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     # Run engine profiles (M12, ADR-0011 §1). Steps are model calls per run.
     run_voice_max_steps: int = Field(default=3, ge=1, le=10)
     run_voice_max_tool_calls: int = Field(default=2, ge=0, le=10)
+    run_voice_max_parallel_reads: int = Field(default=4, ge=1, le=8)
     run_voice_timeout_seconds: float = Field(default=25.0, gt=0, le=120)
     run_voice_speech_max_chars: int = Field(default=250, ge=40, le=300)
     run_voice_ack_delay_ms: int = Field(default=1500, ge=0, le=10000)
