@@ -276,7 +276,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M17-R1-003 | OPEN | accounts / ops | Сколько хранить журнал удалений и бэкапы | решить с бэкапами | M62 |
 | OI-M17-R1-004 | OPEN | chat | Инкогнито отвечает без контекста предыдущих инкогнито-вопросов | контекст только на экране | жалоба пользователя |
 | OI-MW6-001 | OPEN | accounts | Анонимный `DELETE /v1/account` отвечает 422, а не 401 | ничего не удаляет | следующая правка аккаунта / M62 |
-| OI-M85-001 | OPEN | Personal Node | Решения пользователя Р1–Р12 по ADR-0019 | рекомендации в ADR; Р1–Р4, Р11 блокируют M86 | решение пользователя |
+| OI-M85-001 | OPEN | Personal Node | Решения пользователя Р1–Р12 по ADR-0019 | Р11 решён 2026-10-11 (установщики, M92/M93); Р1–Р4 блокируют M86 | решение пользователя |
 | OI-M85-002 | OPEN | Personal Node / relay | Relay требует сырой TCP 443, шлюз провайдера сам терминирует TLS | отдельный маленький сервер (Р2) | M91 |
 | OI-M85-003 | OPEN | Personal Node | Долгий WebSocket через шлюз провайдера не проверен | проверка в M86 | M86 |
 | OI-M85-004 | OPEN | runtime | Состояние устройств и run живёт в одном процессе API | один процесс; при нескольких — межпроцессная маршрутизация | multi-instance |
@@ -286,6 +286,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M85-008 | OPEN | models | Какая локальная модель справляется с русским и tools | проверка пользователя в M88 | M88 |
 | OI-M85-009 | RESOLVED | docs | Строки индексов ADR и contracts README | integrator MW6b добавил | — |
 | OI-M85-010 | OPEN | supply chain | Подпись релизов и цепочка поставки `mia-node` | — | M90 / post-MVP |
+| OI-M85-011 | OPEN | Node packaging | Подпись установщиков `mia-node` (платно) | без подписи на пилот | решение пользователя / M92 |
 
 ## Record template
 
@@ -4498,6 +4499,17 @@ from the old voice/session dependency graph. These issues do not change its gate
 - Affected future sessions: M86, M90, после MVP.
 - Revisit trigger/deadline: перед открытым запуском.
 
+### OI-M85-011 — Подпись установщиков `mia-node` (платно)
+
+- Status: OPEN (решение пользователя)
+- Source session: integrator MW6b (решение Р11 = установщики)
+- Component: `packaging/node/**` (M92)
+- Question: без подписи macOS и Windows показывают предупреждение при первом запуске. Подпись: macOS — аккаунт Apple Developer (≈ $99/год), Windows — сертификат подписи кода (обычно сотни долларов в год; цены уточнить при решении).
+- Why non-blocking: M92 собирает без подписи с инструкцией; подпись включается переменными CI.
+- Options: (a) без подписи на пилот; (b) подписать только macOS; (c) подписать обе.
+- Recommendation: (a) на пилот, решение — по числу пользователей вне круга разработчиков.
+- Affected future sessions: M92.
+
 ## M86 inbox
 
 - Нет записей.
@@ -4703,3 +4715,15 @@ Resolution updates (for the integrator to carry into the index and the source re
 - Recommendation: (b) after the pilot if users ask.
 - Affects sessions: M12 follow-up, web/Android chat.
 - Revisit trigger/by: pilot feedback.
+
+## M91 inbox
+
+- Нет записей.
+
+## M92 inbox
+
+- Нет записей.
+
+## M93 inbox
+
+- Нет записей.
