@@ -275,6 +275,7 @@ Integration session обновляет этот индекс после merge.
 | OI-M17-R1-002 | OPEN | accounts / models | Токены ChatGPT (подписка) удаляются локально, но не отзываются у OpenAI | нет публичного revoke | M61 |
 | OI-M17-R1-003 | OPEN | accounts / ops | Сколько хранить журнал удалений и бэкапы | решить с бэкапами | M62 |
 | OI-M17-R1-004 | OPEN | chat | Инкогнито отвечает без контекста предыдущих инкогнито-вопросов | контекст только на экране | жалоба пользователя |
+| OI-MW6-001 | OPEN | accounts | Анонимный `DELETE /v1/account` отвечает 422, а не 401 | ничего не удаляет | следующая правка аккаунта / M62 |
 
 ## Record template
 
@@ -4318,6 +4319,18 @@ from the old voice/session dependency graph. These issues do not change its gate
 ## M62 inbox
 
 - Нет записей.
+
+## MW6 integration inbox
+
+### OI-MW6-001 — Анонимный `DELETE /v1/account` отвечает 422, а не 401
+
+- Status: OPEN
+- Source session: MW6 integrator (smoke после выкладки)
+- Component: `app/api/v1/account.py` (M17-R1)
+- Question: без входа запрос с `Idempotency-Key` получает `validation_error` 422 раньше проверки входа. Ничего не удаляется, но контракт для анонимного запроса — 401 с challenge.
+- Why non-blocking: безопасность не нарушена; клиенты вызывают endpoint только после входа.
+- Recommendation: проверять вход до валидации тела/заголовков; тест на анонимный 401.
+- Affected future sessions: следующая правка аккаунта / M62.
 
 ## M80 inbox
 
