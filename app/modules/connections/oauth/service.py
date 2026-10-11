@@ -50,6 +50,7 @@ from app.modules.workspace.errors import ConflictError, ResourceNotFoundError, W
 from app.modules.workspace.models import Installation, Workspace
 from app.modules.workspace.service import MutationResult, WorkspaceContext, WorkspaceService
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -795,6 +796,38 @@ class ConnectionService:
             await session.delete(row)
         await self._revoke_upstream(snapshot, secrets)
         return True
+
+    async def revoke_all_for_user(self, user_id: uuid.UUID) -> int:
+        """Account deletion (M17-R1, OI-M15-006): every plugin account of ``user_id``.
+
+        Deletes the connection rows and revokes each token at its authorization server (best
+        effort, like :meth:`revoke_installation`). Runs before the user's data key is shredded:
+        the tokens cannot be read afterwards. Returns how many connections there were.
+        """
+        pending: list[tuple[_Snapshot, dict[str, str]]] = []
+        async with self._session_factory() as session, session.begin():
+            rows = (
+                await session.scalars(
+                    select(PluginConnection)
+                    .where(PluginConnection.user_id == user_id)
+                    .with_for_update()
+                )
+            ).all()
+            for row in rows:
+                try:
+                    secrets = await self._secrets(session, row)
+                except SQLAlchemyError:
+                    raise
+                except Exception as error:  # unreadable tokens die with the shredded key
+                    logger.warning(
+                        "oauth_revocation_unreadable", extra={"error_type": type(error).__name__}
+                    )
+                    secrets = {}
+                pending.append((_Snapshot.of(row), secrets))
+                await session.delete(row)
+        for snapshot, secrets in pending:
+            await self._revoke_upstream(snapshot, secrets)
+        return len(pending)
 
     async def _revoke_upstream(self, snapshot: _Snapshot, secrets: Mapping[str, str]) -> None:
         endpoint = snapshot.revocation_endpoint
